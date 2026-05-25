@@ -50,15 +50,16 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14 (App Router)
-- **Styling**: Tailwind CSS v4
+- **Frontend**: Next.js 16.2.6 (App Router + Turbopack)
+- **UI Library**: React 19.2.4
+- **Styling**: Tailwind CSS v4 (@tailwindcss/postcss)
 - **Components**: shadcn/ui
 - **Database**: Supabase PostgreSQL
 - **Authentication**: Supabase Auth
 - **Charts**: Recharts
-- **Export**: SheetJS (xlsx)
+- **Excel Export**: SheetJS (xlsx)
 - **Icons**: lucide-react
-- **Date**: date-fns
+- **Date Utilities**: date-fns
 
 ## 📋 Prerequisites
 
@@ -87,18 +88,10 @@ npm install
 3. Buat project baru
 4. Tunggu project selesai
 
-#### Ambil API Keys
-1. Di Supabase dashboard, klik **Settings** (gear icon)
-2. Pilih **API** di sidebar kiri
-3. Salin:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role secret` → `SUPABASE_SERVICE_ROLE_KEY` (jangan share!)
-
 #### Setup Database Schema
 1. Di Supabase, buka **SQL Editor**
 2. Klik **New Query**
-3. Copy-paste script SQL di atas (sebelum bagian "4. Setup Environment Variables")
+3. Copy-paste script SQL di bawah
 4. Klik **Run**
 5. ✅ Database siap dengan demo data! Tidak perlu buat user manual
 
@@ -269,13 +262,31 @@ VALUES ('550e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Saya', 'Pemilik', 'o
 INSERT INTO outlets (id, business_id, name, location)
 VALUES ('660e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000', 'Outlet Utama', 'Jl. Contoh No. 123');
 
-INSERT INTO products (outlet_id, name, price, description)
+INSERT INTO products (id, outlet_id, name, price, description)
 VALUES 
-  ('660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Standar', 5000, 'Roti bakar dengan topping standar'),
-  ('660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Premium', 10000, 'Roti bakar dengan topping premium');
+  ('550e8400-e29b-41d4-a716-446655440001', '660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Standar', 5000, 'Roti bakar dengan topping standar'),
+  ('550e8400-e29b-41d4-a716-446655440002', '660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Premium', 10000, 'Roti bakar dengan topping premium');
 
 INSERT INTO capital_entries (outlet_id, date, amount, source)
 VALUES ('660e8400-e29b-41d4-a716-446655440000', '2026-05-25', 5000000, 'Modal awal');
+
+INSERT INTO daily_sessions (id, outlet_id, date, opening_cash, status)
+VALUES 
+  ('770e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', '2026-05-25', 500000, 'open'),
+  ('880e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', '2026-05-24', 400000, 'closed');
+
+INSERT INTO sales (id, session_id, outlet_id, date, channel, payment_method, gross_amount, platform_fee, net_amount)
+VALUES 
+  ('990e8400-e29b-41d4-a716-446655440000', '770e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', '2026-05-26', 'offline', 'cash', 100000, 0, 100000),
+  ('aa0e8400-e29b-41d4-a716-446655440000', '770e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', '2026-05-26', 'shopeefood', 'qris', 150000, 30000, 120000);
+
+INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price, subtotal)
+VALUES 
+  ('bb0e8400-e29b-41d4-a716-446655440000', '990e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001', 10, 10000, 100000),
+  ('cc0e8400-e29b-41d4-a716-446655440000', 'aa0e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001', 15, 10000, 150000);
+
+INSERT INTO expenses (id, outlet_id, session_id, date, category, description, amount)
+VALUES ('dd0e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', '770e8400-e29b-41d4-a716-446655440000', '2026-05-25', 'operasional', 'Biaya listrik', 50000);
 
 ```
 
