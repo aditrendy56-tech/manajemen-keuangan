@@ -42,6 +42,30 @@ export interface CapitalEntry {
   date: string;
   amount: number;
   source?: string;
+  source_type?: 'owner' | 'investor';
+  investor_id?: string | null;
+  notes?: string;
+  created_at: string;
+}
+
+export interface Investor {
+  id: string;
+  outlet_id: string;
+  name: string;
+  phone?: string;
+  initial_contribution: number;
+  remaining_balance: number;
+  status: 'active' | 'settled' | 'partial';
+  priority_order?: number;
+  created_at: string;
+}
+
+export interface InvestorRepayment {
+  id: string;
+  investor_id: string;
+  amount: number;
+  repayment_date: string;
+  method?: string;
   notes?: string;
   created_at: string;
 }

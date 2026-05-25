@@ -31,6 +31,13 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - Total modal terakumulasi
 - Riwayat lengkap dengan tanggal dan sumber
 
+### Manajemen Investor
+- **Daftar Investor**: Track semua pemberi modal dengan prioritas pengembalian
+- **Sistem Return Modal**: Pencatatan pengembalian modal dengan otomatis update saldo
+- **Progress Tracking**: Progress pengembalian per investor dengan persentase
+- **History**: Riwayat lengkap pengembalian modal untuk setiap investor
+- **Priority-based Repayment**: Investor dengan priority lebih tinggi didahulukan pengembaliannya
+
 ### Pembelian Bahan Baku
 - Input pembelian dengan kalkulasi otomatis total (qty × unit price)
 - Pencatatan tanggal, jumlah, dan harga per unit
@@ -151,13 +158,39 @@ CREATE TABLE IF NOT EXISTS raw_materials (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Capital entries table
+-- Investors table (untuk tracking pemberi modal)
+CREATE TABLE IF NOT EXISTS investors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(20),
+  initial_contribution DECIMAL(15, 2) NOT NULL,
+  remaining_balance DECIMAL(15, 2) NOT NULL,
+  status VARCHAR(50) DEFAULT 'active',
+  priority_order INT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Capital entries table (modified untuk link ke investor)
 CREATE TABLE IF NOT EXISTS capital_entries (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   amount DECIMAL(15, 2) NOT NULL,
   source VARCHAR(255),
+  source_type VARCHAR(50),
+  investor_id UUID REFERENCES investors(id) ON DELETE SET NULL,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Capital repayments table (track pengembalian modal)
+CREATE TABLE IF NOT EXISTS capital_repayments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  investor_id UUID NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
+  amount DECIMAL(15, 2) NOT NULL,
+  repayment_date DATE NOT NULL,
+  method VARCHAR(50),
   notes TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -234,7 +267,9 @@ ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outlets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE raw_materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE capital_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE capital_repayments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY;
@@ -246,7 +281,9 @@ CREATE POLICY "businesses_all" ON businesses FOR ALL USING (true);
 CREATE POLICY "outlets_all" ON outlets FOR ALL USING (true);
 CREATE POLICY "products_all" ON products FOR ALL USING (true);
 CREATE POLICY "raw_materials_all" ON raw_materials FOR ALL USING (true);
+CREATE POLICY "investors_all" ON investors FOR ALL USING (true);
 CREATE POLICY "capital_entries_all" ON capital_entries FOR ALL USING (true);
+CREATE POLICY "capital_repayments_all" ON capital_repayments FOR ALL USING (true);
 CREATE POLICY "daily_sessions_all" ON daily_sessions FOR ALL USING (true);
 CREATE POLICY "sales_all" ON sales FOR ALL USING (true);
 CREATE POLICY "sale_items_all" ON sale_items FOR ALL USING (true);
@@ -267,8 +304,20 @@ VALUES
   ('550e8400-e29b-41d4-a716-446655440001', '660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Standar', 5000, 'Roti bakar dengan topping standar'),
   ('550e8400-e29b-41d4-a716-446655440002', '660e8400-e29b-41d4-a716-446655440000', 'Roti Bakar Premium', 10000, 'Roti bakar dengan topping premium');
 
-INSERT INTO capital_entries (outlet_id, date, amount, source)
-VALUES ('660e8400-e29b-41d4-a716-446655440000', '2026-05-25', 5000000, 'Modal awal');
+INSERT INTO capital_entries (outlet_id, date, amount, source, source_type)
+VALUES ('660e8400-e29b-41d4-a716-446655440000', '2026-05-25', 5000000, 'Modal awal', 'owner');
+
+-- Investor data
+INSERT INTO investors (id, outlet_id, name, phone, initial_contribution, remaining_balance, status, priority_order)
+VALUES 
+  ('ee0e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', 'Teman A', '0812-1111-1111', 2000000, 1700000, 'active', 1),
+  ('ff0e8400-e29b-41d4-a716-446655440000', '660e8400-e29b-41d4-a716-446655440000', 'Teman B', '0812-2222-2222', 1000000, 950000, 'active', 2);
+
+-- Capital repayment history
+INSERT INTO capital_repayments (investor_id, amount, repayment_date, method)
+VALUES 
+  ('ee0e8400-e29b-41d4-a716-446655440000', 300000, '2026-05-24', 'cash'),
+  ('ff0e8400-e29b-41d4-a716-446655440000', 50000, '2026-05-25', 'cash');
 
 INSERT INTO daily_sessions (id, outlet_id, date, opening_cash, status)
 VALUES 
@@ -328,6 +377,7 @@ Akses aplikasi di: http://localhost:3000
 - **Penjualan**: Input dan history penjualan
 - **Pengeluaran**: Input dan tracking pengeluaran
 - **Modal**: Pencatatan modal usaha
+- **Investor**: Manajemen investor dan tracking pengembalian modal
 - **Bahan Baku**: Manajemen pembelian bahan
 - **Produk**: Daftar produk dan harga
 - **Laporan**: P&L dan export Excel
