@@ -36,6 +36,14 @@ export interface RawMaterial {
   price_per_unit: number;
 }
 
+export interface ModalItem {
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  condition?: 'baik' | 'rusak' | 'habis';
+}
+
 export interface CapitalEntry {
   id: string;
   outlet_id: string;
@@ -44,6 +52,8 @@ export interface CapitalEntry {
   source?: string;
   source_type?: 'owner' | 'investor';
   investor_id?: string | null;
+  category?: 'peralatan' | 'bahan_awal' | 'rencana_tambahan';
+  items?: ModalItem[];
   notes?: string;
   created_at: string;
 }

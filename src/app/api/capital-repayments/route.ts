@@ -17,13 +17,15 @@ export async function GET(request: NextRequest) {
       query.eq('investor_id', investorId);
     } else if (outletId) {
       // Get repayments for all investors in this outlet
-      const { data: investors } = await getSupabaseServer()
+      const { data: investors, error: investorError } = await getSupabaseServer()
         .from('investors')
         .select('id')
         .eq('outlet_id', outletId);
 
+      if (investorError) throw investorError;
+
       if (investors && investors.length > 0) {
-        const investorIds = investors.map(inv => inv.id);
+        const investorIds = (investors as any[]).map((inv: any) => inv.id);
         query.in('investor_id', investorIds);
       }
     }
@@ -66,18 +68,21 @@ export async function POST(request: NextRequest) {
     if (repaymentError) throw repaymentError;
 
     // Update investor remaining balance
-    const { data: investorData } = await getSupabaseServer()
+    const { data: investorData, error: investorError } = await (getSupabaseServer()
       .from('investors')
       .select('remaining_balance')
       .eq('id', investor_id)
-      .single();
+      .single() as any);
+
+    if (investorError) throw investorError;
 
     if (investorData) {
-      const newBalance = Math.max(0, (investorData.remaining_balance || 0) - amount);
+      const remaining = (investorData as any).remaining_balance || 0;
+      const newBalance = Math.max(0, remaining - amount);
       const newStatus = newBalance === 0 ? 'settled' : 'partial';
 
-      await getSupabaseServer()
-        .from('investors')
+      await (getSupabaseServer()
+        .from('investors') as any)
         .update({ remaining_balance: newBalance, status: newStatus })
         .eq('id', investor_id);
     }

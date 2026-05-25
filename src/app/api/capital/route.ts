@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, date, amount, source, notes } = body;
+    const { outlet_id, date, amount, source, notes, investor_id, source_type, category, items } = body;
 
     if (!outlet_id || !date || !amount) {
       return NextResponse.json(
@@ -40,7 +40,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await (getSupabaseServer().from('capital_entries') as any)
-      .insert([{ outlet_id, date, amount, source, notes }])
+      .insert([{ 
+        outlet_id, 
+        date, 
+        amount, 
+        source, 
+        notes,
+        investor_id,
+        source_type,
+        category,
+        items: items || null
+      }])
       .select();
 
     if (error) throw error;

@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
     if (remaining_balance !== undefined) updateData.remaining_balance = remaining_balance;
     if (status !== undefined) updateData.status = status;
 
-    const { data, error } = await getSupabaseServer().from('investors')
+    const { data, error } = await (getSupabaseServer().from('investors') as any)
       .update(updateData)
       .eq('id', id)
       .select();
