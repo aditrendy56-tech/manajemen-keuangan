@@ -102,6 +102,10 @@ npm install
 4. Klik **Run**
 5. ✅ Database siap dengan demo data! Tidak perlu buat user manual
 
+**Atau untuk investor system saja:**
+- File: `database/investor-schema.sql` di root project
+- Copy-paste ke Supabase SQL Editor dan Run
+
 #### Ambil API Keys
 1. Di Supabase dashboard, klik **Settings** (gear icon)
 2. Pilih **API** di sidebar kiri
