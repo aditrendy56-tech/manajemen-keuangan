@@ -1,86 +1,540 @@
 'use client';
 
-import { useState } from 'react';
-import { MaterialPurchaseForm } from '@/components/forms/MaterialPurchaseForm';
+import { useEffect, useState } from 'react';
+import { MaterialPurchase, RawMaterial, Supplier, SupplierPrice } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MaterialPurchase } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import Link from 'next/link';
+
+const OUTLET_ID = '1b2c3d4e-5f6g-7h8i-9j0k-1l2m3n4o5p6q';
 
 export default function MaterialsPage() {
-  const [purchases, setPurchases] = useState<MaterialPurchase[]>([
-    {
-      id: '1',
-      outlet_id: 'outlet-1',
-      raw_material_id: 'mat-1',
-      date: new Date().toISOString().split('T')[0],
-      quantity: 10,
-      unit_price: 50000,
-      total_amount: 500000,
-      notes: 'Pembelian awal',
-      created_at: new Date().toISOString(),
-    },
-  ]);
-  const [loading, setLoading] = useState(false);
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierPrices, setSupplierPrices] = useState<SupplierPrice[]>([]);
+  const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(data: any) {
-    setLoading(true);
+  // Form state
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    raw_material_id: '',
+    supplier_id: '',
+    quantity: '',
+    unit_price: '',
+    quality: 'Baik',
+    invoice_number: '',
+    payment_status: 'Paid',
+    delivery_date: '',
+    notes: '',
+  });
+
+  const [selectedSupplierPrices, setSelectedSupplierPrices] = useState<SupplierPrice[]>([]);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (formData.raw_material_id) {
+      const prices = supplierPrices.filter(
+        (p) => p.raw_material_id === formData.raw_material_id
+      );
+      setSelectedSupplierPrices(prices);
+      
+      // Auto-fill unit price from first supplier if available
+      if (formData.supplier_id && prices.length > 0) {
+        const selected = prices.find((p) => p.supplier_id === formData.supplier_id);
+        if (selected && !formData.unit_price) {
+          setFormData((prev) => ({
+            ...prev,
+            unit_price: selected.unit_price.toString(),
+          }));
+        }
+      }
+    }
+  }, [formData.raw_material_id, supplierPrices, formData.supplier_id]);
+
+  const fetchData = async () => {
     try {
-      const newPurchase: MaterialPurchase = {
-        id: Math.random().toString(36),
-        outlet_id: 'outlet-1',
-        ...data,
-        created_at: new Date().toISOString(),
-      };
-      setPurchases([newPurchase, ...purchases]);
+      setLoading(true);
+
+      // Fetch materials
+      try {
+        const matRes = await fetch(`/api/raw-materials?outlet_id=${OUTLET_ID}`);
+        if (matRes.ok) {
+          const data = await matRes.json();
+          setMaterials(Array.isArray(data) ? data : []);
+        } else {
+          setMaterials([]);
+        }
+      } catch (error) {
+        console.error('Error fetching materials:', error);
+        setMaterials([]);
+      }
+
+      // Fetch suppliers
+      try {
+        const supRes = await fetch(`/api/suppliers?outlet_id=${OUTLET_ID}`);
+        if (supRes.ok) {
+          const data = await supRes.json();
+          setSuppliers(Array.isArray(data) ? data : []);
+        } else {
+          setSuppliers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching suppliers:', error);
+        setSuppliers([]);
+      }
+
+      // Fetch supplier prices
+      try {
+        const priceRes = await fetch('/api/supplier-prices');
+        if (priceRes.ok) {
+          const data = await priceRes.json();
+          setSupplierPrices(Array.isArray(data) ? data : []);
+        } else {
+          setSupplierPrices([]);
+        }
+      } catch (error) {
+        console.error('Error fetching supplier prices:', error);
+        setSupplierPrices([]);
+      }
+
+      // Fetch purchases
+      try {
+        const purchaseRes = await fetch(
+          `/api/material-purchases?outlet_id=${OUTLET_ID}`
+        );
+        if (purchaseRes.ok) {
+          const data = await purchaseRes.json();
+          setPurchases(Array.isArray(data) ? data : []);
+        } else {
+          setPurchases([]);
+        }
+      } catch (error) {
+        console.error('Error fetching purchases:', error);
+        setPurchases([]);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    try {
+      if (!formData.raw_material_id || !formData.quantity) {
+        throw new Error('Material dan quantity harus diisi');
+      }
+
+      const payload = {
+        outlet_id: OUTLET_ID,
+        raw_material_id: formData.raw_material_id,
+        supplier_id: formData.supplier_id || null,
+        date: formData.date,
+        quantity: parseInt(formData.quantity),
+        unit_price: parseFloat(formData.unit_price),
+        total_amount:
+          parseInt(formData.quantity) * parseFloat(formData.unit_price),
+        quality: formData.quality,
+        invoice_number: formData.invoice_number,
+        payment_status: formData.payment_status,
+        delivery_date: formData.delivery_date,
+        notes: formData.notes,
+      };
+
+      const response = await fetch('/api/material-purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error('Gagal menyimpan pembelian');
+
+      setMessage({
+        type: 'success',
+        text: 'Pembelian bahan berhasil dicatat!',
+      });
+
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        raw_material_id: '',
+        supplier_id: '',
+        quantity: '',
+        unit_price: '',
+        quality: 'Baik',
+        invoice_number: '',
+        payment_status: 'Paid',
+        delivery_date: '',
+        notes: '',
+      });
+
+      fetchData();
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.message || 'Gagal menyimpan pembelian',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">Memuat data...</div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Pembelian Bahan Baku</h1>
-        <p className="text-gray-600">Kelola pembelian bahan baku</p>
+        <p className="text-gray-600">
+          Kelola pembelian bahan dengan tracking supplier dan price comparison
+        </p>
+      </div>
+
+      {/* Navigation Links */}
+      <div className="flex gap-3 mb-6">
+        <Link
+          href="/materials/price-comparison"
+          className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
+        >
+          📊 Price Comparison
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
+        {/* Form */}
+        <div className="lg:col-span-1">
+          <Card className="border-orange-200">
             <CardHeader>
-              <CardTitle>Daftar Pembelian</CardTitle>
+              <CardTitle className="text-orange-900">Input Pembelian Baru</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {message && (
+                <Alert
+                  className={`mb-4 ${
+                    message.type === 'success'
+                      ? 'bg-green-50 text-green-800 border-green-200'
+                      : 'bg-red-50 text-red-800 border-red-200'
+                  }`}
+                >
+                  {message.text}
+                </Alert>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Tanggal *</Label>
+                  <Input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Barang *</Label>
+                  <Select
+                    name="raw_material_id"
+                    value={formData.raw_material_id}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">-- Pilih Barang --</option>
+                    {materials.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.unit})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Supplier (Optional)</Label>
+                  <Select
+                    name="supplier_id"
+                    value={formData.supplier_id}
+                    onChange={handleChange}
+                  >
+                    <option value="">-- Pilih Supplier (opsional) --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+
+                  {selectedSupplierPrices.length > 0 && (
+                    <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200 text-xs">
+                      <div className="font-semibold text-orange-900 mb-1">
+                        Price Comparison untuk item ini:
+                      </div>
+                      {selectedSupplierPrices.map((price) => {
+                        const supplier = suppliers.find(
+                          (s) => s.id === price.supplier_id
+                        );
+                        return (
+                          <div
+                            key={price.id}
+                            className={`py-1 px-2 flex justify-between ${
+                              price.supplier_id === formData.supplier_id
+                                ? 'bg-green-100 rounded'
+                                : ''
+                            }`}
+                          >
+                            <span>{supplier?.name}:</span>
+                            <span className="font-semibold">
+                              {formatCurrency(price.unit_price)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Qty *</Label>
+                  <Input
+                    type="number"
+                    name="quantity"
+                    value={formData.quantity}
+                    onChange={handleChange}
+                    placeholder="5"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Harga/Unit *</Label>
+                  <Input
+                    type="number"
+                    name="unit_price"
+                    value={formData.unit_price}
+                    onChange={handleChange}
+                    placeholder="50000"
+                    required
+                  />
+                </div>
+
+                {formData.quantity && formData.unit_price && (
+                  <div className="p-3 bg-orange-50 rounded border border-orange-200">
+                    <div className="text-sm text-gray-600">Total:</div>
+                    <div className="text-xl font-bold text-orange-600">
+                      {formatCurrency(
+                        parseInt(formData.quantity) *
+                          parseFloat(formData.unit_price)
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-sm font-medium">Kualitas Barang</Label>
+                  <Select
+                    name="quality"
+                    value={formData.quality}
+                    onChange={handleChange}
+                  >
+                    <option value="Baik">Baik</option>
+                    <option value="Kurang">Kurang Baik</option>
+                    <option value="Rusak">Rusak</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">No. Invoice</Label>
+                  <Input
+                    name="invoice_number"
+                    value={formData.invoice_number}
+                    onChange={handleChange}
+                    placeholder="INV-2026-001"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Status Pembayaran</Label>
+                  <Select
+                    name="payment_status"
+                    value={formData.payment_status}
+                    onChange={handleChange}
+                  >
+                    <option value="Paid">Paid</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Cicilan">Cicilan</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Tanggal Pengiriman</Label>
+                  <Input
+                    type="date"
+                    name="delivery_date"
+                    value={formData.delivery_date}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Catatan</Label>
+                  <Textarea
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleChange}
+                    placeholder="Catatan pembelian..."
+                    rows={2}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                >
+                  {submitting ? 'Menyimpan...' : 'Simpan Pembelian'}
+                </Button>
+              </form>
+
+              <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
+                <div className="text-sm text-blue-800">
+                  💡 Tip: Kunjungi halaman{' '}
+                  <Link
+                    href="/suppliers"
+                    className="font-semibold underline hover:text-blue-900"
+                  >
+                    Supplier
+                  </Link>
+                  {' '}untuk mengelola daftar distributor dan harga mereka.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Purchases List */}
+        <div className="lg:col-span-2">
+          <Card className="border-orange-200">
+            <CardHeader>
+              <CardTitle className="text-orange-900">
+                Riwayat Pembelian Bahan ({purchases.length})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {purchases.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">Tidak ada data pembelian</div>
+                <div className="text-center py-8 text-gray-500">
+                  Belum ada data pembelian
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
+                    <thead className="bg-orange-50 border-b-2 border-orange-200">
+                      <tr>
                         <th className="text-left p-2">Tanggal</th>
-                        <th className="text-left p-2">Jumlah</th>
+                        <th className="text-left p-2">Supplier</th>
+                        <th className="text-left p-2">Barang</th>
+                        <th className="text-center p-2">Qty</th>
                         <th className="text-right p-2">Harga/Unit</th>
                         <th className="text-right p-2">Total</th>
+                        <th className="text-center p-2">Kualitas</th>
+                        <th className="text-center p-2">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {purchases.map((purchase) => (
-                        <tr key={purchase.id} className="border-b hover:bg-gray-50">
-                          <td className="p-2">{purchase.date}</td>
-                          <td className="p-2">{purchase.quantity}</td>
-                          <td className="text-right p-2">Rp {purchase.unit_price.toLocaleString('id-ID')}</td>
-                          <td className="text-right p-2 font-semibold">Rp {purchase.total_amount.toLocaleString('id-ID')}</td>
-                        </tr>
-                      ))}
+                      {purchases.map((purchase) => {
+                        const material = materials.find(
+                          (m) => m.id === purchase.raw_material_id
+                        );
+                        const supplier = suppliers.find(
+                          (s) => s.id === purchase.supplier_id
+                        );
+                        return (
+                          <tr key={purchase.id} className="border-b hover:bg-orange-50">
+                            <td className="p-2 text-gray-800">
+                              {formatDate(purchase.date)}
+                            </td>
+                            <td className="p-2 font-medium text-gray-800">
+                              {supplier?.name || '-'}
+                            </td>
+                            <td className="p-2 text-gray-800">
+                              {material?.name}
+                            </td>
+                            <td className="text-center p-2 text-gray-600">
+                              {purchase.quantity} {material?.unit}
+                            </td>
+                            <td className="text-right p-2 text-gray-600">
+                              {formatCurrency(purchase.unit_price)}
+                            </td>
+                            <td className="text-right p-2 font-semibold text-orange-600">
+                              {formatCurrency(purchase.total_amount)}
+                            </td>
+                            <td className="text-center p-2">
+                              {purchase.quality && (
+                                <Badge
+                                  className={`${
+                                    purchase.quality === 'Baik'
+                                      ? 'bg-green-100 text-green-800'
+                                      : purchase.quality === 'Kurang'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}
+                                >
+                                  {purchase.quality}
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="text-center p-2">
+                              {purchase.payment_status && (
+                                <Badge
+                                  className={`${
+                                    purchase.payment_status === 'Paid'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : purchase.payment_status === 'Pending'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-orange-100 text-orange-800'
+                                  }`}
+                                >
+                                  {purchase.payment_status}
+                                </Badge>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
-        <div>
-          <MaterialPurchaseForm onSubmit={handleSubmit} loading={loading} />
         </div>
       </div>
     </div>

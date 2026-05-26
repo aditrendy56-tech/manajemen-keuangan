@@ -22,13 +22,23 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit({
-      date,
-      category,
-      description,
-      amount: parseFloat(amount),
-      notes,
-    });
+    try {
+      await onSubmit({
+        date,
+        category,
+        description,
+        amount: parseFloat(amount),
+        notes,
+      });
+      // Reset form setelah submit sukses
+      setDate(new Date().toISOString().split('T')[0]);
+      setCategory('operasional');
+      setDescription('');
+      setAmount('0');
+      setNotes('');
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
   }
 
   return (

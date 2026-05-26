@@ -126,14 +126,47 @@ export interface Expense {
   created_at: string;
 }
 
+export interface Supplier {
+  id: string;
+  outlet_id: string;
+  name: string;
+  contact_person?: string;
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+  opening_hours?: string;
+  quality_rating?: number;
+  reliability?: 'Good' | 'Excellent' | 'Poor';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierPrice {
+  id: string;
+  supplier_id: string;
+  raw_material_id: string;
+  unit_price: number;
+  minimum_order?: number;
+  last_updated: string;
+  is_current: boolean;
+  notes?: string;
+  created_at: string;
+}
+
 export interface MaterialPurchase {
   id: string;
   outlet_id: string;
   raw_material_id?: string;
+  supplier_id?: string;
   date: string;
   quantity: number;
   unit_price: number;
   total_amount: number;
+  quality?: 'Baik' | 'Kurang' | 'Rusak';
+  invoice_number?: string;
+  payment_status?: 'Paid' | 'Pending' | 'Cicilan';
+  delivery_date?: string;
   notes?: string;
   created_at: string;
 }

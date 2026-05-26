@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  Store,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Pengeluaran', href: '/expenses', icon: DollarSign },
   { name: 'Modal', href: '/capital', icon: Zap },
   { name: 'Investor', href: '/investors', icon: Users },
+  { name: 'Supplier', href: '/suppliers', icon: Store },
   { name: 'Bahan Baku', href: '/materials', icon: Package },
   { name: 'Produk', href: '/products', icon: BarChart3 },
   { name: 'Laporan', href: '/reports', icon: BarChart3 },

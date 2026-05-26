@@ -13,17 +13,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
     }
 
+    console.log('[GET /api/expenses] Fetching expenses for outlet:', outletId);
+
     const { data, error } = await getSupabaseServer().from('expenses')
       .select('*')
       .eq('outlet_id', outletId)
       .order('date', { ascending: false })
       .limit(parseInt(limit));
 
-    if (error) throw error;
+    if (error) {
+      console.error('[GET /api/expenses] Supabase error:', error);
+      throw error;
+    }
 
+    console.log('[GET /api/expenses] Success, returned', data?.length, 'expenses');
     return NextResponse.json(data);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[GET /api/expenses] Error:', error.message);
+    return NextResponse.json({ error: error.message || 'Failed to fetch expenses' }, { status: 500 });
   }
 }
 
@@ -32,20 +39,34 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { session_id, outlet_id, date, category, description, amount, notes } = body;
 
+    console.log('[POST /api/expenses] Received:', { session_id, outlet_id, date, category, description, amount });
+
     if (!outlet_id || !date || !category || !description || !amount) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: outlet_id, date, category, description, amount' },
         { status: 400 }
       );
     }
 
-    const { data, error } = await (getSupabaseServer().from('expenses') as any).insert([{ session_id, outlet_id, date, category, description, amount, notes }])
-      .select();
+    const { data, error } = await (getSupabaseServer().from('expenses') as any).insert([{ 
+      session_id, 
+      outlet_id, 
+      date, 
+      category, 
+      description, 
+      amount, 
+      notes 
+    }]).select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[POST /api/expenses] Supabase error:', error);
+      throw error;
+    }
 
+    console.log('[POST /api/expenses] Success, created expense:', data[0]?.id);
     return NextResponse.json(data[0], { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[POST /api/expenses] Error:', error.message);
+    return NextResponse.json({ error: error.message || 'Failed to create expense' }, { status: 500 });
   }
 }
