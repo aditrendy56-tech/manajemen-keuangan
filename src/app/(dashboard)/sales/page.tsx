@@ -101,6 +101,27 @@ export default function SalesPage() {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm('Apakah Anda yakin ingin menghapus penjualan ini?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/sales/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setSales(sales.filter((s) => s.id !== id));
+      } else {
+        alert('Gagal menghapus penjualan');
+      }
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+      alert('Error deleting sale');
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -110,7 +131,7 @@ export default function SalesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <SalesTable sales={sales} />
+          <SalesTable sales={sales} onDelete={handleDelete} />
         </div>
         <div>
           <SaleForm onSubmit={handleSubmit} loading={loading} />

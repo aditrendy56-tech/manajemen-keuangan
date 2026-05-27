@@ -70,6 +70,27 @@ export default function ExpensesPage() {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm('Apakah Anda yakin ingin menghapus pengeluaran ini?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/expenses/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setExpenses(expenses.filter((e) => e.id !== id));
+      } else {
+        alert('Gagal menghapus pengeluaran');
+      }
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      alert('Error deleting expense');
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -88,7 +109,7 @@ export default function ExpensesPage() {
           {fetching ? (
             <div className="text-center py-8 text-gray-500">Loading expenses...</div>
           ) : (
-            <ExpensesTable expenses={expenses} />
+            <ExpensesTable expenses={expenses} onDelete={handleDelete} />
           )}
         </div>
         <div>

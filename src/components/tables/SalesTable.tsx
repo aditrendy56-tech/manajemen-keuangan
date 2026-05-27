@@ -1,14 +1,17 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trash2 } from 'lucide-react';
 import { Sale } from '@/types';
 
 interface SalesTableProps {
   sales: Sale[];
+  onDelete?: (id: string) => void;
 }
 
-export function SalesTable({ sales }: SalesTableProps) {
+export function SalesTable({ sales, onDelete }: SalesTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -28,6 +31,7 @@ export function SalesTable({ sales }: SalesTableProps) {
                   <th className="text-right p-2">Kotor</th>
                   <th className="text-right p-2">Fee</th>
                   <th className="text-right p-2">Bersih</th>
+                  <th className="text-center p-2">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -47,6 +51,18 @@ export function SalesTable({ sales }: SalesTableProps) {
                     <td className="text-right p-2">Rp {sale.gross_amount.toLocaleString('id-ID')}</td>
                     <td className="text-right p-2">Rp {sale.platform_fee.toLocaleString('id-ID')}</td>
                     <td className="text-right p-2 font-semibold">Rp {sale.net_amount.toLocaleString('id-ID')}</td>
+                    <td className="p-2 text-center">
+                      {onDelete && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onDelete(sale.id)}
+                          className="text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

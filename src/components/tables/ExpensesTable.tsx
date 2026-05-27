@@ -1,7 +1,9 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trash2 } from 'lucide-react';
 import { Expense } from '@/types';
 
 const categoryLabels: Record<string, string> = {
@@ -22,9 +24,10 @@ const categoryColors: Record<string, string> = {
 
 interface ExpensesTableProps {
   expenses: Expense[];
+  onDelete?: (id: string) => void;
 }
 
-export function ExpensesTable({ expenses }: ExpensesTableProps) {
+export function ExpensesTable({ expenses, onDelete }: ExpensesTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -42,6 +45,7 @@ export function ExpensesTable({ expenses }: ExpensesTableProps) {
                   <th className="text-left p-2">Kategori</th>
                   <th className="text-left p-2">Deskripsi</th>
                   <th className="text-right p-2">Jumlah</th>
+                  <th className="text-center p-2">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -55,6 +59,18 @@ export function ExpensesTable({ expenses }: ExpensesTableProps) {
                     </td>
                     <td className="p-2">{expense.description}</td>
                     <td className="text-right p-2 font-semibold">Rp {expense.amount.toLocaleString('id-ID')}</td>
+                    <td className="p-2 text-center">
+                      {onDelete && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onDelete(expense.id)}
+                          className="text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
