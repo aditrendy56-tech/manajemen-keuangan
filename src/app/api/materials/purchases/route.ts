@@ -67,24 +67,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('material_purchases')
-      .insert([
-        {
-          outlet_id,
-          raw_material_id,
-          supplier_id,
-          date,
-          quantity,
-          unit_price,
-          total_amount,
-          quality,
-          invoice_number,
-          payment_status,
-          delivery_date,
-          notes,
-        },
-      ])
+    const insertData = {
+      outlet_id,
+      raw_material_id,
+      supplier_id,
+      date,
+      quantity,
+      unit_price,
+      total_amount,
+      quality,
+      invoice_number,
+      payment_status,
+      delivery_date,
+      notes,
+    };
+
+    const { data, error } = await (supabase
+      .from('material_purchases') as any)
+      .insert([insertData])
       .select()
       .single();
 

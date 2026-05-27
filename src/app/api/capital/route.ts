@@ -39,23 +39,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const insertData = { 
+      outlet_id, 
+      date, 
+      amount, 
+      source, 
+      notes,
+      investor_id,
+      source_type,
+      category,
+      items: items || null
+    };
     const { data, error } = await (getSupabaseServer().from('capital_entries') as any)
-      .insert([{ 
-        outlet_id, 
-        date, 
-        amount, 
-        source, 
-        notes,
-        investor_id,
-        source_type,
-        category,
-        items: items || null
-      }])
-      .select();
+      .insert([insertData])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    return NextResponse.json(data[0], { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

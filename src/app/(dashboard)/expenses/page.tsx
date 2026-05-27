@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { ExpenseForm } from '@/components/forms/ExpenseForm';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
 import { Expense } from '@/types';
-
-const OUTLET_ID = '660e8400-e29b-41d4-a716-446655440000'; // TODO: Get from session/context
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function ExpensesPage() {
+  const { outletId, sessionId } = useOutlet();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -16,13 +16,13 @@ export default function ExpensesPage() {
   // Fetch expenses dari database saat component mount
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [outletId]);
 
   async function fetchExpenses() {
     try {
       setFetching(true);
       setError(null);
-      const response = await fetch(`/api/expenses?outlet_id=${OUTLET_ID}`);
+      const response = await fetch(`/api/expenses?outlet_id=${outletId}`);
       if (!response.ok) throw new Error('Failed to fetch expenses');
       const data = await response.json();
       setExpenses(Array.isArray(data) ? data : []);
@@ -36,6 +36,11 @@ export default function ExpensesPage() {
   }
 
   async function handleSubmit(data: any) {
+    if (!sessionId) {
+      alert('Session belum tersedia. Mohon tunggu...');
+      return;
+    }
+
     setLoading(true);
     try {
       setError(null);
@@ -43,8 +48,8 @@ export default function ExpensesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: '770e8400-e29b-41d4-a716-446655440000', // TODO: Get from session
-          outlet_id: OUTLET_ID,
+          session_id: sessionId,
+          outlet_id: outletId,
           ...data,
         }),
       });

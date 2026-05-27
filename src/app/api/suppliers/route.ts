@@ -65,22 +65,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('suppliers')
-      .insert([
-        {
-          outlet_id,
-          name,
-          contact_person,
-          phone,
-          whatsapp,
-          address,
-          opening_hours,
-          quality_rating,
-          reliability,
-          notes,
-        },
-      ])
+    const insertData = {
+      outlet_id,
+      name,
+      contact_person,
+      phone,
+      whatsapp,
+      address,
+      opening_hours,
+      quality_rating,
+      reliability,
+      notes,
+    };
+    const { data, error } = await (supabase
+      .from('suppliers') as any)
+      .insert([insertData])
       .select()
       .single();
 
@@ -110,8 +109,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('suppliers')
+    const { data, error } = await (supabase
+      .from('suppliers') as any)
       .update({
         ...updateData,
         updated_at: new Date().toISOString(),

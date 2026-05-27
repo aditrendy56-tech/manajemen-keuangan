@@ -62,24 +62,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Set all previous prices as not current
-    await supabase
-      .from('supplier_prices')
+    await (supabase
+      .from('supplier_prices') as any)
       .update({ is_current: false })
       .eq('supplier_id', supplier_id)
       .eq('raw_material_id', raw_material_id);
 
-    const { data, error } = await supabase
-      .from('supplier_prices')
-      .insert([
-        {
-          supplier_id,
-          raw_material_id,
-          unit_price,
-          minimum_order,
-          is_current: true,
-          notes,
-        },
-      ])
+    const insertData = {
+      supplier_id,
+      raw_material_id,
+      unit_price,
+      minimum_order,
+      is_current: true,
+      notes,
+    };
+    const { data, error } = await (supabase
+      .from('supplier_prices') as any)
+      .insert([insertData])
       .select()
       .single();
 
@@ -109,8 +108,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('supplier_prices')
+    const { data, error } = await (supabase
+      .from('supplier_prices') as any)
       .update(updateData)
       .eq('id', id)
       .select()

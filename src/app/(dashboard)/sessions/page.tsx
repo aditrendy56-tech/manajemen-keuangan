@@ -1,50 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SessionForm } from '@/components/forms/SessionForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DailySession } from '@/types';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<DailySession[]>([
-    {
-      id: 'session-1',
-      outlet_id: 'outlet-1',
-      date: new Date().toISOString().split('T')[0],
-      opening_cash: 500000,
-      closing_cash: null,
-      status: 'open',
-      notes: 'Sesi hari ini',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'session-2',
-      outlet_id: 'outlet-1',
-      date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-      opening_cash: 400000,
-      closing_cash: 750000,
-      status: 'closed',
-      notes: 'Sesi kemarin',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ]);
+  const { outletId, setSessionId } = useOutlet();
+  const [sessions, setSessions] = useState<DailySession[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [outletId]);
+
+  async function fetchSessions() {
+    try {
+      setFetching(true);
+      const response = await fetch(`/api/sessions?outlet_id=${outletId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      setSessions([]);
+    } finally {
+      setFetching(false);
+    }
+  }
 
   async function handleSubmit(data: any) {
     setLoading(true);
     try {
-      const newSession: DailySession = {
-        id: Math.random().toString(36),
-        outlet_id: 'outlet-1',
-        status: 'open',
-        closing_cash: null,
-        ...data,
-        created_at: new Date().toISOString(),
-      };
-      setSessions([newSession, ...sessions]);
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outlet_id: outletId,
+          ...data,
+        }),
+      });
+
+      if (response.ok) {
+        const newSession = await response.json();
+        setSessionId(newSession.id);
+        setSessions([newSession, ...sessions]);
+      }
+    } catch (error) {
+      console.error('Error creating session:', error);
     } finally {
       setLoading(false);
     }

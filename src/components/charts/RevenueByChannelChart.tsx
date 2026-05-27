@@ -23,14 +23,14 @@ export function RevenueByChannelChart({ data }: RevenueByChannelChartProps) {
       <CardHeader>
         <CardTitle>Pendapatan per Channel</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip formatter={(value: any) => `Rp ${(value as number).toLocaleString('id-ID')}`} />
-            <Bar dataKey="value" fill="#ea580c" radius={[8, 8, 0, 0]} />
+      <CardContent className="pt-4">
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="0" stroke="#e5e7eb" vertical={false} />
+            <XAxis dataKey="name" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+            <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
+            <Tooltip formatter={(value: any) => `Rp ${(value as number).toLocaleString('id-ID')}`} contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }} cursor={{ fill: 'rgba(234, 88, 12, 0.05)' }} />
+            <Bar dataKey="value" fill="#ea580c" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

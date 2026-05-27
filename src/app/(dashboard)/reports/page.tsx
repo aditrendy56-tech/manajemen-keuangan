@@ -10,8 +10,10 @@ import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { TopProductsChart } from '@/components/charts/TopProductsChart';
 import { ProfitLossReport } from '@/types';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function ReportsPage() {
+  const { outletId } = useOutlet();
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -33,7 +35,7 @@ export default function ReportsPage() {
 
   async function handleExport() {
     try {
-      const response = await fetch(`/api/reports/export?outlet_id=outlet-1&outlet_name=Outlet%20Utama&start_date=${startDate}&end_date=${endDate}`);
+      const response = await fetch(`/api/reports/export?outlet_id=${outletId}&outlet_name=Outlet%20Utama&start_date=${startDate}&end_date=${endDate}`);
       if (!response.ok) throw new Error('Export failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

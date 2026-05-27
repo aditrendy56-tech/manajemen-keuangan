@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,58 +8,94 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Product } from '@/types';
 import { Trash2 } from 'lucide-react';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: '1',
-      outlet_id: 'outlet-1',
-      name: 'Roti Bakar Standar',
-      price: 5000,
-      description: 'Roti bakar dengan topping standar',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      outlet_id: 'outlet-1',
-      name: 'Roti Bakar Premium',
-      price: 10000,
-      description: 'Roti bakar dengan topping premium',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-  ]);
+  const { outletId } = useOutlet();
+  const [products, setProducts] = useState<Product[]>([]);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  function handleAddProduct() {
+  useEffect(() => {
+    fetchProducts();
+  }, [outletId]);
+
+  async function fetchProducts() {
+    try {
+      setFetching(true);
+      const response = await fetch(`/api/products?outlet_id=${outletId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts([]);
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  async function handleAddProduct() {
     if (!name || !price) {
       alert('Nama dan harga harus diisi');
       return;
     }
-    const newProduct: Product = {
-      id: Math.random().toString(36),
-      outlet_id: 'outlet-1',
-      name,
-      price: parseFloat(price),
-      description,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    setProducts([...products, newProduct]);
-    setName('');
-    setPrice('');
-    setDescription('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outlet_id: outletId,
+          name,
+          price: parseFloat(price),
+          description,
+          is_active: true,
+        }),
+      });
+
+      if (response.ok) {
+        const newProduct = await response.json();
+        setProducts([...products, newProduct]);
+        setName('');
+        setPrice('');
+        setDescription('');
+      }
+    } catch (error) {
+      console.error('Error adding product:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleDelete(id: string) {
-    setProducts(products.filter((p) => p.id !== id));
+  async function handleDelete(id: string) {
+    try {
+      const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setProducts(products.filter((p) => p.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+    }
   }
 
-  function handleToggle(id: string) {
-    setProducts(products.map((p) => (p.id === id ? { ...p, is_active: !p.is_active } : p)));
+  async function handleToggle(id: string, is_active: boolean) {
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !is_active }),
+      });
+      if (response.ok) {
+        setProducts(products.map((p) => (p.id === id ? { ...p, is_active: !is_active } : p)));
+      }
+    } catch (error) {
+      console.error('Error toggling product:', error);
+    }
   }
 
   return (
@@ -91,7 +127,7 @@ export default function ProductsPage() {
                         <Button
                           size="sm"
                           variant={product.is_active ? 'default' : 'outline'}
-                          onClick={() => handleToggle(product.id)}
+                          onClick={() => handleToggle(product.id, product.is_active)}
                         >
                           {product.is_active ? 'Aktif' : 'Nonaktif'}
                         </Button>
@@ -141,8 +177,8 @@ export default function ProductsPage() {
                     placeholder="Deskripsi produk"
                   />
                 </div>
-                <Button onClick={handleAddProduct} className="w-full bg-orange-600 hover:bg-orange-700">
-                  Tambah Produk
+                <Button onClick={handleAddProduct} disabled={loading} className="w-full bg-orange-600 hover:bg-orange-700">
+                  {loading ? 'Menambah...' : 'Tambah Produk'}
                 </Button>
               </div>
             </CardContent>

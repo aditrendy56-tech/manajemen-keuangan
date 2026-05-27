@@ -39,12 +39,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await (getSupabaseServer().from('daily_sessions') as any).insert([{ outlet_id, date, opening_cash, status: 'open' }])
-      .select();
+    const insertData = { outlet_id, date, opening_cash, status: 'open' };
+    const { data, error } = await (getSupabaseServer().from('daily_sessions') as any)
+      .insert([insertData])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    return NextResponse.json(data[0], { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

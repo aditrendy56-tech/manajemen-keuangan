@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 
@@ -130,11 +129,12 @@ export default function SupplierPriceForm({
             <Label htmlFor="raw_material_id" className="text-sm font-medium">
               Pilih Barang *
             </Label>
-            <Select
+            <select
               id="raw_material_id"
               name="raw_material_id"
               value={formData.raw_material_id}
               onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
               required
             >
               <option value="">-- Pilih Barang --</option>
@@ -143,7 +143,7 @@ export default function SupplierPriceForm({
                   {material.name} ({material.unit})
                 </option>
               ))}
-            </Select>
+            </select>
           </div>
 
           <div>

@@ -18,38 +18,22 @@ export default function DashboardPage() {
 
   async function fetchMetrics() {
     try {
-      // For demo, use placeholder data
-      const mockData: DashboardMetrics = {
-        today_gross_revenue: 500000,
-        today_net_revenue: 425000,
-        today_profit: 200000,
-        revenue_by_channel: {
-          offline: 150000,
-          shopeefood: 175000,
-          gofood: 100000,
-        },
-        payment_methods: {
-          cash: 250000,
-          qris: 175000,
-        },
-        top_products: [
-          { product_id: '1', name: 'Roti Bakar Standar', quantity: 45, revenue: 225000 },
-          { product_id: '2', name: 'Roti Bakar Premium', quantity: 30, revenue: 150000 },
-          { product_id: '3', name: 'Roti Bakar Spesial', quantity: 20, revenue: 100000 },
-        ],
-        weekly_profit: [
-          { date: '16 Mei', profit: 150000 },
-          { date: '17 Mei', profit: 175000 },
-          { date: '18 Mei', profit: 160000 },
-          { date: '19 Mei', profit: 195000 },
-          { date: '20 Mei', profit: 185000 },
-          { date: '21 Mei', profit: 210000 },
-          { date: '22 Mei', profit: 200000 },
-        ],
-      };
-      setMetrics(mockData);
+      const response = await fetch(`/api/dashboard?outlet_id=660e8400-e29b-41d4-a716-446655440000`);
+      if (!response.ok) throw new Error('Failed to fetch metrics');
+      const data = await response.json();
+      setMetrics(data);
     } catch (error) {
       console.error('Failed to fetch metrics:', error);
+      // Set empty data on error
+      setMetrics({
+        today_gross_revenue: 0,
+        today_net_revenue: 0,
+        today_profit: 0,
+        revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+        payment_methods: { cash: 0, qris: 0 },
+        top_products: [],
+        weekly_profit: [],
+      });
     } finally {
       setLoading(false);
     }

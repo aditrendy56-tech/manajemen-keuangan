@@ -43,16 +43,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('raw_materials')
-      .insert([
-        {
-          outlet_id,
-          name,
-          unit,
-          price_per_unit: price_per_unit || 0,
-        },
-      ])
+    const insertData = {
+      outlet_id,
+      name,
+      unit,
+      price_per_unit: price_per_unit || 0,
+    };
+
+    const { data, error } = await (supabase
+      .from('raw_materials') as any)
+      .insert([insertData])
       .select()
       .single();
 

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { ModalItem } from '@/types';
 
@@ -127,11 +126,11 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
           <div className="grid grid-cols-1 gap-4">
             <div>
               <Label htmlFor="category">Kategori Modal</Label>
-              <Select value={category} onValueChange={(value: any) => setCategory(value)}>
+              <select value={category} onChange={(e: any) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500">
                 <option value="peralatan">🔧 Peralatan</option>
                 <option value="bahan_awal">🛒 Bahan Awal</option>
                 <option value="rencana_tambahan">📋 Rencana Tambahan</option>
-              </Select>
+              </select>
             </div>
           </div>
 
@@ -163,15 +162,16 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
                   </div>
                   <div>
                     <Label className="text-sm">Kondisi</Label>
-                    <Select 
+                    <select 
                       value={item.condition || ''} 
-                      onValueChange={(value) => updateItem(index, 'condition', value)}
+                      onChange={(e) => updateItem(index, 'condition', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
                     >
                       <option value="">-- Pilih Kondisi --</option>
                       <option value="baik">Baik</option>
                       <option value="rusak">Rusak</option>
                       <option value="habis">Habis</option>
-                    </Select>
+                    </select>
                   </div>
                 </div>
 

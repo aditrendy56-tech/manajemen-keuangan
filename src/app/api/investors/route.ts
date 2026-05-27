@@ -39,21 +39,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const insertData = {
+      outlet_id,
+      name,
+      phone,
+      initial_contribution,
+      remaining_balance: initial_contribution,
+      status: 'active',
+      priority_order: priority_order || 999
+    };
     const { data, error } = await (getSupabaseServer().from('investors') as any)
-      .insert([{
-        outlet_id,
-        name,
-        phone,
-        initial_contribution,
-        remaining_balance: initial_contribution,
-        status: 'active',
-        priority_order: priority_order || 999
-      }])
-      .select();
+      .insert([insertData])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    return NextResponse.json(data[0], { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

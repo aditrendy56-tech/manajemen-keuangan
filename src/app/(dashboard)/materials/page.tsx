@@ -263,11 +263,12 @@ export default function MaterialsPage() {
 
                 <div>
                   <Label className="text-sm font-medium">Barang *</Label>
-                  <Select
+                  <select
                     name="raw_material_id"
                     value={formData.raw_material_id}
                     onChange={handleChange}
                     required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
                   >
                     <option value="">-- Pilih Barang --</option>
                     {materials.map((m) => (
@@ -275,15 +276,16 @@ export default function MaterialsPage() {
                         {m.name} ({m.unit})
                       </option>
                     ))}
-                  </Select>
+                  </select>
                 </div>
 
                 <div>
                   <Label className="text-sm font-medium">Supplier (Optional)</Label>
-                  <Select
+                  <select
                     name="supplier_id"
                     value={formData.supplier_id}
                     onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
                   >
                     <option value="">-- Pilih Supplier (opsional) --</option>
                     {suppliers.map((s) => (
@@ -291,7 +293,7 @@ export default function MaterialsPage() {
                         {s.name}
                       </option>
                     ))}
-                  </Select>
+                  </select>
 
                   {selectedSupplierPrices.length > 0 && (
                     <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200 text-xs">
@@ -360,15 +362,16 @@ export default function MaterialsPage() {
 
                 <div>
                   <Label className="text-sm font-medium">Kualitas Barang</Label>
-                  <Select
+                  <select
                     name="quality"
                     value={formData.quality}
                     onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
                   >
-                    <option value="Baik">Baik</option>
-                    <option value="Kurang">Kurang Baik</option>
-                    <option value="Rusak">Rusak</option>
-                  </Select>
+                    <option value="baik">Baik</option>
+                    <option value="rata_rata">Rata-rata</option>
+                    <option value="buruk">Buruk</option>
+                  </select>
                 </div>
 
                 <div>
@@ -383,15 +386,16 @@ export default function MaterialsPage() {
 
                 <div>
                   <Label className="text-sm font-medium">Status Pembayaran</Label>
-                  <Select
+                  <select
                     name="payment_status"
                     value={formData.payment_status}
                     onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500"
                   >
                     <option value="Paid">Paid</option>
                     <option value="Pending">Pending</option>
                     <option value="Cicilan">Cicilan</option>
-                  </Select>
+                  </select>
                 </div>
 
                 <div>

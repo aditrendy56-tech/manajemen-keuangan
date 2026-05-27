@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('[POST /api/sales] Request body:', body);
     const { session_id, outlet_id, channel, payment_method, gross_amount, items } = body;
 
     if (!session_id || !outlet_id || !channel || !payment_method || !gross_amount) {
@@ -43,22 +44,25 @@ export async function POST(request: NextRequest) {
     const platform_fee = calculatePlatformFee(channel as any, gross_amount);
     const net_amount = gross_amount - platform_fee;
 
-    const { data: saleData, error: saleError } = await (getSupabaseServer().from('sales') as any).insert([
-        {
-          session_id,
-          outlet_id,
-          channel,
-          payment_method,
-          gross_amount,
-          platform_fee,
-          net_amount,
-        },
-      ])
-      .select();
+    const saleInsertData = {
+      session_id,
+      outlet_id,
+      channel,
+      payment_method,
+      gross_amount,
+      platform_fee,
+      net_amount,
+    };
+    console.log('[POST /api/sales] Insert data:', saleInsertData);
+    const { data: saleData, error: saleError } = await (getSupabaseServer().from('sales') as any)
+      .insert([saleInsertData])
+      .select()
+      .single();
 
+    console.log('[POST /api/sales] Response:', { data: saleData, error: saleError });
     if (saleError) throw saleError;
 
-    const saleId = saleData[0].id;
+    const saleId = saleData.id;
 
     // Insert sale items
     if (items && items.length > 0) {
@@ -75,8 +79,9 @@ export async function POST(request: NextRequest) {
       if (itemsError) throw itemsError;
     }
 
-    return NextResponse.json(saleData[0], { status: 201 });
+    return NextResponse.json(saleData, { status: 201 });
   } catch (error: any) {
+    console.error('[POST /api/sales] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

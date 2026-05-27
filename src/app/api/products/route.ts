@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, name, category, price } = body;
+    const { outlet_id, name, description, price, is_active } = body;
 
     if (!outlet_id || !name || !price) {
       return NextResponse.json(
@@ -37,12 +37,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await (getSupabaseServer().from('products') as any).insert([{ outlet_id, name, category, price, is_active: true }])
-      .select();
+    const insertData = { outlet_id, name, description, price, is_active: is_active !== undefined ? is_active : true };
+    const { data, error } = await (getSupabaseServer().from('products') as any)
+      .insert([insertData])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    return NextResponse.json(data[0], { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

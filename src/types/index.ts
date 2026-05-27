@@ -80,6 +80,9 @@ export interface InvestorRepayment {
   created_at: string;
 }
 
+// Alias for capital_repayments table
+export type CapitalRepayment = InvestorRepayment;
+
 export interface DailySession {
   id: string;
   outlet_id: string;
