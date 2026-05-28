@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Investor } from '@/types';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function InvestorsPage() {
+  const { outletId } = useOutlet();
   const [investors, setInvestors] = useState<Investor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -19,8 +21,6 @@ export default function InvestorsPage() {
     initial_contribution: ''
   });
   const [submitting, setSubmitting] = useState(false);
-
-  const outletId = '660e8400-e29b-41d4-a716-446655440000'; // Demo outlet
 
   useEffect(() => {
     loadInvestors();

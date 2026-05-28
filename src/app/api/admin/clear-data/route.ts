@@ -11,7 +11,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'tables array required' }, { status: 400 });
     }
 
-    const outletId = outlet_id || '660e8400-e29b-41d4-a716-446655440000';
+    if (!outlet_id) {
+      return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
+    }
+
+    const outletId = outlet_id;
     const results: any = {};
 
     for (const table of tables) {

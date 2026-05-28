@@ -1,6 +1,6 @@
-'use client';
+ 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,85 +9,97 @@ import { SalesTable } from '@/components/tables/SalesTable';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
 import { Sale, Expense, DailySession } from '@/types';
 import { useParams } from 'next/navigation';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function SessionDetailPage() {
   const params = useParams();
   const sessionId = params?.id as string;
+  const { outletId } = useOutlet();
 
-  // Mock data
-  const session: DailySession = {
-    id: sessionId,
-    outlet_id: 'outlet-1',
-    date: new Date().toISOString().split('T')[0],
-    opening_cash: 500000,
-    closing_cash: null,
-    status: 'open',
-    notes: 'Sesi hari ini',
-    created_at: new Date().toISOString(),
-  };
-
-  const sales: Sale[] = [
-    {
-      id: '1',
-      session_id: sessionId,
-      outlet_id: 'outlet-1',
-      channel: 'offline',
-      payment_method: 'cash',
-      gross_amount: 100000,
-      platform_fee: 0,
-      net_amount: 100000,
-      order_ref: undefined,
-      notes: undefined,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      session_id: sessionId,
-      outlet_id: 'outlet-1',
-      channel: 'shopeefood',
-      payment_method: 'qris',
-      gross_amount: 150000,
-      platform_fee: 30000,
-      net_amount: 120000,
-      order_ref: 'SHP123',
-      notes: undefined,
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  const expenses: Expense[] = [
-    {
-      id: '1',
-      session_id: sessionId,
-      outlet_id: 'outlet-1',
-      date: new Date().toISOString().split('T')[0],
-      category: 'operasional',
-      description: 'Biaya listrik',
-      amount: 50000,
-      created_at: new Date().toISOString(),
-    },
-  ];
-
+  const [session, setSession] = useState<DailySession | null>(null);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [closingCash, setClosingCash] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalSales = sales.reduce((sum, s) => sum + s.net_amount, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const expectedClosing = session.opening_cash + totalSales - totalExpenses;
+  useEffect(() => {
+    async function load() {
+      if (!sessionId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const sessionRes = await fetch(`/api/sessions/${sessionId}`);
+        if (!sessionRes.ok) throw new Error('Failed to fetch session');
+        const sessionData = await sessionRes.json();
+        setSession(sessionData || null);
+
+        // fetch sales and expenses but don't let them block session display
+        try {
+          const salesRes = await fetch(`/api/sales?outlet_id=${outletId}&limit=500`);
+          const salesData = salesRes.ok ? await salesRes.json() : [];
+          setSales(Array.isArray(salesData) ? salesData.filter((s: Sale) => s.session_id === sessionId) : []);
+        } catch (e) {
+          console.warn('Failed to fetch sales:', e);
+          setSales([]);
+        }
+
+        try {
+          const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&limit=500`);
+          const expensesData = expensesRes.ok ? await expensesRes.json() : [];
+          setExpenses(Array.isArray(expensesData) ? expensesData.filter((e: Expense) => e.session_id === sessionId) : []);
+        } catch (e) {
+          console.warn('Failed to fetch expenses:', e);
+          setExpenses([]);
+        }
+      } catch (err: any) {
+        console.error('Error loading session detail:', err);
+        setError(err.message || 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [sessionId, outletId]);
+
+  const totalSales = sales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const expectedClosing = (session?.opening_cash || 0) + totalSales - totalExpenses;
 
   async function handleCloseSession() {
     if (!closingCash) {
       alert('Masukkan jumlah cash penutupan');
       return;
     }
-    // TODO: Call API to close session
-    alert('Sesi ditutup. Selisih: Rp ' + (parseInt(closingCash) - expectedClosing).toLocaleString('id-ID'));
+
+    if (!sessionId) return;
+
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to close session');
+      }
+
+      const updated = await res.json();
+      setSession(updated);
+      alert('Sesi ditutup. Selisih: Rp ' + (parseInt(closingCash) - expectedClosing).toLocaleString('id-ID'));
+    } catch (err: any) {
+      console.error('Error closing session:', err);
+      alert('Gagal menutup sesi: ' + (err.message || err));
+    }
   }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Detail Sesi</h1>
-        <p className="text-gray-600">Sesi pada {session.date}</p>
+        <p className="text-gray-600">{session ? `Sesi pada ${session.date}` : loading ? 'Memuat...' : error || 'Sesi tidak ditemukan'}</p>
       </div>
 
       {/* Session Summary */}
@@ -99,7 +111,7 @@ export default function SessionDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-sm text-gray-600">Modal Awal</p>
-              <p className="text-lg font-semibold">Rp {session.opening_cash.toLocaleString('id-ID')}</p>
+              <p className="text-lg font-semibold">Rp {(session?.opening_cash || 0).toLocaleString('id-ID')}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Penjualan</p>
@@ -115,7 +127,7 @@ export default function SessionDetailPage() {
             </div>
           </div>
 
-          {session.status === 'open' && (
+          {session?.status === 'open' && (
             <div className="mt-6 pt-6 border-t">
               <Label htmlFor="closing_cash">Jumlah Cash Penutupan (Rp)</Label>
               <div className="flex gap-2 mt-2">

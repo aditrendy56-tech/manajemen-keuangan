@@ -9,19 +9,19 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ModalCategoryForm from '@/components/forms/ModalCategoryForm';
 import type { Investor, CapitalEntry } from '@/types';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function InvestorDetailPage() {
   const params = useParams();
   const router = useRouter();
   const investorId = params.id as string;
+  const { outletId } = useOutlet();
 
   const [investor, setInvestor] = useState<Investor | null>(null);
   const [capitalEntries, setCapitalEntries] = useState<CapitalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
-
-  const outletId = '660e8400-e29b-41d4-a716-446655440000'; // Demo outlet
 
   useEffect(() => {
     loadData();

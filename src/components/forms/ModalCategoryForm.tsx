@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { ModalItem } from '@/types';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 interface ModalCategoryFormProps {
   investorId: string;
@@ -15,6 +16,7 @@ interface ModalCategoryFormProps {
 }
 
 export default function ModalCategoryForm({ investorId, investorName, onSuccess }: ModalCategoryFormProps) {
+  const { outletId } = useOutlet();
   const [category, setCategory] = useState<'peralatan' | 'bahan_awal' | 'rencana_tambahan'>('peralatan');
   const [items, setItems] = useState<ModalItem[]>([
     { name: '', quantity: 1, unit_price: 0, total_price: 0 }
@@ -23,8 +25,6 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-
-  const outletId = '660e8400-e29b-41d4-a716-446655440000'; // Demo outlet
 
   const updateItem = (index: number, field: string, value: any) => {
     const newItems = [...items];
