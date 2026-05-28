@@ -2,6 +2,74 @@
 
 Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar (makanan kaki lima Indonesia).
 
+## Ringkasan Arsitektur
+
+- **Framework**: Next.js App Router dengan route handler di `src/app/api/**`.
+- **Data Layer**: Supabase PostgreSQL dengan akses server-side lewat `src/lib/supabase/server.ts`.
+- **Multi-outlet**: Semua fitur inti mengikuti `outlet_id` aktif, bukan lagi fallback demo.
+- **State Aplikasi**: Outlet aktif dipilih lewat `OutletContext` dan selector di header.
+- **Prinsip Data**: Halaman sesi, dashboard, settings, investor, dan admin memakai data real dari API/DB.
+
+## Perubahan Terbaru
+
+- **Sesi Harian**: Detail sesi sekarang ambil data real, bukan mock; tombol tutup sesi memanggil `PATCH /api/sessions/{id}`.
+- **Duplicate Guard**: `POST /api/sessions` menolak sesi open ganda untuk outlet yang sama.
+- **Dashboard**: Perhitungan `net revenue`, `top products`, dan `weekly profit` sudah dibenarkan.
+- **Outlet Context**: Hardcoded demo outlet dihapus dan diganti selector outlet dari API.
+- **Settings**: Halaman pengaturan sekarang simpan dan baca data dari API/DB lewat `outlet_settings`.
+- **Cleanup**: Beberapa fallback demo dan nilai dummy yang bisa mengubah data sudah dibersihkan.
+
+## Rencana Ke Depan
+
+- **Migration**: Jalankan `database/migration-session-status.sql` dan `database/migration-outlet-settings.sql` di Supabase.
+- **Audit Lanjutan**: Cari sisa mock/dummy yang belum berdampak langsung ke laporan atau transaksi.
+- **Multi-outlet Report**: Tambahkan ringkasan lintas outlet dan filter agregasi yang lebih jelas.
+- **UX Mobile**: Rapikan selector outlet dan navigasi di layar kecil.
+- **Security**: Ganti setup demo permissive ke RLS berbasis user/outlet untuk production.
+
+## Peta Modul
+
+- **`src/app/(auth)`**: Alur login dan layout autentikasi.
+- **`src/app/(dashboard)`**: Halaman operasional utama seperti dashboard, sesi, sales, expenses, capital, products, reports, dan settings.
+- **`src/app/api`**: Sumber data real untuk semua transaksi, ringkasan, dan aksi CRUD.
+- **`src/components`**: Form, tabel, chart, header, sidebar, dan komponen UI reusable.
+- **`src/lib`**: Kalkulasi bisnis, konteks outlet, helper kas, alokasi laba, ekspor Excel, dan client Supabase.
+- **`database` + `migrations`**: Skema awal, perubahan struktur, dan seed SQL yang harus diselaraskan dengan kode.
+
+## Alur Data
+
+```mermaid
+flowchart LR
+  U[User di browser] --> UI[Halaman App Router]
+  UI --> C[Komponen/Form/Chart]
+  C --> API[Route Handler /api]
+  API --> S[Supabase Server Client]
+  S --> DB[(PostgreSQL/Supabase)]
+  DB --> S
+  S --> API
+  API --> UI
+  UI --> C
+  C --> O[OutletContext + localStorage]
+```
+
+## Mapping Endpoint ke DB
+
+| Endpoint | Tujuan | Tabel utama |
+| --- | --- | --- |
+| `/api/sessions` | List / create sesi | `daily_sessions` |
+| `/api/sessions/[id]` | Close / delete sesi | `daily_sessions` |
+| `/api/sales` | List / create penjualan | `sales`, `sale_items`, `products` |
+| `/api/expenses` | List / create pengeluaran | `expenses` |
+| `/api/capital` | List / create modal | `capital_entries` |
+| `/api/investors` | CRUD investor | `investors`, `capital_repayments` |
+| `/api/materials` | Master bahan baku | `raw_materials` |
+| `/api/material-purchases` | Pembelian bahan | `material_purchases` |
+| `/api/products` | Master produk | `products` |
+| `/api/dashboard` | Ringkasan metrik | `sales`, `expenses`, `sale_items`, `daily_sessions` |
+| `/api/reports/summary` | Laporan P&L | `sales`, `expenses`, `sale_items`, `daily_sessions` |
+| `/api/settings` | Simpan pengaturan outlet | `outlet_settings` |
+| `/api/outlets` | Daftar outlet aktif | `outlets`, `businesses` |
+
 ## 🎯 Fitur Utama
 
 ### Dashboard
@@ -137,7 +205,14 @@ npm install
 2. Klik **New Query**
 3. Copy-paste script SQL di bawah
 4. Klik **Run**
-5. ✅ Database siap dengan demo data! Tidak perlu buat user manual
+5. ✅ Database siap dengan seed awal untuk outlet, produk, sesi, dan laporan contoh
+
+#### Jalankan Migration Tambahan
+
+Setelah schema utama, jalankan juga file ini agar struktur terbaru sesuai kode:
+
+- `database/migration-session-status.sql` → menambah `closed_at` pada sesi
+- `database/migration-outlet-settings.sql` → membuat tabel `outlet_settings`
 
 **Atau untuk investor system saja:**
 - File: `database/investor-schema.sql` di root project
@@ -402,8 +477,15 @@ Akses aplikasi di: http://localhost:3000
 
 ### Setup Pertama (Demo Mode)
 1. Akses http://localhost:3000
-2. Semua data sudah tersedia dari database (sudah ada 1 outlet, produk, sesi, dll)
+2. Semua data awal tersedia dari seed database (1 outlet, produk, sesi, dll)
 3. Mulai input data penjualan, pengeluaran, dll
+
+### Catatan Arsitektur Data
+
+- Data transaksi selalu mengikuti outlet aktif yang dipilih.
+- Dashboard, laporan, dan detail sesi membaca data real dari API.
+- Settings disimpan per outlet agar setiap cabang bisa punya konfigurasi sendiri.
+- Jika tabel baru belum ada di Supabase, beberapa endpoint memberi fallback aman supaya aplikasi tetap jalan.
 
 ### Workflow Harian (setelah Supabase terhubung)
 1. **Buka Sesi**: Dashboard → Sesi Harian → Input modal awal
@@ -439,9 +521,9 @@ Tanggal ditampilkan dalam format: `DD MMM YYYY`
 - **ShopeeFood**: 20%
 - **GoFood**: 25%
 
-## 🔐 Security Notes (Demo Mode)
+## 🔐 Security Notes
 
-⚠️ **IMPORTANT**: Ini adalah demo setup - RLS policies ALL PERMISSIVE (semua user bisa akses semua data)
+⚠️ **IMPORTANT**: Setup awal masih mengutamakan kemudahan testing; untuk production, RLS harus dibuat lebih ketat.
 
 Production setup harus:
 - ✅ Enable authentication (Supabase Auth)
@@ -485,24 +567,27 @@ src/
 │   ├── (auth)/
 │   │   └── login/page.tsx          # Login page
 │   ├── (dashboard)/
-│   │   ├── layout.tsx               # Dashboard layout
-│   │   ├── dashboard/page.tsx        # Dashboard overview
-│   │   ├── sales/page.tsx            # Sales management
-│   │   ├── expenses/page.tsx         # Expenses tracking
-│   │   ├── capital/page.tsx          # Capital entries
-│   │   ├── materials/page.tsx        # Material purchases
-│   │   ├── products/page.tsx         # Product management
-│   │   ├── reports/page.tsx          # Financial reports
-│   │   ├── sessions/page.tsx         # Session management
-│   │   └── sessions/[id]/page.tsx    # Session detail
+│   │   ├── layout.tsx               # Dashboard shell + outlet context
+│   │   ├── dashboard/page.tsx        # Ringkasan metrik dan chart
+│   │   ├── sales/page.tsx            # Input dan riwayat penjualan
+│   │   ├── expenses/page.tsx         # Input dan riwayat pengeluaran
+│   │   ├── capital/page.tsx          # Pencatatan modal
+│   │   ├── materials/page.tsx        # Pembelian bahan baku
+│   │   ├── products/page.tsx         # Master produk dan harga
+│   │   ├── reports/page.tsx          # Laporan P&L dan export
+│   │   ├── sessions/page.tsx         # Daftar sesi harian
+│   │   └── sessions/[id]/page.tsx    # Detail sesi, sales, expenses
 │   ├── api/
-│   │   ├── sessions/route.ts         # Sessions API
+│   │   ├── sessions/route.ts         # List/create session + duplicate guard
+│   │   ├── sessions/[id]/route.ts    # Close/delete session
 │   │   ├── sales/route.ts            # Sales API
 │   │   ├── expenses/route.ts         # Expenses API
 │   │   ├── capital/route.ts          # Capital API
 │   │   ├── materials/route.ts        # Materials API
 │   │   ├── products/route.ts         # Products API
 │   │   ├── dashboard/route.ts        # Dashboard metrics API
+│   │   ├── outlets/route.ts          # Daftar outlet aktif
+│   │   ├── settings/route.ts         # Setting per outlet
 │   │   └── reports/
 │   │       ├── summary/route.ts      # P&L report API
 │   │       └── export/route.ts       # Excel export API
@@ -532,14 +617,33 @@ src/
 │   ├── supabase/
 │   │   ├── client.ts                 # Browser Supabase client
 │   │   └── server.ts                 # Server Supabase client
+│   ├── context/
+│   │   └── OutletContext.tsx         # Outlet aktif + session aktif
 │   ├── calculations/
 │   │   ├── platform-fees.ts          # Fee calculations
 │   │   └── profit.ts                 # Profit calculations
-│   └── export/
-│       └── excel.ts                  # Excel export utility
+│   ├── allocation/
+│   │   └── engine.ts                 # Engine alokasi laba
+│   ├── cash/
+│   │   └── ledger.ts                 # Catatan kas
+│   ├── export/
+│   │   └── excel.ts                  # Excel export utility
+│   └── utils.ts                      # Helper umum
+├── database/
+│   ├── investor-schema.sql            # Skema investor dan seed dasar
+│   ├── migration-session-status.sql   # Tambah closed_at pada sesi
+│   └── migration-outlet-settings.sql  # Tabel settings per outlet
+├── migrations/
+│   └── *.sql                          # Script perubahan schema/seed
 └── types/
     └── index.ts                      # TypeScript types
 ```
+
+## Status Implementasi
+
+- **Sudah beres**: session open/close/delete, duplicate prevention, dashboard calculation, outlet selector, settings persistence.
+- **Sedang dijaga**: penghapusan fallback demo dan hardcoded outlet agar tidak ada write ke outlet salah.
+- **Perlu dikerjakan**: migrasi DB di environment produksi dan penyempurnaan laporan multi-outlet.
 
 ## 🚢 Deployment
 
@@ -570,5 +674,5 @@ Untuk bantuan, hubungi melalui:
 
 ---
 
-**Last Updated**: 22 Mei 2024
+**Last Updated**: 29 Mei 2026
 **Version**: 1.0.0
