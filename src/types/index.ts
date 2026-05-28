@@ -91,6 +91,7 @@ export interface DailySession {
   closing_cash?: number | null;
   notes?: string | undefined;
   status: 'open' | 'closed';
+  closed_at?: string | null;
   created_at: string;
 }
 

@@ -39,6 +39,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if session already exists for this date with OPEN status
+    const { data: existing } = await getSupabaseServer().from('daily_sessions')
+      .select('id')
+      .eq('outlet_id', outlet_id)
+      .eq('date', date)
+      .eq('status', 'open')
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Sesi sudah terbuka untuk tanggal ini' },
+        { status: 409 }
+      );
+    }
+
     const insertData = { outlet_id, date, opening_cash, status: 'open' };
     const { data, error } = await (getSupabaseServer().from('daily_sessions') as any)
       .insert([insertData])

@@ -41,8 +41,33 @@ export default function FundingPage() {
     repayments: [],
     profitAllocations: [],
     cashTransactions: [],
+    stakeholders: [],
+    allocationRules: [],
     loading: true,
     error: null,
+  });
+
+  // Modal & stakeholder/rule state (top-level, shared across tabs)
+  const [openStakeholderModal, setOpenStakeholderModal] = useState(false);
+  const [openRuleModal, setOpenRuleModal] = useState(false);
+  const [editingStakeholderId, setEditingStakeholderId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<any | null>(null);
+  const [stakeholderForm, setStakeholderForm] = useState({
+    name: '',
+    role: 'founder',
+    investor_id: '',
+    default_share_percent: '',
+    notes: '',
+    is_active: true,
+  });
+  const [ruleForm, setRuleForm] = useState({
+    name: '',
+    recover_first: true,
+    cash_reserve_percent: '10',
+    allow_overdraft: false,
+    notes: '',
   });
 
   useEffect(() => {
@@ -75,6 +100,90 @@ export default function FundingPage() {
       });
     } catch (error: any) {
       setData(prev => ({ ...prev, loading: false, error: error.message }));
+    }
+  }
+
+  async function submitStakeholder() {
+    try {
+      const body = {
+        outlet_id: outletId,
+        name: stakeholderForm.name,
+        role: stakeholderForm.role,
+        investor_id: stakeholderForm.investor_id || null,
+        default_share_percent: stakeholderForm.default_share_percent || 0,
+        notes: stakeholderForm.notes || '',
+        is_active: stakeholderForm.is_active,
+      };
+
+      const response = editingStakeholderId
+        ? await fetch(`/api/stakeholders/${editingStakeholderId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/stakeholders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+      if (!response.ok) throw new Error('Gagal simpan stakeholder');
+
+      setStakeholderForm({
+        name: '',
+        role: 'founder',
+        investor_id: '',
+        default_share_percent: '',
+        notes: '',
+        is_active: true,
+      });
+      setEditingStakeholderId(null);
+      setOpenStakeholderModal(false);
+      await fetchAllData();
+    } catch (error) {
+      console.error('Stakeholder save error:', error);
+      alert('Error saving stakeholder');
+    }
+  }
+
+  async function submitRule() {
+    try {
+      const body = {
+        outlet_id: outletId,
+        name: ruleForm.name,
+        recover_first: ruleForm.recover_first,
+        cash_reserve_percent: parseFloat(ruleForm.cash_reserve_percent),
+        allow_overdraft: ruleForm.allow_overdraft,
+        notes: ruleForm.notes || '',
+      };
+
+      const response = editingRuleId
+        ? await fetch(`/api/allocation-rules/${editingRuleId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/allocation-rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+      if (!response.ok) throw new Error('Gagal simpan rule');
+
+      setRuleForm({
+        name: '',
+        recover_first: true,
+        cash_reserve_percent: '10',
+        allow_overdraft: false,
+        notes: '',
+      });
+      setEditingRuleId(null);
+      setOpenRuleModal(false);
+      await fetchAllData();
+    } catch (error) {
+      console.error('Rule save error:', error);
+      alert('Error saving rule');
     }
   }
 
@@ -123,39 +232,6 @@ export default function FundingPage() {
 
     return (
       <div className="space-y-6">
-        <StakeholderModal
-          open={openStakeholderModal}
-          onOpenChange={setOpenStakeholderModal}
-          initial={editingStakeholderId ? stakeholdersList.find(s => s.id === editingStakeholderId) : undefined}
-          onSave={async (payload: any) => {
-            try {
-              if (editingStakeholderId) {
-                await fetch(`/api/stakeholders/${editingStakeholderId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload }) });
-              } else {
-                await fetch('/api/stakeholders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-              }
-              await fetchAllData();
-              setEditingStakeholderId(null);
-            } catch (err) { console.error(err) }
-          }}
-        />
-
-        <RuleModal
-          open={openRuleModal}
-          onOpenChange={setOpenRuleModal}
-          initial={editingRuleId ? rulesList.find(r => r.id === editingRuleId) : undefined}
-          onSave={async (payload: any) => {
-            try {
-              if (editingRuleId) {
-                await fetch(`/api/allocation-rules/${editingRuleId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload }) });
-              } else {
-                await fetch('/api/allocation-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-              }
-              await fetchAllData();
-              setEditingRuleId(null);
-            } catch (err) { console.error(err) }
-          }}
-        />
         <Card>
           <CardHeader>
             <CardTitle>Input Modal Masuk</CardTitle>
@@ -539,10 +615,10 @@ export default function FundingPage() {
               </div>
 
               <div className="space-y-2 pt-2">
-                {stakeholdersList.length === 0 ? (
+                {data.stakeholders.length === 0 ? (
                   <p className="text-sm text-gray-500">Belum ada stakeholder</p>
                 ) : (
-                  stakeholdersList.map((item) => {
+                  data.stakeholders.map((item) => {
                     const investor = data.investors.find((inv: any) => inv.id === item.investor_id);
                     return (
                       <div key={item.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
@@ -634,10 +710,10 @@ export default function FundingPage() {
               </div>
 
               <div className="space-y-2 pt-2">
-                {rulesList.length === 0 ? (
+                {data.allocationRules.length === 0 ? (
                   <p className="text-sm text-gray-500">Belum ada rule</p>
                 ) : (
-                  rulesList.map((item) => (
+                  data.allocationRules.map((item) => (
                     <div key={item.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold">{item.name || 'Default rule'}</p>
@@ -682,7 +758,7 @@ export default function FundingPage() {
                 <SelectValue placeholder="Pilih rule" />
               </SelectTrigger>
               <SelectContent>
-                {rulesList.map((rule) => (
+                {data.allocationRules.map((rule) => (
                   <SelectItem key={rule.id} value={rule.id}>{rule.name || 'Default rule'} ({rule.cash_reserve_percent}%)</SelectItem>
                 ))}
               </SelectContent>
@@ -1113,30 +1189,7 @@ export default function FundingPage() {
       distribution_label: 'Bagi hasil',
       notes: '',
     });
-    const [stakeholdersList, setStakeholdersList] = useState<Stakeholder[]>([]);
-    const [rulesList, setRulesList] = useState<AllocationRule[]>([]);
-    const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
-    const [preview, setPreview] = useState<any | null>(null);
     const [saving, setSaving] = useState(false);
-    const [stakeholderForm, setStakeholderForm] = useState({
-      name: '',
-      role: 'founder',
-      investor_id: '',
-      default_share_percent: '',
-      notes: '',
-      is_active: true,
-    });
-    const [ruleForm, setRuleForm] = useState({
-      name: '',
-      recover_first: true,
-      cash_reserve_percent: '10',
-      allow_overdraft: false,
-      notes: '',
-    });
-    const [editingStakeholderId, setEditingStakeholderId] = useState<string | null>(null);
-    const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-    const [openStakeholderModal, setOpenStakeholderModal] = useState(false);
-    const [openRuleModal, setOpenRuleModal] = useState(false);
 
     const totalReserved = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.reserve_amount || 0), 0);
     const totalDistributed = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.distributed_amount || 0), 0);
@@ -1203,107 +1256,25 @@ export default function FundingPage() {
       }
     }
 
-    useEffect(() => {
-      setStakeholdersList(data.stakeholders || []);
-      setRulesList(data.allocationRules || []);
-      if ((data.allocationRules || []).length > 0 && !selectedRuleId) {
-        setSelectedRuleId((data.allocationRules || [])[0].id);
-      }
-    }, [data]);
+    // TODO: Fix infinite loop - useEffect structure needs refactor
+    // useEffect(() => {
+    //   if ((data.allocationRules || []).length > 0 && !selectedRuleId) {
+    //     setSelectedRuleId((data.allocationRules || [])[0].id);
+    //   }
+    // }, [data.allocationRules.length, selectedRuleId]);
 
-    useEffect(() => {
-      const selectedRule = rulesList.find((rule) => rule.id === selectedRuleId);
-      if (selectedRule) {
-        setRuleForm({
-          name: selectedRule.name || '',
-          recover_first: selectedRule.recover_first,
-          cash_reserve_percent: String(selectedRule.cash_reserve_percent ?? 10),
-          allow_overdraft: selectedRule.allow_overdraft,
-          notes: selectedRule.notes || '',
-        });
-        setEditingRuleId(selectedRule.id);
-      }
-    }, [selectedRuleId, rulesList]);
-
-    async function submitStakeholder() {
-      try {
-        const body = {
-          outlet_id: outletId,
-          name: stakeholderForm.name,
-          role: stakeholderForm.role,
-          investor_id: stakeholderForm.investor_id || null,
-          default_share_percent: stakeholderForm.default_share_percent || 0,
-          notes: stakeholderForm.notes || '',
-          is_active: stakeholderForm.is_active,
-        };
-
-        const response = editingStakeholderId
-          ? await fetch(`/api/stakeholders/${editingStakeholderId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            })
-          : await fetch('/api/stakeholders', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-
-        if (!response.ok) throw new Error('Gagal simpan stakeholder');
-
-        setStakeholderForm({
-          name: '',
-          role: 'founder',
-          investor_id: '',
-          default_share_percent: '',
-          notes: '',
-          is_active: true,
-        });
-        setEditingStakeholderId(null);
-        await fetchAllData();
-      } catch (error) {
-        console.error('Stakeholder save error:', error);
-      }
-    }
-
-    async function submitRule() {
-      try {
-        const body = {
-          outlet_id: outletId,
-          name: ruleForm.name,
-          recover_first: ruleForm.recover_first,
-          cash_reserve_percent: ruleForm.cash_reserve_percent,
-          allow_overdraft: ruleForm.allow_overdraft,
-          notes: ruleForm.notes || '',
-        };
-
-        const response = editingRuleId
-          ? await fetch(`/api/allocation-rules/${editingRuleId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            })
-          : await fetch('/api/allocation-rules', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-
-        if (!response.ok) throw new Error('Gagal simpan rule');
-
-        setRuleForm({
-          name: '',
-          recover_first: true,
-          cash_reserve_percent: '10',
-          allow_overdraft: false,
-          notes: '',
-        });
-        setEditingRuleId(null);
-        await fetchAllData();
-      } catch (error) {
-        console.error('Rule save error:', error);
-      }
-    }
+    // useEffect(() => {
+    //   const selectedRule = data.allocationRules.find((rule) => rule.id === selectedRuleId);
+    //   if (selectedRule) {
+    //     setRuleForm({
+    //       name: selectedRule.name || '',
+    //       recover_first: selectedRule.recover_first,
+    //       cash_reserve_percent: String(selectedRule.cash_reserve_percent ?? 10),
+    //       allow_overdraft: selectedRule.allow_overdraft,
+    //       notes: selectedRule.notes || '',
+    //     });
+    //   }
+    // }, [selectedRuleId, data.allocationRules]);
 
     async function handlePreview() {
       try {
@@ -1658,6 +1629,25 @@ export default function FundingPage() {
           <strong>Error:</strong> {data.error}
         </Alert>
       )}
+
+      {/* Modals for stakeholder & rule management (modal components handle their own state) */}
+      <StakeholderModal
+        open={openStakeholderModal}
+        onOpenChange={setOpenStakeholderModal}
+        initial={editingStakeholderId ? data.stakeholders.find(s => s.id === editingStakeholderId) : undefined}
+        onSave={async () => {
+          await submitStakeholder();
+        }}
+      />
+
+      <RuleModal
+        open={openRuleModal}
+        onOpenChange={setOpenRuleModal}
+        initial={editingRuleId ? data.allocationRules.find(r => r.id === editingRuleId) : undefined}
+        onSave={async () => {
+          await submitRule();
+        }}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-7">

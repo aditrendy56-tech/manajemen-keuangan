@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const outletId = searchParams.get('outlet_id');
     const limit = searchParams.get('limit') || '50';
 
-    const query = getSupabaseServer().from('capital_repayments')
+    let query = getSupabaseServer().from('capital_repayments')
       .select('*');
 
     if (investorId) {

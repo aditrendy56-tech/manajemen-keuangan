@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DailySession } from '@/types';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Trash2, Power } from 'lucide-react';
 import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function SessionsPage() {
@@ -14,6 +14,7 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<DailySession[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchSessions();
@@ -59,6 +60,43 @@ export default function SessionsPage() {
     }
   }
 
+  async function handleCloseSession(sessionId: string) {
+    if (!confirm('Tutup sesi ini? Anda tidak bisa edit data setelah sesi ditutup.')) return;
+    
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+
+      if (response.ok) {
+        setSessions(sessions.map(s => s.id === sessionId ? { ...s, status: 'closed' } : s));
+      }
+    } catch (error) {
+      console.error('Error closing session:', error);
+    }
+  }
+
+  async function handleDeleteSession(sessionId: string) {
+    if (!confirm('Hapus sesi ini? Ini tidak bisa dibatalkan.')) return;
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setSessions(sessions.filter(s => s.id !== sessionId));
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error);
+    }
+  }
+
+  // Check if selected date already has an OPEN session
+  const hasOpenSessionForDate = sessions.some(s => s.date === selectedDate && s.status === 'open');
+
   return (
     <div className="space-y-6">
       <div>
@@ -94,13 +132,32 @@ export default function SessionsPage() {
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {session.status === 'open' ? 'Buka' : 'Tutup'}
+                          {session.status === 'open' ? '🟢 Buka' : '🔴 Tutup'}
                         </span>
                         <Link href={`/sessions/${session.id}`}>
                           <Button variant="outline" size="sm">
                             <ArrowRight className="w-4 h-4" />
                           </Button>
                         </Link>
+                        {session.status === 'open' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-blue-600 hover:text-blue-800"
+                            onClick={() => handleCloseSession(session.id)}
+                            title="Tutup sesi"
+                          >
+                            <Power className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteSession(session.id)}
+                          title="Hapus sesi"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -110,7 +167,13 @@ export default function SessionsPage() {
           </Card>
         </div>
         <div>
-          <SessionForm onSubmit={handleSubmit} loading={loading} />
+          <SessionForm 
+            onSubmit={handleSubmit} 
+            loading={loading}
+            onDateChange={setSelectedDate}
+            disableSubmit={hasOpenSessionForDate}
+            duplicateWarning={hasOpenSessionForDate}
+          />
         </div>
       </div>
     </div>
