@@ -10,8 +10,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2 } from 'lucide-react';
-import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
+import { Trash2, PencilLine, Plus, Save } from 'lucide-react';
+import StakeholderModal from '@/components/modals/StakeholderModal';
+import RuleModal from '@/components/modals/RuleModal';
+import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction, Stakeholder, AllocationRule } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -22,6 +24,8 @@ interface FundingState {
   repayments: CapitalRepayment[];
   profitAllocations: ProfitAllocation[];
   cashTransactions: CashTransaction[];
+  stakeholders: Stakeholder[];
+  allocationRules: AllocationRule[];
   loading: boolean;
   error: string | null;
 }
@@ -48,12 +52,14 @@ export default function FundingPage() {
   async function fetchAllData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
-      const [entries, investors, repayments, profitAllocations, cashTransactions] = await Promise.all([
+      const [entries, investors, repayments, profitAllocations, cashTransactions, stakeholders, allocationRules] = await Promise.all([
         fetch(`/api/capital?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/investors?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/capital-repayments?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/profit-allocations?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/cash-transactions?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/stakeholders?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/allocation-rules?outlet_id=${outletId}`).then(r => r.json()),
       ]);
 
       setData({
@@ -62,6 +68,8 @@ export default function FundingPage() {
         repayments: Array.isArray(repayments) ? repayments : [],
         profitAllocations: Array.isArray(profitAllocations) ? profitAllocations : [],
         cashTransactions: Array.isArray(cashTransactions) ? cashTransactions : [],
+        stakeholders: Array.isArray(stakeholders) ? stakeholders : [],
+        allocationRules: Array.isArray(allocationRules) ? allocationRules : [],
         loading: false,
         error: null,
       });
@@ -115,6 +123,39 @@ export default function FundingPage() {
 
     return (
       <div className="space-y-6">
+        <StakeholderModal
+          open={openStakeholderModal}
+          onOpenChange={setOpenStakeholderModal}
+          initial={editingStakeholderId ? stakeholdersList.find(s => s.id === editingStakeholderId) : undefined}
+          onSave={async (payload: any) => {
+            try {
+              if (editingStakeholderId) {
+                await fetch(`/api/stakeholders/${editingStakeholderId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload }) });
+              } else {
+                await fetch('/api/stakeholders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+              }
+              await fetchAllData();
+              setEditingStakeholderId(null);
+            } catch (err) { console.error(err) }
+          }}
+        />
+
+        <RuleModal
+          open={openRuleModal}
+          onOpenChange={setOpenRuleModal}
+          initial={editingRuleId ? rulesList.find(r => r.id === editingRuleId) : undefined}
+          onSave={async (payload: any) => {
+            try {
+              if (editingRuleId) {
+                await fetch(`/api/allocation-rules/${editingRuleId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload }) });
+              } else {
+                await fetch('/api/allocation-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+              }
+              await fetchAllData();
+              setEditingRuleId(null);
+            } catch (err) { console.error(err) }
+          }}
+        />
         <Card>
           <CardHeader>
             <CardTitle>Input Modal Masuk</CardTitle>
@@ -436,6 +477,220 @@ export default function FundingPage() {
 
     return (
       <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Stakeholder</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => {
+                setEditingStakeholderId(null);
+                setStakeholderForm({ name: '', role: 'founder', investor_id: '', default_share_percent: '', notes: '', is_active: true });
+              }}>
+                <Plus className="w-4 h-4 mr-1" /> Baru
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Nama</Label>
+                  <Input value={stakeholderForm.name} onChange={(e) => setStakeholderForm({ ...stakeholderForm, name: e.target.value })} placeholder="Founder A" />
+                </div>
+                <div>
+                  <Label>Role</Label>
+                  <Select value={stakeholderForm.role} onValueChange={(val: any) => setStakeholderForm({ ...stakeholderForm, role: val })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="founder">Founder</SelectItem>
+                      <SelectItem value="investor">Investor</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Share %</Label>
+                  <Input type="number" value={stakeholderForm.default_share_percent} onChange={(e) => setStakeholderForm({ ...stakeholderForm, default_share_percent: e.target.value })} placeholder="60" />
+                </div>
+                <div>
+                  <Label>Investor (opsional)</Label>
+                  <Select value={stakeholderForm.investor_id} onValueChange={(val: any) => setStakeholderForm({ ...stakeholderForm, investor_id: val })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih investor (opsional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">- Tidak ada -</SelectItem>
+                      {data.investors.map((inv: any) => (
+                        <SelectItem key={inv.id} value={inv.id}>{inv.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Catatan</Label>
+                <Textarea value={stakeholderForm.notes} onChange={(e) => setStakeholderForm({ ...stakeholderForm, notes: e.target.value })} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="button" onClick={submitStakeholder} className="bg-orange-600 hover:bg-orange-700">
+                  <Save className="w-4 h-4 mr-1" /> {editingStakeholderId ? 'Update' : 'Simpan'}
+                </Button>
+                {editingStakeholderId && (
+                  <Button type="button" variant="outline" onClick={() => setEditingStakeholderId(null)}>Batal edit</Button>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-2">
+                {stakeholdersList.length === 0 ? (
+                  <p className="text-sm text-gray-500">Belum ada stakeholder</p>
+                ) : (
+                  stakeholdersList.map((item) => {
+                    const investor = data.investors.find((inv: any) => inv.id === item.investor_id);
+                    return (
+                      <div key={item.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{item.name}</p>
+                          <p className="text-xs text-gray-500 capitalize">{item.role} • {item.default_share_percent}%</p>
+                          {investor && <p className="text-xs text-gray-500">Investor: {investor.name}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => {
+                            setEditingStakeholderId(item.id);
+                            setStakeholderForm({
+                              name: item.name,
+                              role: item.role,
+                              investor_id: item.investor_id || '',
+                              default_share_percent: String(item.default_share_percent ?? 0),
+                              notes: item.notes || '',
+                              is_active: item.is_active,
+                            });
+                          }}>
+                            <PencilLine className="w-4 h-4 mr-1" /> Edit
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={async () => {
+                            if (!confirm('Hapus stakeholder ini?')) return;
+                            await fetch(`/api/stakeholders/${item.id}`, { method: 'DELETE' });
+                            await fetchAllData();
+                          }}>Hapus</Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Rule Alokasi</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => {
+                setEditingRuleId(null);
+                setRuleForm({ name: '', recover_first: true, cash_reserve_percent: '10', allow_overdraft: false, notes: '' });
+              }}>
+                <Plus className="w-4 h-4 mr-1" /> Baru
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Nama Rule</Label>
+                  <Input value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} placeholder="Default rule" />
+                </div>
+                <div>
+                  <Label>Kas Reserve %</Label>
+                  <Input type="number" value={ruleForm.cash_reserve_percent} onChange={(e) => setRuleForm({ ...ruleForm, cash_reserve_percent: e.target.value })} placeholder="10" />
+                </div>
+                <div>
+                  <Label>Balik Modal Dulu</Label>
+                  <Select value={ruleForm.recover_first ? 'yes' : 'no'} onValueChange={(val) => setRuleForm({ ...ruleForm, recover_first: val === 'yes' })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Ya</SelectItem>
+                      <SelectItem value="no">Tidak</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Allow Overdraft</Label>
+                  <Select value={ruleForm.allow_overdraft ? 'yes' : 'no'} onValueChange={(val) => setRuleForm({ ...ruleForm, allow_overdraft: val === 'yes' })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Ya</SelectItem>
+                      <SelectItem value="no">Tidak</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Catatan</Label>
+                <Textarea value={ruleForm.notes} onChange={(e) => setRuleForm({ ...ruleForm, notes: e.target.value })} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="button" onClick={submitRule} className="bg-orange-600 hover:bg-orange-700">
+                  <Save className="w-4 h-4 mr-1" /> {editingRuleId ? 'Update' : 'Simpan'}
+                </Button>
+                {editingRuleId && (
+                  <Button type="button" variant="outline" onClick={() => setEditingRuleId(null)}>Batal edit</Button>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-2">
+                {rulesList.length === 0 ? (
+                  <p className="text-sm text-gray-500">Belum ada rule</p>
+                ) : (
+                  rulesList.map((item) => (
+                    <div key={item.id} className="border rounded-lg p-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{item.name || 'Default rule'}</p>
+                        <p className="text-xs text-gray-500">Recover: {item.recover_first ? 'Ya' : 'Tidak'} • Reserve: {item.cash_reserve_percent}% • Overdraft: {item.allow_overdraft ? 'Ya' : 'Tidak'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setSelectedRuleId(item.id);
+                          setEditingRuleId(item.id);
+                          setRuleForm({
+                            name: item.name || '',
+                            recover_first: item.recover_first,
+                            cash_reserve_percent: String(item.cash_reserve_percent ?? 10),
+                            allow_overdraft: item.allow_overdraft,
+                            notes: item.notes || '',
+                          });
+                        }}>
+                          <PencilLine className="w-4 h-4 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={async () => {
+                          if (!confirm('Hapus rule ini?')) return;
+                          await fetch(`/api/allocation-rules/${item.id}`, { method: 'DELETE' });
+                          if (selectedRuleId === item.id) setSelectedRuleId(null);
+                          await fetchAllData();
+                        }}>Hapus</Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pilih Rule untuk Preview / Eksekusi</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedRuleId || ''} onValueChange={(val: any) => setSelectedRuleId(val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih rule" />
+              </SelectTrigger>
+              <SelectContent>
+                {rulesList.map((rule) => (
+                  <SelectItem key={rule.id} value={rule.id}>{rule.name || 'Default rule'} ({rule.cash_reserve_percent}%)</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-2">Rule ini dipakai saat preview dan eksekusi alokasi laba.</p>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -858,7 +1113,30 @@ export default function FundingPage() {
       distribution_label: 'Bagi hasil',
       notes: '',
     });
+    const [stakeholdersList, setStakeholdersList] = useState<Stakeholder[]>([]);
+    const [rulesList, setRulesList] = useState<AllocationRule[]>([]);
+    const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+    const [preview, setPreview] = useState<any | null>(null);
     const [saving, setSaving] = useState(false);
+    const [stakeholderForm, setStakeholderForm] = useState({
+      name: '',
+      role: 'founder',
+      investor_id: '',
+      default_share_percent: '',
+      notes: '',
+      is_active: true,
+    });
+    const [ruleForm, setRuleForm] = useState({
+      name: '',
+      recover_first: true,
+      cash_reserve_percent: '10',
+      allow_overdraft: false,
+      notes: '',
+    });
+    const [editingStakeholderId, setEditingStakeholderId] = useState<string | null>(null);
+    const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+    const [openStakeholderModal, setOpenStakeholderModal] = useState(false);
+    const [openRuleModal, setOpenRuleModal] = useState(false);
 
     const totalReserved = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.reserve_amount || 0), 0);
     const totalDistributed = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.distributed_amount || 0), 0);
@@ -917,10 +1195,155 @@ export default function FundingPage() {
         });
 
         await fetchAllData();
+        setPreview(null);
       } catch (error) {
         console.error('Error saving profit allocation:', error);
       } finally {
         setSaving(false);
+      }
+    }
+
+    useEffect(() => {
+      setStakeholdersList(data.stakeholders || []);
+      setRulesList(data.allocationRules || []);
+      if ((data.allocationRules || []).length > 0 && !selectedRuleId) {
+        setSelectedRuleId((data.allocationRules || [])[0].id);
+      }
+    }, [data]);
+
+    useEffect(() => {
+      const selectedRule = rulesList.find((rule) => rule.id === selectedRuleId);
+      if (selectedRule) {
+        setRuleForm({
+          name: selectedRule.name || '',
+          recover_first: selectedRule.recover_first,
+          cash_reserve_percent: String(selectedRule.cash_reserve_percent ?? 10),
+          allow_overdraft: selectedRule.allow_overdraft,
+          notes: selectedRule.notes || '',
+        });
+        setEditingRuleId(selectedRule.id);
+      }
+    }, [selectedRuleId, rulesList]);
+
+    async function submitStakeholder() {
+      try {
+        const body = {
+          outlet_id: outletId,
+          name: stakeholderForm.name,
+          role: stakeholderForm.role,
+          investor_id: stakeholderForm.investor_id || null,
+          default_share_percent: stakeholderForm.default_share_percent || 0,
+          notes: stakeholderForm.notes || '',
+          is_active: stakeholderForm.is_active,
+        };
+
+        const response = editingStakeholderId
+          ? await fetch(`/api/stakeholders/${editingStakeholderId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+          : await fetch('/api/stakeholders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+
+        if (!response.ok) throw new Error('Gagal simpan stakeholder');
+
+        setStakeholderForm({
+          name: '',
+          role: 'founder',
+          investor_id: '',
+          default_share_percent: '',
+          notes: '',
+          is_active: true,
+        });
+        setEditingStakeholderId(null);
+        await fetchAllData();
+      } catch (error) {
+        console.error('Stakeholder save error:', error);
+      }
+    }
+
+    async function submitRule() {
+      try {
+        const body = {
+          outlet_id: outletId,
+          name: ruleForm.name,
+          recover_first: ruleForm.recover_first,
+          cash_reserve_percent: ruleForm.cash_reserve_percent,
+          allow_overdraft: ruleForm.allow_overdraft,
+          notes: ruleForm.notes || '',
+        };
+
+        const response = editingRuleId
+          ? await fetch(`/api/allocation-rules/${editingRuleId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+          : await fetch('/api/allocation-rules', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+
+        if (!response.ok) throw new Error('Gagal simpan rule');
+
+        setRuleForm({
+          name: '',
+          recover_first: true,
+          cash_reserve_percent: '10',
+          allow_overdraft: false,
+          notes: '',
+        });
+        setEditingRuleId(null);
+        await fetchAllData();
+      } catch (error) {
+        console.error('Rule save error:', error);
+      }
+    }
+
+    async function handlePreview() {
+      try {
+        const month = new Date(formData.allocation_date).getMonth() + 1;
+        const year = new Date(formData.allocation_date).getFullYear();
+        const res = await fetch('/api/allocations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outlet_id: outletId, month, year, rule_id: selectedRuleId, dry_run: true }),
+        });
+        const json = await res.json();
+        if (json.preview) setPreview(json.preview);
+        else alert('Preview gagal');
+      } catch (err) {
+        console.error('Preview error', err);
+        alert('Gagal generate preview');
+      }
+    }
+
+    async function handleExecute() {
+      if (!confirm('Eksekusi alokasi akan membuat entri mutasi kas. Lanjutkan?')) return;
+      try {
+        const month = new Date(formData.allocation_date).getMonth() + 1;
+        const year = new Date(formData.allocation_date).getFullYear();
+        const res = await fetch('/api/allocations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outlet_id: outletId, month, year, rule_id: selectedRuleId, dry_run: false, run_by: 'system' }),
+        });
+        const json = await res.json();
+        if (json.result) {
+          alert('Alokasi berhasil dieksekusi');
+          await fetchAllData();
+          setPreview(null);
+        } else {
+          alert('Eksekusi gagal: ' + (json.error || 'unknown'));
+        }
+      } catch (err) {
+        console.error('Execute error', err);
+        alert('Gagal eksekusi alokasi');
       }
     }
 
@@ -1045,12 +1468,51 @@ export default function FundingPage() {
                 />
               </div>
 
-              <Button disabled={saving} className="bg-orange-600 hover:bg-orange-700">
-                {saving ? 'Menyimpan...' : 'Simpan Alokasi'}
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button onClick={handlePreview} className="bg-sky-600 hover:bg-sky-700">Preview (Dry-run)</Button>
+                <Button disabled={saving} onClick={handleExecute} className="bg-orange-600 hover:bg-orange-700">{saving ? 'Menyimpan...' : 'Eksekusi Alokasi'}</Button>
+                <Button disabled={saving} onClick={handleSubmit} variant="outline">Simpan Manual</Button>
+              </div>
             </form>
           </CardContent>
         </Card>
+
+        {/* Preview Section */}
+        {preview && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Preview Alokasi</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Total Profit</p>
+                  <p className="font-semibold text-lg">{formatCurrency(preview.total_profit)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Kas Muter</p>
+                  <p className="font-semibold text-lg">{formatCurrency(preview.reserve_amount)}</p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <h4 className="font-semibold mb-2">Distribusi per Stakeholder</h4>
+                {preview.allocations && preview.allocations.length > 0 ? (
+                  <div className="space-y-2">
+                    {preview.allocations.map((a: any) => (
+                      <div key={a.stakeholder_id} className="flex justify-between">
+                        <div>{a.name} <span className="text-sm text-gray-500">({a.percent}%)</span></div>
+                        <div className="font-semibold">{formatCurrency(a.amount)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Tidak ada stakeholder terdaftar</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

@@ -189,12 +189,59 @@ export interface ProfitAllocation {
   created_at: string;
 }
 
+export interface Stakeholder {
+  id: string;
+  outlet_id: string;
+  name: string;
+  role: 'founder' | 'investor' | 'employee' | 'other';
+  investor_id?: string | null;
+  default_share_percent: number;
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AllocationRule {
+  id: string;
+  outlet_id: string;
+  name?: string;
+  recover_first: boolean;
+  cash_reserve_percent: number;
+  allow_overdraft: boolean;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AllocationRun {
+  id: string;
+  outlet_id: string;
+  rule_id?: string | null;
+  period_month: number;
+  period_year: number;
+  run_by?: string;
+  status: 'dry' | 'executed';
+  total_profit: number;
+  total_allocated: number;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AllocationItem {
+  id: string;
+  allocation_run_id: string;
+  stakeholder_id?: string | null;
+  item_type: 'reserve' | 'founder' | 'employee' | 'capital_recovery' | 'pool' | 'other';
+  amount: number;
+  notes?: string;
+  created_at: string;
+}
+
 export interface CashTransaction {
   id: string;
   outlet_id: string;
   transaction_date: string;
   transaction_type: 'inflow' | 'outflow';
-  source_type: 'sale' | 'expense' | 'material_purchase' | 'capital_entry' | 'profit_allocation' | 'repayment' | 'manual';
+  source_type: 'sale' | 'expense' | 'material_purchase' | 'capital_entry' | 'allocation' | 'repayment' | 'manual';
   source_id?: string | null;
   amount: number;
   description: string;
