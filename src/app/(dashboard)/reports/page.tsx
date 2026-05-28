@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,22 +16,37 @@ export default function ReportsPage() {
   const { outletId } = useOutlet();
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [report, setReport] = useState<ProfitLossReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [revenueByChannel, setRevenueByChannel] = useState({ offline: 0, shopeefood: 0, gofood: 0 });
+  const [paymentMethod, setPaymentMethod] = useState({ cash: 0, qris: 0 });
+  const [topProducts, setTopProducts] = useState<{ name: string; quantity: number }[]>([]);
 
-  // Mock report data
-  const mockReport: ProfitLossReport = {
-    gross_revenue: 500000,
-    platform_fees: 75000,
-    net_revenue: 425000,
-    total_expenses: 225000,
-    expenses_by_category: {
-      bahan_baku: 150000,
-      operasional: 50000,
-      transport: 25000,
-    },
-    gross_profit: 200000,
-    net_profit: 200000,
-    profit_margin: 40,
-  };
+  useEffect(() => {
+    fetchReport();
+  }, [outletId, startDate, endDate]);
+
+  async function fetchReport() {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(
+        `/api/reports/summary?outlet_id=${outletId}&start_date=${startDate}&end_date=${endDate}`
+      );
+      if (!response.ok) throw new Error('Failed to fetch report');
+      const data = await response.json();
+      setReport(data.report);
+      setRevenueByChannel(data.revenueByChannel);
+      setPaymentMethod(data.paymentMethod);
+      setTopProducts(data.topProducts);
+    } catch (err: any) {
+      console.error('Error fetching report:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleExport() {
     try {
@@ -88,32 +103,29 @@ export default function ReportsPage() {
       </Card>
 
       {/* Main Report */}
-      <ReportsTable report={mockReport} />
+      {error && (
+        <div className="bg-red-50 text-red-800 border border-red-200 rounded-lg p-4">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueByChannelChart
-          data={{
-            offline: 150000,
-            shopeefood: 175000,
-            gofood: 100000,
-          }}
-        />
-        <PaymentMethodChart
-          data={{
-            cash: 250000,
-            qris: 175000,
-          }}
-        />
-      </div>
+      {loading ? (
+        <div className="text-center py-8 text-gray-500">Memuat laporan...</div>
+      ) : report ? (
+        <>
+          <ReportsTable report={report} />
 
-      <TopProductsChart
-        data={[
-          { name: 'Roti Bakar Standar', quantity: 45 },
-          { name: 'Roti Bakar Premium', quantity: 30 },
-          { name: 'Roti Bakar Spesial', quantity: 20 },
-        ]}
-      />
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RevenueByChannelChart data={revenueByChannel} />
+            <PaymentMethodChart data={paymentMethod} />
+          </div>
+
+          {topProducts.length > 0 && <TopProductsChart data={topProducts} />}
+        </>
+      ) : (
+        <div className="text-center py-8 text-gray-500">Tidak ada data laporan</div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { recordCashTransaction } from '@/lib/cash/ledger';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,17 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordCashTransaction({
+      outlet_id,
+      transaction_date: date,
+      transaction_type: 'outflow',
+      source_type: 'material_purchase',
+      source_id: data.id,
+      amount: Number(total_amount || (Number(quantity) * Number(unit_price))),
+      description: `Pembelian bahan${raw_material_id ? '' : ''}`,
+      notes: notes || null,
+    });
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {

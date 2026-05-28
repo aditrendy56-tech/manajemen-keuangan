@@ -61,7 +61,40 @@ export async function GET(request: NextRequest) {
       profit_margin,
     };
 
-    return NextResponse.json(report);
+    // Revenue by channel
+    const revenueByChannel = { offline: 0, shopeefood: 0, gofood: 0 };
+    sales?.forEach((s: any) => {
+      if (s.channel === 'offline') revenueByChannel.offline += s.gross_amount || 0;
+      else if (s.channel === 'shopeefood') revenueByChannel.shopeefood += s.gross_amount || 0;
+      else if (s.channel === 'gofood') revenueByChannel.gofood += s.gross_amount || 0;
+    });
+
+    // Payment method
+    const paymentMethod = { cash: 0, qris: 0 };
+    sales?.forEach((s: any) => {
+      if (s.payment_method === 'cash') paymentMethod.cash += s.gross_amount || 0;
+      else if (s.payment_method === 'qris') paymentMethod.qris += s.gross_amount || 0;
+    });
+
+    // Get sale items to count products
+    const { data: saleItems } = await getSupabaseServer().from('sale_items')
+      .select('product_id, quantity, products(name)')
+      .in('sale_id', sales?.map((s: any) => s.id) || []);
+
+    const productCounts: Record<string, { name: string; quantity: number }> = {};
+    saleItems?.forEach((item: any) => {
+      const productName = item.products?.name || 'Unknown';
+      if (!productCounts[productName]) {
+        productCounts[productName] = { name: productName, quantity: 0 };
+      }
+      productCounts[productName].quantity += item.quantity || 0;
+    });
+
+    const topProducts = Object.values(productCounts)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+
+    return NextResponse.json({ report, revenueByChannel, paymentMethod, topProducts });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -7,18 +7,22 @@ import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
 import { DashboardMetrics } from '@/types';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cashTotals, setCashTotals] = useState({ totalIn: 0, totalOut: 0, balance: 0 });
+  const { outletId } = useOutlet();
 
   useEffect(() => {
     fetchMetrics();
+    fetchCashTotals();
   }, []);
 
   async function fetchMetrics() {
     try {
-      const response = await fetch(`/api/dashboard?outlet_id=660e8400-e29b-41d4-a716-446655440000`);
+      const response = await fetch(`/api/dashboard?outlet_id=${outletId}`);
       if (!response.ok) throw new Error('Failed to fetch metrics');
       const data = await response.json();
       setMetrics(data);
@@ -39,6 +43,24 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchCashTotals() {
+    try {
+      const res = await fetch(`/api/cash-transactions?outlet_id=${outletId}&limit=1000`);
+      if (!res.ok) throw new Error('Failed to fetch cash transactions');
+      const data = await res.json();
+      const totalIn = (data || [])
+        .filter((t: any) => t.transaction_type === 'in')
+        .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+      const totalOut = (data || [])
+        .filter((t: any) => t.transaction_type === 'out')
+        .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+      setCashTotals({ totalIn, totalOut, balance: totalIn - totalOut });
+    } catch (err) {
+      console.error('Failed to fetch cash totals', err);
+      setCashTotals({ totalIn: 0, totalOut: 0, balance: 0 });
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-8">Memuat data...</div>;
   }
@@ -53,6 +75,45 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-600">Selamat datang kembali! Berikut ringkasan hari ini.</p>
+      </div>
+
+      {/* Cash Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Total Masuk</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-green-600" />
+              <span className="text-2xl font-bold">Rp {cashTotals.totalIn.toLocaleString('id-ID')}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Total Keluar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-red-600" />
+              <span className="text-2xl font-bold">Rp {cashTotals.totalOut.toLocaleString('id-ID')}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Saldo Kas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-indigo-600" />
+              <span className="text-2xl font-bold">Rp {cashTotals.balance.toLocaleString('id-ID')}</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Key Metrics */}

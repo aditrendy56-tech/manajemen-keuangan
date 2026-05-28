@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { recordCashTransaction, deleteCashTransactionsBySource } from '@/lib/cash/ledger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -56,6 +57,17 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordCashTransaction({
+      outlet_id,
+      transaction_date: date,
+      transaction_type: 'inflow',
+      source_type: 'capital_entry',
+      source_id: data.id,
+      amount: Number(amount),
+      description: `Modal masuk${source ? ` - ${source}` : ''}`,
+      notes: notes || null,
+    });
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {

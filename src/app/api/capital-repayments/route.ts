@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { recordCashTransaction } from '@/lib/cash/ledger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       .select('*');
 
     if (investorId) {
-      query.eq('investor_id', investorId);
+      query = query.eq('investor_id', investorId);
     } else if (outletId) {
       // Get repayments for all investors in this outlet
       const { data: investors, error: investorError } = await getSupabaseServer()
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
       if (investors && investors.length > 0) {
         const investorIds = (investors as any[]).map((inv: any) => inv.id);
-        query.in('investor_id', investorIds);
+        query = query.in('investor_id', investorIds);
       }
     }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     // Update investor remaining balance
     const { data: investorData, error: investorError } = await (getSupabaseServer()
       .from('investors')
-      .select('remaining_balance')
+      .select('remaining_balance, outlet_id')
       .eq('id', investor_id)
       .single() as any);
 
@@ -86,6 +87,17 @@ export async function POST(request: NextRequest) {
         .update({ remaining_balance: newBalance, status: newStatus })
         .eq('id', investor_id);
     }
+
+    await recordCashTransaction({
+      outlet_id: (investorData as any).outlet_id,
+      transaction_date: repayment_date,
+      transaction_type: 'outflow',
+      source_type: 'repayment',
+      source_id: repaymentData[0]?.id,
+      amount: Number(amount),
+      description: 'Pembayaran kembali modal investor',
+      notes: notes || null,
+    });
 
     return NextResponse.json(repaymentData[0], { status: 201 });
   } catch (error: any) {

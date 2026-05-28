@@ -38,6 +38,13 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - **History**: Riwayat lengkap pengembalian modal untuk setiap investor
 - **Priority-based Repayment**: Investor dengan priority lebih tinggi didahulukan pengembaliannya
 
+### Alokasi Laba & Kas Muter
+- Catat laba bulanan setelah operasional berjalan
+- Pisahkan dana yang ditahan sebagai kas muter / cadangan
+- Pisahkan dana yang dibagikan ke founder / partner / bonus tim
+- Simpan skema alokasi yang fleksibel per bulan
+- Cocok untuk fase balik modal, fase normal, dan fase ekspansi
+
 ### Pembelian Bahan Baku
 - Input pembelian dengan kalkulasi otomatis total (qty × unit price)
 - Pencatatan tanggal, jumlah, dan harga per unit
@@ -54,6 +61,36 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - **Analisis per Kategori**: Breakdown pengeluaran per kategori
 - **Export Excel**: Multi-sheet dengan summary dan detail
 - **Filter Periode**: Laporan berdasarkan range tanggal
+
+## 🔄 Alur Operasional yang Disarankan
+
+1. **Buka Sesi Harian**
+  - Buat sesi harian dulu sebagai wadah semua transaksi hari itu.
+  - Semua penjualan dan pengeluaran harus menempel ke sesi aktif.
+
+2. **Input Penjualan**
+  - Catat transaksi terjual dari buku manual atau rekap Damim.
+  - Channel menentukan fee platform otomatis.
+
+3. **Input Pengeluaran Operasional**
+  - Gunakan untuk bensin, plastik, tisu, listrik, parkir, dan biaya harian lain.
+  - Ini bukan pembelian stok bahan.
+
+4. **Input Pembelian Bahan**
+  - Gunakan fitur sourcing untuk bahan baku, supplier, dan pembelian stok.
+  - Data ini dipisah dari pengeluaran operasional supaya stok dan biaya tidak tercampur.
+
+5. **Input Modal / Investor**
+  - Catat modal awal, tambahan modal, dan pembayaran kembali modal.
+  - Fase awal bisa fokus ke balik modal dulu.
+
+6. **Catat Alokasi Laba Bulanan**
+  - Setelah balik modal atau sesuai keputusan bulanan, tentukan berapa yang ditahan di kas muter dan berapa yang dibagi.
+  - Skema bisa berubah tiap bulan sesuai kebutuhan usaha.
+
+7. **Cek Dashboard & Laporan**
+  - Dashboard untuk pantau ringkasan harian.
+  - Laporan untuk lihat profit, biaya, dan posisi usaha.
 
 ## 🛠️ Tech Stack
 

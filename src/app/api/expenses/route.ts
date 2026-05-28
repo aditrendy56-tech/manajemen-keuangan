@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { recordCashTransaction } from '@/lib/cash/ledger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,6 +63,17 @@ export async function POST(request: NextRequest) {
       console.error('[POST /api/expenses] Supabase error:', error);
       throw error;
     }
+
+    await recordCashTransaction({
+      outlet_id,
+      transaction_date: date,
+      transaction_type: 'outflow',
+      source_type: 'expense',
+      source_id: data[0]?.id,
+      amount: Number(amount),
+      description: description,
+      notes: notes || null,
+    });
 
     console.log('[POST /api/expenses] Success, created expense:', data[0]?.id);
     return NextResponse.json(data[0], { status: 201 });

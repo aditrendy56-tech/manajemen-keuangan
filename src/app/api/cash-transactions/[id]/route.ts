@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteCashTransactionsBySource } from '@/lib/cash/ledger';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,15 +11,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    const { error } = await getSupabaseServer().from('material_purchases')
+    const { error } = await getSupabaseServer()
+      .from('cash_transactions')
       .delete()
       .eq('id', id);
 
     if (error) throw error;
 
-    await deleteCashTransactionsBySource('material_purchase', id);
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

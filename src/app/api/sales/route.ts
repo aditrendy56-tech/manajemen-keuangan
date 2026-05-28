@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculatePlatformFee } from '@/lib/calculations/platform-fees';
+import { recordCashTransaction } from '@/lib/cash/ledger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,6 +79,17 @@ export async function POST(request: NextRequest) {
 
       if (itemsError) throw itemsError;
     }
+
+    await recordCashTransaction({
+      outlet_id,
+      transaction_date: saleData.date || new Date().toISOString().split('T')[0],
+      transaction_type: 'inflow',
+      source_type: 'sale',
+      source_id: saleId,
+      amount: Number(net_amount),
+      description: `Penjualan ${channel}`,
+      notes: null,
+    });
 
     return NextResponse.json(saleData, { status: 201 });
   } catch (error: any) {

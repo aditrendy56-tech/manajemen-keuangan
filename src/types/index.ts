@@ -174,6 +174,34 @@ export interface MaterialPurchase {
   created_at: string;
 }
 
+export interface ProfitAllocation {
+  id: string;
+  outlet_id: string;
+  allocation_date: string;
+  period_label?: string;
+  total_profit: number;
+  reserve_amount: number;
+  distributed_amount: number;
+  allocation_mode: 'retain' | 'split' | 'full_distribution' | 'custom';
+  reserve_label?: string;
+  distribution_label?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface CashTransaction {
+  id: string;
+  outlet_id: string;
+  transaction_date: string;
+  transaction_type: 'inflow' | 'outflow';
+  source_type: 'sale' | 'expense' | 'material_purchase' | 'capital_entry' | 'profit_allocation' | 'repayment' | 'manual';
+  source_id?: string | null;
+  amount: number;
+  description: string;
+  notes?: string;
+  created_at: string;
+}
+
 // UI/Form Types
 export interface SaleFormData {
   channnel: 'offline' | 'shopeefood' | 'gofood';

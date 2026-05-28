@@ -11,7 +11,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2 } from 'lucide-react';
-import { CapitalEntry, Investor, CapitalRepayment } from '@/types';
+import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -20,6 +20,8 @@ interface FundingState {
   capitalEntries: CapitalEntry[];
   investors: Investor[];
   repayments: CapitalRepayment[];
+  profitAllocations: ProfitAllocation[];
+  cashTransactions: CashTransaction[];
   loading: boolean;
   error: string | null;
 }
@@ -33,6 +35,8 @@ export default function FundingPage() {
     capitalEntries: [],
     investors: [],
     repayments: [],
+    profitAllocations: [],
+    cashTransactions: [],
     loading: true,
     error: null,
   });
@@ -44,16 +48,20 @@ export default function FundingPage() {
   async function fetchAllData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
-      const [entries, investors, repayments] = await Promise.all([
+      const [entries, investors, repayments, profitAllocations, cashTransactions] = await Promise.all([
         fetch(`/api/capital?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/investors?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/capital-repayments?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/profit-allocations?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/cash-transactions?outlet_id=${outletId}`).then(r => r.json()),
       ]);
 
       setData({
         capitalEntries: Array.isArray(entries) ? entries : [],
         investors: Array.isArray(investors) ? investors : [],
         repayments: Array.isArray(repayments) ? repayments : [],
+        profitAllocations: Array.isArray(profitAllocations) ? profitAllocations : [],
+        cashTransactions: Array.isArray(cashTransactions) ? cashTransactions : [],
         loading: false,
         error: null,
       });
@@ -82,7 +90,7 @@ export default function FundingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            outlet_id: OUTLET_ID,
+            outlet_id: outletId,
             ...formData,
             amount: parseFloat(formData.amount),
             investor_id: formData.investor_id || null,
@@ -269,7 +277,7 @@ export default function FundingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            outlet_id: OUTLET_ID,
+            outlet_id: outletId,
             ...formData,
             initial_contribution: parseFloat(formData.initial_contribution),
             remaining_balance: parseFloat(formData.initial_contribution),
@@ -837,6 +845,341 @@ export default function FundingPage() {
     );
   }
 
+  // ===== TAB 6: Alokasi Laba =====
+  function Tab6ProfitAllocation() {
+    const [formData, setFormData] = useState({
+      allocation_date: new Date().toISOString().split('T')[0],
+      period_label: '',
+      total_profit: '',
+      reserve_amount: '',
+      distributed_amount: '',
+      allocation_mode: 'retain',
+      reserve_label: 'Kas muter / cadangan',
+      distribution_label: 'Bagi hasil',
+      notes: '',
+    });
+    const [saving, setSaving] = useState(false);
+
+    const totalReserved = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.reserve_amount || 0), 0);
+    const totalDistributed = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.distributed_amount || 0), 0);
+    const totalAllocated = data.profitAllocations.reduce((sum: number, item: any) => sum + parseFloat(item.total_profit || 0), 0);
+
+    async function handleSubmit(e: React.FormEvent) {
+      e.preventDefault();
+
+      const totalProfit = parseFloat(formData.total_profit);
+      const reserveAmount = parseFloat(formData.reserve_amount || '0');
+      const distributedAmount = formData.distributed_amount
+        ? parseFloat(formData.distributed_amount)
+        : Math.max(0, totalProfit - reserveAmount);
+
+      if (!totalProfit || totalProfit <= 0) {
+        alert('Total laba harus diisi dan lebih dari 0');
+        return;
+      }
+
+      if (reserveAmount + distributedAmount > totalProfit) {
+        alert('Total reserve + dibagi tidak boleh melebihi total laba');
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const response = await fetch('/api/profit-allocations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outlet_id: outletId,
+            allocation_date: formData.allocation_date,
+            period_label: formData.period_label,
+            total_profit: totalProfit,
+            reserve_amount: reserveAmount,
+            distributed_amount: distributedAmount,
+            allocation_mode: formData.allocation_mode,
+            reserve_label: formData.reserve_label,
+            distribution_label: formData.distribution_label,
+            notes: formData.notes,
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to save profit allocation');
+
+        setFormData({
+          allocation_date: new Date().toISOString().split('T')[0],
+          period_label: '',
+          total_profit: '',
+          reserve_amount: '',
+          distributed_amount: '',
+          allocation_mode: 'retain',
+          reserve_label: 'Kas muter / cadangan',
+          distribution_label: 'Bagi hasil',
+          notes: '',
+        });
+
+        await fetchAllData();
+      } catch (error) {
+        console.error('Error saving profit allocation:', error);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Total Alokasi</p>
+              <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalAllocated)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Kas Muter / Cadangan</p>
+              <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalReserved)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Dibagikan</p>
+              <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalDistributed)}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Catat Alokasi Laba Bulanan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Tanggal Alokasi</Label>
+                  <Input
+                    type="date"
+                    value={formData.allocation_date}
+                    onChange={(e) => setFormData({ ...formData, allocation_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Periode</Label>
+                  <Input
+                    value={formData.period_label}
+                    onChange={(e) => setFormData({ ...formData, period_label: e.target.value })}
+                    placeholder="Contoh: 2026-05"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Total Laba Bulan Ini (Rp)</Label>
+                  <Input
+                    type="number"
+                    value={formData.total_profit}
+                    onChange={(e) => setFormData({ ...formData, total_profit: e.target.value })}
+                    placeholder="Contoh: 5000000"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Masuk Kas / Cadangan (Rp)</Label>
+                  <Input
+                    type="number"
+                    value={formData.reserve_amount}
+                    onChange={(e) => setFormData({ ...formData, reserve_amount: e.target.value })}
+                    placeholder="Contoh: 3000000"
+                  />
+                </div>
+                <div>
+                  <Label>Dibagikan (Rp)</Label>
+                  <Input
+                    type="number"
+                    value={formData.distributed_amount}
+                    onChange={(e) => setFormData({ ...formData, distributed_amount: e.target.value })}
+                    placeholder="Kosongkan kalau mau auto hitung"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Mode Alokasi</Label>
+                  <Select value={formData.allocation_mode} onValueChange={(val: any) => setFormData({ ...formData, allocation_mode: val })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="retain">Tahan Semua</SelectItem>
+                      <SelectItem value="split">Bagi Sebagian</SelectItem>
+                      <SelectItem value="full_distribution">Bagi Semua</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Label Cadangan</Label>
+                  <Input
+                    value={formData.reserve_label}
+                    onChange={(e) => setFormData({ ...formData, reserve_label: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Label Distribusi</Label>
+                <Input
+                  value={formData.distribution_label}
+                  onChange={(e) => setFormData({ ...formData, distribution_label: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>Catatan</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Contoh: bulan ini 60% ditahan untuk kas muter, 40% dibagi founder"
+                />
+              </div>
+
+              <Button disabled={saving} className="bg-orange-600 hover:bg-orange-700">
+                {saving ? 'Menyimpan...' : 'Simpan Alokasi'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Riwayat Alokasi Laba</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.profitAllocations.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Belum ada alokasi laba</p>
+            ) : (
+              <div className="space-y-3">
+                {data.profitAllocations.map((item: any) => (
+                  <div key={item.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <h3 className="font-semibold">{item.period_label || formatDate(item.allocation_date)}</h3>
+                        <p className="text-sm text-gray-600">Mode: {item.allocation_mode}</p>
+                        <p className="text-sm text-gray-600">{item.notes || '-'}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Hapus alokasi laba ini?')) {
+                            try {
+                              const response = await fetch(`/api/profit-allocations/${item.id}`, { method: 'DELETE' });
+                              if (response.ok) {
+                                await fetchAllData();
+                              }
+                            } catch (error) {
+                              console.error('Delete failed:', error);
+                            }
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-800 transition-colors"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                      <div>
+                        <p className="text-gray-600">Total Laba</p>
+                        <p className="font-semibold">{formatCurrency(item.total_profit)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Kas Muter</p>
+                        <p className="font-semibold text-emerald-600">{formatCurrency(item.reserve_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Dibagikan</p>
+                        <p className="font-semibold text-blue-600">{formatCurrency(item.distributed_amount)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ===== TAB 7: Kas Usaha =====
+  function Tab7CashLedger() {
+    const totalInflow = data.cashTransactions
+      .filter((tx: any) => tx.transaction_type === 'inflow')
+      .reduce((sum: number, tx: any) => sum + parseFloat(tx.amount || 0), 0);
+
+    const totalOutflow = data.cashTransactions
+      .filter((tx: any) => tx.transaction_type === 'outflow')
+      .reduce((sum: number, tx: any) => sum + parseFloat(tx.amount || 0), 0);
+
+    const cashBalance = totalInflow - totalOutflow;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Total Masuk</p>
+              <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalInflow)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Total Keluar</p>
+              <p className="text-2xl font-bold text-rose-600">{formatCurrency(totalOutflow)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Saldo Kas</p>
+              <p className="text-2xl font-bold text-orange-600">{formatCurrency(cashBalance)}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Mutasi Kas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.cashTransactions.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Belum ada mutasi kas</p>
+            ) : (
+              <div className="space-y-3">
+                {data.cashTransactions.map((tx: any) => (
+                  <div key={tx.id} className="flex items-center justify-between gap-4 border rounded-lg p-4">
+                    <div>
+                      <p className="font-semibold">{tx.description}</p>
+                      <p className="text-sm text-gray-600">
+                        {formatDate(tx.transaction_date)} • {tx.source_type}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold ${tx.transaction_type === 'inflow' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {tx.transaction_type === 'inflow' ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">{tx.transaction_type}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (data.loading) {
     return <div className="p-8 text-center">Loading...</div>;
   }
@@ -855,11 +1198,13 @@ export default function FundingPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="modal">Modal</TabsTrigger>
           <TabsTrigger value="investors">Investor</TabsTrigger>
           <TabsTrigger value="balance">Saldo</TabsTrigger>
           <TabsTrigger value="repayment">Pembayaran</TabsTrigger>
+          <TabsTrigger value="cash">Kas</TabsTrigger>
+          <TabsTrigger value="allocation">Alokasi Laba</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
 
@@ -877,6 +1222,14 @@ export default function FundingPage() {
 
         <TabsContent value="repayment">
           <Tab4Repayment />
+        </TabsContent>
+
+        <TabsContent value="cash">
+          <Tab7CashLedger />
+        </TabsContent>
+
+        <TabsContent value="allocation">
+          <Tab6ProfitAllocation />
         </TabsContent>
 
         <TabsContent value="summary">
