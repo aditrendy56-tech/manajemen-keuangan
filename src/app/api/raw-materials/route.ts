@@ -43,12 +43,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const insertData = {
+    const insertData: any = {
       outlet_id,
       name,
       unit,
-      price_per_unit: price_per_unit || 0,
     };
+
+    if (typeof price_per_unit !== 'undefined') {
+      insertData.price_per_unit = price_per_unit;
+    }
 
     const { data, error } = await (supabase
       .from('raw_materials') as any)

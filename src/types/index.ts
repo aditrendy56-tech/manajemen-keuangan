@@ -100,10 +100,14 @@ export interface Sale {
   session_id: string;
   outlet_id: string;
   channel: 'offline' | 'shopeefood' | 'gofood';
+  channel_type?: 'offline' | 'online';
+  platform?: 'shopeefood' | 'gofood' | null;
   payment_method: 'cash' | 'qris';
   gross_amount: number;
   platform_fee: number;
   net_amount: number;
+  payment_status?: 'settled' | 'pending' | 'refunded';
+  settlement_date?: string | null;
   order_ref?: string | null;
   notes?: string | null;
   created_at: string;
@@ -126,6 +130,9 @@ export interface Expense {
   category: 'bahan_baku' | 'operasional' | 'transport' | 'peralatan' | 'lain_lain';
   description: string;
   amount: number;
+  payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+  payment_status?: 'paid' | 'pending' | 'refunded';
+  settlement_date?: string | null;
   notes?: string;
   created_at: string;
 }
@@ -160,6 +167,7 @@ export interface SupplierPrice {
 
 export interface MaterialPurchase {
   id: string;
+  session_id?: string | null;
   outlet_id: string;
   raw_material_id?: string;
   supplier_id?: string;
@@ -252,7 +260,8 @@ export interface CashTransaction {
 
 // UI/Form Types
 export interface SaleFormData {
-  channnel: 'offline' | 'shopeefood' | 'gofood';
+  channel_type: 'offline' | 'online';
+  platform?: 'shopeefood' | 'gofood' | '';
   payment_method: 'cash' | 'qris';
   items: { product_id: string; quantity: number }[];
   notes?: string;
@@ -263,6 +272,9 @@ export interface ExpenseFormData {
   category: 'bahan_baku' | 'operasional' | 'transport' | 'peralatan' | 'lain_lain';
   description: string;
   amount: number;
+  payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+  payment_status?: 'paid' | 'pending' | 'refunded';
+  settlement_date?: string;
   notes?: string;
 }
 
@@ -277,6 +289,13 @@ export interface ProfitLossReport {
   net_profit: number;
   profit_margin: number;
   hpp?: number;
+  recognized_gross_revenue?: number;
+  recognized_net_revenue?: number;
+  settled_cash_inflow?: number;
+  settled_cash_outflow?: number;
+  pending_sales_amount?: number;
+  pending_expenses_amount?: number;
+  cash_basis_profit?: number;
 }
 
 export interface RevenueByChannel {
@@ -303,4 +322,8 @@ export interface DashboardMetrics {
     revenue: number;
   }>;
   weekly_profit: Array<{ date: string; profit: number }>;
+  today_cash_inflow?: number;
+  today_cash_outflow?: number;
+  today_pending_sales?: number;
+  today_pending_expenses?: number;
 }

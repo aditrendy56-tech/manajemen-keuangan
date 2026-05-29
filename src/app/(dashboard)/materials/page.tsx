@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
 import { MaterialPurchase, RawMaterial, Supplier, SupplierPrice } from '@/types';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
-const OUTLET_ID = '1b2c3d4e-5f6g-7h8i-9j0k-1l2m3n4o5p6q';
+import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
@@ -40,9 +40,55 @@ export default function MaterialsPage() {
   const [selectedSupplierPrices, setSelectedSupplierPrices] = useState<SupplierPrice[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const { outletId, sessionId, setSessionId } = useOutlet();
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!outletId || sessionId) return;
+
+    async function ensureSession() {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await fetch(`/api/sessions?outlet_id=${outletId}`);
+
+        if (!response.ok) {
+          return;
+        }
+
+        const sessions = await response.json();
+        const todaySession = Array.isArray(sessions)
+          ? sessions.find((s: any) => s.date === today && s.status === 'open')
+          : null;
+
+        if (todaySession) {
+          setSessionId(todaySession.id);
+          return;
+        }
+
+        const createResponse = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outlet_id: outletId,
+            date: today,
+            opening_cash: 0,
+          }),
+        });
+
+        if (createResponse.ok) {
+          const newSession = await createResponse.json();
+          setSessionId(newSession.id);
+        }
+      } catch (error) {
+        console.error('Error ensuring session:', error);
+      }
+    }
+
+    ensureSession();
+  }, [outletId, sessionId, setSessionId]);
+
+  useEffect(() => {
+    if (outletId) fetchData();
+  }, [outletId]);
 
   useEffect(() => {
     if (formData.raw_material_id) {
@@ -70,7 +116,7 @@ export default function MaterialsPage() {
 
       // Fetch materials
       try {
-        const matRes = await fetch(`/api/raw-materials?outlet_id=${OUTLET_ID}`);
+        const matRes = await fetch(`/api/raw-materials?outlet_id=${outletId}`);
         if (matRes.ok) {
           const data = await matRes.json();
           setMaterials(Array.isArray(data) ? data : []);
@@ -84,7 +130,7 @@ export default function MaterialsPage() {
 
       // Fetch suppliers
       try {
-        const supRes = await fetch(`/api/suppliers?outlet_id=${OUTLET_ID}`);
+        const supRes = await fetch(`/api/suppliers?outlet_id=${outletId}`);
         if (supRes.ok) {
           const data = await supRes.json();
           setSuppliers(Array.isArray(data) ? data : []);
@@ -113,7 +159,7 @@ export default function MaterialsPage() {
       // Fetch purchases
       try {
         const purchaseRes = await fetch(
-          `/api/material-purchases?outlet_id=${OUTLET_ID}`
+          `/api/material-purchases?outlet_id=${outletId}`
         );
         if (purchaseRes.ok) {
           const data = await purchaseRes.json();
@@ -153,7 +199,8 @@ export default function MaterialsPage() {
       }
 
       const payload = {
-        outlet_id: OUTLET_ID,
+        session_id: sessionId,
+        outlet_id: outletId,
         raw_material_id: formData.raw_material_id,
         supplier_id: formData.supplier_id || null,
         date: formData.date,
@@ -217,6 +264,9 @@ export default function MaterialsPage() {
         <h1 className="text-3xl font-bold">Pembelian Bahan Baku</h1>
         <p className="text-gray-600">
           Kelola pembelian bahan dengan tracking supplier dan price comparison
+        </p>
+        <p className="text-sm text-gray-500 mt-1">
+          Pembelian akan ditautkan ke sesi harian aktif.
         </p>
       </div>
 

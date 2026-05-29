@@ -46,6 +46,36 @@ export function ReportsTable({ report }: ReportsTableProps) {
                 <span className="font-bold text-lg text-orange-700">{report.profit_margin.toFixed(2)}%</span>
               </div>
             </div>
+
+            {(report.settled_cash_inflow !== undefined || report.settled_cash_outflow !== undefined) && (
+              <div className="my-4 pt-4 border-t-2">
+                <div className="flex justify-between items-center py-2 border-b">
+                  <span>Cash Settled Masuk</span>
+                  <span className="font-semibold text-green-700">Rp {(report.settled_cash_inflow || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b">
+                  <span>Cash Settled Keluar</span>
+                  <span className="font-semibold text-red-700">-Rp {(report.settled_cash_outflow || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 bg-slate-50 px-2 rounded mt-2">
+                  <span className="font-semibold">Cash Basis Profit</span>
+                  <span className="font-bold text-lg">Rp {(report.cash_basis_profit || 0).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            )}
+
+            {(report.pending_sales_amount !== undefined || report.pending_expenses_amount !== undefined) && (
+              <div className="my-4 pt-4 border-t-2">
+                <div className="flex justify-between items-center py-2 border-b">
+                  <span>Pending Sales</span>
+                  <span className="font-semibold text-amber-700">Rp {(report.pending_sales_amount || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b">
+                  <span>Pending Expenses</span>
+                  <span className="font-semibold text-amber-700">Rp {(report.pending_expenses_amount || 0).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

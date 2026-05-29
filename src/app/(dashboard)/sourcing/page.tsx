@@ -81,7 +81,7 @@ export default function SourcingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            outlet_id: OUTLET_ID,
+            outlet_id: outletId,
             ...formData,
             reorder_level: parseFloat(formData.reorder_level) || 0,
           }),
@@ -220,7 +220,7 @@ export default function SourcingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            outlet_id: OUTLET_ID,
+            outlet_id: outletId,
             ...formData,
             quality_rating: formData.quality_rating ? parseFloat(formData.quality_rating) : null,
           }),
@@ -434,8 +434,8 @@ export default function SourcingPage() {
                   <tbody>
                     {data.prices.map((p: any) => (
                       <tr key={p.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2">{p.supplier_name || 'Unknown'}</td>
-                        <td className="p-2">{p.raw_material_name || 'Unknown'}</td>
+                        <td className="p-2">{p.suppliers?.name || p.supplier_name || 'Unknown'}</td>
+                        <td className="p-2">{p.raw_materials?.name || p.raw_material_name || 'Unknown'}</td>
                         <td className="text-right p-2 font-semibold">{formatCurrency(p.unit_price)}</td>
                         <td className="text-right p-2">{p.minimum_order || '-'}</td>
                         <td className="p-2">
@@ -480,7 +480,7 @@ export default function SourcingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            outlet_id: OUTLET_ID,
+            outlet_id: outletId,
             ...formData,
             raw_material_id: formData.raw_material_id || null,
             supplier_id: formData.supplier_id || null,
@@ -636,8 +636,8 @@ export default function SourcingPage() {
                     {data.purchases.map((p: any) => (
                       <tr key={p.id} className="border-b hover:bg-gray-50">
                         <td className="p-2">{formatDate(p.date)}</td>
-                        <td className="p-2">{p.raw_material_name || 'Unknown'}</td>
-                        <td className="p-2">{p.supplier_name || '-'}</td>
+                        <td className="p-2">{p.raw_materials?.name || p.raw_material_name || 'Unknown'}</td>
+                        <td className="p-2">{p.suppliers?.name || p.supplier_name || '-'}</td>
                         <td className="text-right p-2">{p.quantity}</td>
                         <td className="text-right p-2">{formatCurrency(p.unit_price)}</td>
                         <td className="text-right p-2 font-semibold">{formatCurrency(p.total_amount)}</td>
@@ -685,7 +685,7 @@ export default function SourcingPage() {
       : [];
 
     const chartData = materialPrices.map((p: any) => ({
-      name: p.supplier_name || 'Unknown',
+      name: p.suppliers?.name || p.supplier_name || 'Unknown',
       price: parseFloat(p.unit_price),
     }));
 

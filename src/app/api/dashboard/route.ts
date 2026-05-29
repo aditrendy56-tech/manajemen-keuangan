@@ -4,6 +4,13 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { DashboardMetrics } from '@/types';
 
+function normalizeChannel(sale: any) {
+  if (sale.channel_type === 'offline') return 'offline';
+  if (sale.platform === 'shopeefood' || sale.channel === 'shopeefood') return 'shopeefood';
+  if (sale.platform === 'gofood' || sale.channel === 'gofood') return 'gofood';
+  return sale.channel || 'offline';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -18,27 +25,35 @@ export async function GET(request: NextRequest) {
     weekStart.setDate(weekStart.getDate() - 6);
     const weekStartDate = weekStart.toISOString().split('T')[0];
 
-    // Get today's sales
-    const { data: sales } = await getSupabaseServer().from('sales')
+    const supabase = getSupabaseServer();
+
+    // Get today's sales (recognized by transaction date)
+    const { data: sales } = await supabase.from('sales')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('created_at', `${date}T00:00:00`)
       .lte('created_at', `${date}T23:59:59`);
 
-    // Get today's expenses
-    const { data: expenses } = await getSupabaseServer().from('expenses')
+    // Get today's expenses (recognized by transaction date)
+    const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('outlet_id', outletId)
       .eq('date', date);
 
+    // Today's cash transactions for settlement basis
+    const { data: cashTransactions } = await supabase.from('cash_transactions')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .eq('transaction_date', date);
+
     // Get weekly sales and expenses for profit chart
-    const { data: weeklySales } = await getSupabaseServer().from('sales')
+    const { data: weeklySales } = await supabase.from('sales')
       .select('id, created_at, gross_amount, net_amount, platform_fee')
       .eq('outlet_id', outletId)
       .gte('created_at', `${weekStartDate}T00:00:00`)
       .lte('created_at', `${date}T23:59:59`);
 
-    const { data: weeklyExpenses } = await getSupabaseServer().from('expenses')
+    const { data: weeklyExpenses } = await supabase.from('expenses')
       .select('date, amount')
       .eq('outlet_id', outletId)
       .gte('date', weekStartDate)
@@ -52,6 +67,23 @@ export async function GET(request: NextRequest) {
       sales?.reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
     const profit = net_revenue - total_expenses;
 
+    const today_cash_inflow = cashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
+      0
+    ) || 0;
+    const today_cash_outflow = cashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'outflow' ? (tx.amount || 0) : 0),
+      0
+    ) || 0;
+    const today_pending_sales = sales?.reduce(
+      (sum: number, sale: any) => sum + (String(sale.payment_status || '').toLowerCase() === 'settled' ? 0 : (sale.net_amount || 0)),
+      0
+    ) || 0;
+    const today_pending_expenses = expenses?.reduce(
+      (sum: number, expense: any) => sum + (String(expense.payment_status || '').toLowerCase() === 'paid' ? 0 : (expense.amount || 0)),
+      0
+    ) || 0;
+
     // Revenue by channel
     const revenue_by_channel = {
       offline: 0,
@@ -60,8 +92,9 @@ export async function GET(request: NextRequest) {
     };
 
     sales?.forEach((sale: any) => {
-      if (revenue_by_channel.hasOwnProperty(sale.channel)) {
-        revenue_by_channel[sale.channel as keyof typeof revenue_by_channel] +=
+      const channel = normalizeChannel(sale);
+      if (revenue_by_channel.hasOwnProperty(channel)) {
+        revenue_by_channel[channel as keyof typeof revenue_by_channel] +=
           sale.net_amount || 0;
       }
     });
@@ -145,6 +178,10 @@ export async function GET(request: NextRequest) {
       payment_methods,
       top_products: topProducts,
       weekly_profit,
+      today_cash_inflow,
+      today_cash_outflow,
+      today_pending_sales,
+      today_pending_expenses,
     };
 
     return NextResponse.json(metrics);

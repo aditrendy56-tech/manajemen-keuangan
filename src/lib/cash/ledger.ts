@@ -4,7 +4,7 @@ export async function recordCashTransaction(payload: {
   outlet_id: string;
   transaction_date: string;
   transaction_type: 'inflow' | 'outflow';
-  source_type: 'sale' | 'expense' | 'material_purchase' | 'capital_entry' | 'profit_allocation' | 'repayment' | 'manual';
+  source_type: 'sale' | 'sale_settlement' | 'expense' | 'expense_settlement' | 'material_purchase' | 'capital_entry' | 'profit_allocation' | 'repayment' | 'manual';
   source_id?: string | null;
   amount: number;
   description: string;

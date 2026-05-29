@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteCashTransactionsBySource } from '@/lib/cash/ledger';
+import { recordCashTransaction } from '@/lib/cash/ledger';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,6 +23,66 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await deleteCashTransactionsBySource('expense', id);
 
     return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { payment_status, settlement_date, payment_reference, notes } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID required' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseServer();
+    const { data: existing, error: fetchError } = await supabase.from('expenses').select('*').eq('id', id).maybeSingle();
+    if (fetchError) throw fetchError;
+    if (!existing) return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+
+    const updateData = {
+      payment_status: payment_status || existing.payment_status,
+      settlement_date: settlement_date || existing.settlement_date || null,
+      payment_reference: payment_reference ?? existing.payment_reference ?? null,
+      notes: notes ?? existing.notes ?? null,
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('expenses')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    const shouldRecordCash = String(updateData.payment_status || '').toLowerCase() === 'paid';
+    if (shouldRecordCash) {
+      const { data: existingCash } = await supabase
+        .from('cash_transactions')
+        .select('id')
+        .eq('source_type', 'expense')
+        .eq('source_id', id)
+        .maybeSingle();
+
+      if (!existingCash?.id) {
+        await recordCashTransaction({
+          outlet_id: updated.outlet_id,
+          transaction_date: (updated.settlement_date as string | null) || updated.date || new Date().toISOString().split('T')[0],
+          transaction_type: 'outflow',
+          source_type: 'expense',
+          source_id: id,
+          amount: Number(updated.amount || 0),
+          description: updated.description,
+          notes: updated.notes || null,
+        });
+      }
+    }
+
+    return NextResponse.json(updated);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

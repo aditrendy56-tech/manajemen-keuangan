@@ -1,6 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { recordCashTransaction } from '@/lib/cash/ledger';
+import { resolveSessionForTransaction } from '@/lib/sessions';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,11 @@ export async function GET(request: NextRequest) {
     const supabase = await getSupabaseServer();
     const searchParams = request.nextUrl.searchParams;
     const outletId = searchParams.get('outlet_id');
+    const sessionId = searchParams.get('session_id');
     const supplierId = searchParams.get('supplier_id');
+    const resolvedSession = sessionId
+      ? await resolveSessionForTransaction({ sessionId })
+      : null;
 
     let query = supabase
       .from('material_purchases')
@@ -23,11 +28,39 @@ export async function GET(request: NextRequest) {
       query = query.eq('outlet_id', outletId);
     }
 
+    if (sessionId && resolvedSession?.date) {
+      query = query.eq('date', resolvedSession.date);
+    }
+
     if (supplierId) {
       query = query.eq('supplier_id', supplierId);
     }
 
-    const { data, error } = await query.order('date', { ascending: false });
+    let { data, error } = await query.order('date', { ascending: false });
+
+    if (error && sessionId && String(error.message || '').toLowerCase().includes('session_id')) {
+      const fallbackQuery = supabase
+        .from('material_purchases')
+        .select(`
+          *,
+          raw_materials:raw_material_id (id, name, unit),
+          suppliers:supplier_id (id, name)
+        `);
+
+      if (outletId) {
+        fallbackQuery.eq('outlet_id', outletId);
+      }
+
+      if (resolvedSession?.date) {
+        fallbackQuery.eq('date', resolvedSession.date);
+      }
+
+      if (supplierId) {
+        fallbackQuery.eq('supplier_id', supplierId);
+      }
+
+      ({ data, error } = await fallbackQuery.order('date', { ascending: false }));
+    }
 
     if (error) throw error;
 
@@ -47,6 +80,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const {
+      session_id,
       outlet_id,
       raw_material_id,
       supplier_id,
@@ -69,7 +103,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const session = await resolveSessionForTransaction({
+      sessionId: session_id,
+      outletId: outlet_id,
+      date,
+    });
+
+    if (!session?.id) {
+      return NextResponse.json(
+        { error: 'Session belum tersedia. Buka sesi harian terlebih dahulu.' },
+        { status: 400 }
+      );
+    }
+
     const insertData = {
+      session_id: session.id,
       outlet_id,
       raw_material_id,
       supplier_id: supplier_id || null,
@@ -84,17 +132,26 @@ export async function POST(request: NextRequest) {
       notes,
     };
 
-    const { data, error } = await (supabase
+    let { data, error } = await (supabase
       .from('material_purchases') as any)
       .insert([insertData])
       .select()
       .single();
 
+    if (error && String(error.message || '').toLowerCase().includes('session_id')) {
+      const { session_id: _sessionId, ...legacyInsertData } = insertData as any;
+      ({ data, error } = await (supabase
+        .from('material_purchases') as any)
+        .insert([legacyInsertData])
+        .select()
+        .single());
+    }
+
     if (error) throw error;
 
     await recordCashTransaction({
       outlet_id,
-      transaction_date: date,
+      transaction_date: session.date || date,
       transaction_type: 'outflow',
       source_type: 'material_purchase',
       source_id: data.id,

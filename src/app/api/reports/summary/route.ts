@@ -4,6 +4,13 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ProfitLossReport } from '@/types';
 
+function normalizeChannel(sale: any) {
+  if (sale.channel_type === 'offline') return 'offline';
+  if (sale.platform === 'shopeefood' || sale.channel === 'shopeefood') return 'shopeefood';
+  if (sale.platform === 'gofood' || sale.channel === 'gofood') return 'gofood';
+  return sale.channel || 'offline';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -18,24 +25,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get sales data
-    const { data: sales } = await getSupabaseServer().from('sales')
+    const supabase = getSupabaseServer();
+
+    // Get sales data (recognized by transaction date)
+    const { data: sales } = await supabase.from('sales')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('created_at', `${startDate}T00:00:00`)
       .lte('created_at', `${endDate}T23:59:59`);
 
-    // Get expenses data
-    const { data: expenses } = await getSupabaseServer().from('expenses')
+    // Get expenses data (recognized by transaction date)
+    const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('date', startDate)
       .lte('date', endDate);
 
+    // Cash transactions for settlement basis
+    const { data: cashTransactions } = await supabase.from('cash_transactions')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate);
+
     // Calculate metrics
     const gross_revenue = sales?.reduce((sum: number, s: any) => sum + (s.gross_amount || 0), 0) || 0;
     const net_revenue = sales?.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0) || 0;
     const platform_fees = sales?.reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
+    const settled_cash_inflow = cashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
+      0
+    ) || 0;
+    const settled_cash_outflow = cashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'outflow' ? (tx.amount || 0) : 0),
+      0
+    ) || 0;
 
     // Expenses by category
     const expenses_by_category: Record<string, number> = {};
@@ -46,6 +70,16 @@ export async function GET(request: NextRequest) {
         (expenses_by_category[expense.category] || 0) + (expense.amount || 0);
       total_expenses += expense.amount || 0;
     });
+
+    const pending_sales_amount = sales?.reduce(
+      (sum: number, s: any) => sum + (String(s.payment_status || '').toLowerCase() === 'settled' ? 0 : (s.net_amount || 0)),
+      0
+    ) || 0;
+
+    const pending_expenses_amount = expenses?.reduce(
+      (sum: number, e: any) => sum + (String(e.payment_status || '').toLowerCase() === 'paid' ? 0 : (e.amount || 0)),
+      0
+    ) || 0;
 
     const gross_profit = net_revenue - total_expenses;
     const profit_margin = gross_revenue > 0 ? (gross_profit / gross_revenue) * 100 : 0;
@@ -59,14 +93,22 @@ export async function GET(request: NextRequest) {
       gross_profit,
       net_profit: gross_profit,
       profit_margin,
+      recognized_gross_revenue: gross_revenue,
+      recognized_net_revenue: net_revenue,
+      settled_cash_inflow,
+      settled_cash_outflow,
+      pending_sales_amount,
+      pending_expenses_amount,
+      cash_basis_profit: settled_cash_inflow - settled_cash_outflow,
     };
 
     // Revenue by channel
     const revenueByChannel = { offline: 0, shopeefood: 0, gofood: 0 };
     sales?.forEach((s: any) => {
-      if (s.channel === 'offline') revenueByChannel.offline += s.gross_amount || 0;
-      else if (s.channel === 'shopeefood') revenueByChannel.shopeefood += s.gross_amount || 0;
-      else if (s.channel === 'gofood') revenueByChannel.gofood += s.gross_amount || 0;
+      const channel = normalizeChannel(s);
+      if (channel === 'offline') revenueByChannel.offline += s.gross_amount || 0;
+      else if (channel === 'shopeefood') revenueByChannel.shopeefood += s.gross_amount || 0;
+      else if (channel === 'gofood') revenueByChannel.gofood += s.gross_amount || 0;
     });
 
     // Payment method

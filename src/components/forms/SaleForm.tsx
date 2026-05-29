@@ -14,15 +14,18 @@ interface SaleFormProps {
 }
 
 export function SaleForm({ onSubmit, loading = false }: SaleFormProps) {
-  const [channel, setChannel] = useState<string | null>('offline');
+  const [channelType, setChannelType] = useState<'offline' | 'online'>('offline');
+  const [platform, setPlatform] = useState<'shopeefood' | 'gofood' | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<string | null>('cash');
   const [grossAmount, setGrossAmount] = useState('0');
   const [notes, setNotes] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
+  const [settlementDate, setSettlementDate] = useState('');
 
   const platformFee =
-    channel === 'shopeefood'
+    platform === 'shopeefood'
       ? parseFloat(grossAmount) * 0.2
-      : channel === 'gofood'
+      : platform === 'gofood'
       ? parseFloat(grossAmount) * 0.25
       : 0;
   const netAmount = parseFloat(grossAmount) - platformFee;
@@ -30,11 +33,15 @@ export function SaleForm({ onSubmit, loading = false }: SaleFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await onSubmit({
-      channel,
+      channel_type: channelType,
+      platform: channelType === 'online' ? platform || null : null,
+      channel: channelType === 'offline' ? 'offline' : platform || 'offline',
       payment_method: paymentMethod,
       gross_amount: parseFloat(grossAmount),
       platform_fee: platformFee,
       net_amount: netAmount,
+      payment_status: paymentStatus,
+      settlement_date: settlementDate || null,
       notes,
     });
   }
@@ -48,15 +55,14 @@ export function SaleForm({ onSubmit, loading = false }: SaleFormProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="channel">Channel</Label>
-              <Select value={channel} onValueChange={setChannel}>
+              <Label htmlFor="channel_type">Jenis Channel</Label>
+              <Select value={channelType} onValueChange={(value) => setChannelType(value as 'offline' | 'online')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="offline">Offline</SelectItem>
-                  <SelectItem value="shopeefood">ShopeeFood</SelectItem>
-                  <SelectItem value="gofood">GoFood</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -73,6 +79,21 @@ export function SaleForm({ onSubmit, loading = false }: SaleFormProps) {
               </Select>
             </div>
           </div>
+
+          {channelType === 'online' && (
+            <div>
+              <Label htmlFor="platform">Platform Online</Label>
+              <Select value={platform} onValueChange={(value) => setPlatform(value as 'shopeefood' | 'gofood' | '')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shopeefood">ShopeeFood</SelectItem>
+                  <SelectItem value="gofood">GoFood</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="gross_amount">Jumlah Kotor (Rp)</Label>
@@ -97,7 +118,31 @@ export function SaleForm({ onSubmit, loading = false }: SaleFormProps) {
             </div>
             <div>
               <p className="text-xs text-gray-600">Persentase Fee</p>
-              <p className="font-semibold">{channel === 'offline' ? '0%' : channel === 'shopeefood' ? '20%' : '25%'}</p>
+              <p className="font-semibold">{platform === 'shopeefood' ? '20%' : platform === 'gofood' ? '25%' : '0%'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="payment_status">Status Pembayaran</Label>
+              <Select value={paymentStatus} onValueChange={(value) => setPaymentStatus(value as 'settled' | 'pending')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="settled">Settled</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="settlement_date">Tanggal Settlement</Label>
+              <Input
+                id="settlement_date"
+                type="date"
+                value={settlementDate}
+                onChange={(e) => setSettlementDate(e.target.value)}
+              />
             </div>
           </div>
 

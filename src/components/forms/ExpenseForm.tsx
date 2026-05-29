@@ -19,6 +19,9 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('0');
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'bank_transfer' | 'pending'>('cash');
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
+  const [settlementDate, setSettlementDate] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +31,9 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
         category,
         description,
         amount: parseFloat(amount),
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        settlement_date: settlementDate || null,
         notes,
       });
       // Reset form setelah submit sukses
@@ -90,6 +96,45 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
               required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="payment_method">Metode Bayar</Label>
+              <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'qris' | 'bank_transfer' | 'pending')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="qris">QRIS</SelectItem>
+                  <SelectItem value="bank_transfer">Transfer Bank</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="payment_status">Status Bayar</Label>
+              <Select value={paymentStatus} onValueChange={(value) => setPaymentStatus(value as 'paid' | 'pending')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="settlement_date">Tanggal Settlement</Label>
+            <Input
+              id="settlement_date"
+              type="date"
+              value={settlementDate}
+              onChange={(e) => setSettlementDate(e.target.value)}
             />
           </div>
 

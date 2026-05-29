@@ -70,6 +70,139 @@ flowchart LR
 | `/api/settings` | Simpan pengaturan outlet | `outlet_settings` |
 | `/api/outlets` | Daftar outlet aktif | `outlets`, `businesses` |
 
+## Alur Fitur Utama
+
+```mermaid
+flowchart TD
+  A[Outlet dipilih] --> B[Session aktif dibuka]
+  B --> C[Input sales]
+  B --> D[Input expenses]
+  C --> E[Dashboard update]
+  D --> E
+  C --> F[Reports summary]
+  D --> F
+  B --> G[Tutup sesi]
+  G --> H[closed_at tersimpan]
+  H --> E
+  H --> F
+```
+
+```mermaid
+flowchart LR
+  P[Produk & bahan baku] --> S[Sales / Purchases]
+  S --> Q[Perhitungan fee & laba]
+  Q --> R[Dashboard / Reports]
+  O[Settings outlet] --> Q
+  O --> R
+```
+
+## Skema Inti
+
+| Tabel | Peran | Relasi penting |
+| --- | --- | --- |
+| `businesses` | Identitas usaha | Induk dari `outlets` |
+| `outlets` | Cabang/gerai aktif | Dipakai semua transaksi melalui `outlet_id` |
+| `daily_sessions` | Wadah transaksi harian | Parent untuk `sales` dan `expenses` |
+| `sales` | Header penjualan | Parent untuk `sale_items`, refer ke `daily_sessions` dan `outlets` |
+| `sale_items` | Detail item penjualan | Refer ke `sales` dan `products` |
+| `expenses` | Pengeluaran operasional | Refer ke `daily_sessions` dan `outlets` |
+| `capital_entries` | Catatan modal masuk | Refer ke `outlets` dan opsional `investors` |
+| `capital_repayments` | Riwayat pengembalian modal | Refer ke `investors` |
+| `investors` | Data investor | Refer ke `outlets` |
+| `raw_materials` | Master bahan baku | Refer ke `outlets` |
+| `material_purchases` | Pembelian bahan | Refer ke `outlets` dan `raw_materials` |
+| `products` | Master produk jualan | Refer ke `outlets` |
+| `outlet_settings` | Konfigurasi per outlet | Unique per `outlet_id` |
+
+## Diagram Relasi Tabel
+
+```mermaid
+erDiagram
+  businesses ||--o{ outlets : owns
+  outlets ||--o{ daily_sessions : has
+  outlets ||--o{ sales : records
+  outlets ||--o{ expenses : records
+  outlets ||--o{ capital_entries : receives
+  outlets ||--o{ investors : tracks
+  outlets ||--o{ raw_materials : manages
+  outlets ||--o{ material_purchases : logs
+  outlets ||--o{ products : lists
+  outlets ||--|| outlet_settings : configures
+
+  daily_sessions ||--o{ sales : contains
+  daily_sessions ||--o{ expenses : contains
+
+  sales ||--o{ sale_items : includes
+  products ||--o{ sale_items : referenced_by
+
+  investors ||--o{ capital_repayments : repaid_by
+  investors ||--o{ capital_entries : funded_by
+
+  raw_materials ||--o{ material_purchases : purchased_as
+  capital_entries ||--o{ profit_allocations : may_link
+  daily_sessions ||--o{ cash_transactions : reconciles
+```
+
+## Daftar Endpoint Lengkap
+
+### Operasional Inti
+
+| Endpoint | Metode | Fungsi | Tabel utama |
+| --- | --- | --- | --- |
+| `/api/sessions` | `GET`, `POST` | Daftar dan buat sesi | `daily_sessions` |
+| `/api/sessions/[id]` | `PATCH`, `DELETE` | Tutup atau hapus sesi | `daily_sessions` |
+| `/api/sales` | `GET`, `POST` | Daftar dan buat penjualan | `sales`, `sale_items` |
+| `/api/sales/[id]` | `PATCH`, `DELETE` | Edit atau hapus penjualan | `sales`, `sale_items` |
+| `/api/expenses` | `GET`, `POST` | Daftar dan buat pengeluaran | `expenses` |
+| `/api/expenses/[id]` | `PATCH`, `DELETE` | Edit atau hapus pengeluaran | `expenses` |
+| `/api/capital` | `GET`, `POST` | Daftar dan buat modal | `capital_entries` |
+| `/api/capital/[id]` | `PATCH`, `DELETE` | Edit atau hapus modal | `capital_entries` |
+| `/api/dashboard` | `GET` | Ringkasan metrik utama | `sales`, `expenses`, `sale_items`, `daily_sessions` |
+| `/api/reports/summary` | `GET` | Laporan P&L dan ringkasan | `sales`, `expenses`, `sale_items`, `daily_sessions` |
+| `/api/reports/export` | `GET` | Export Excel laporan | gabungan query laporan |
+
+### Produk, Bahan, dan Sourcing
+
+| Endpoint | Metode | Fungsi | Tabel utama |
+| --- | --- | --- | --- |
+| `/api/products` | `GET`, `POST` | Master produk | `products` |
+| `/api/products/[id]` | `PATCH`, `DELETE` | Edit atau hapus produk | `products` |
+| `/api/raw-materials` | `GET`, `POST` | Master bahan baku | `raw_materials` |
+| `/api/raw-materials/[id]` | `PATCH`, `DELETE` | Edit atau hapus bahan baku | `raw_materials` |
+| `/api/material-purchases` | `GET`, `POST` | Catatan pembelian bahan | `material_purchases` |
+| `/api/material-purchases/[id]` | `PATCH`, `DELETE` | Edit atau hapus pembelian bahan | `material_purchases` |
+| `/api/materials/purchases` | `GET` | Alias riwayat pembelian bahan | `material_purchases` |
+| `/api/suppliers` | `GET`, `POST` | Master supplier | `suppliers` |
+| `/api/suppliers/[id]` | `PATCH`, `DELETE` | Edit atau hapus supplier | `suppliers` |
+| `/api/supplier-prices` | `GET`, `POST` | Harga supplier / perbandingan | `supplier_prices` |
+
+### Investor, Alokasi, dan Administrasi
+
+| Endpoint | Metode | Fungsi | Tabel utama |
+| --- | --- | --- | --- |
+| `/api/investors` | `GET`, `POST` | Master investor | `investors` |
+| `/api/investors/[id]` | `PATCH`, `DELETE` | Edit atau hapus investor | `investors` |
+| `/api/capital-repayments` | `GET`, `POST` | Riwayat pengembalian modal | `capital_repayments` |
+| `/api/capital-repayments/[id]` | `PATCH`, `DELETE` | Edit atau hapus repayment | `capital_repayments` |
+| `/api/allocations` | `GET`, `POST` | Rekap alokasi laba | `profit_allocations` |
+| `/api/allocations/[id]` | `PATCH`, `DELETE` | Edit atau hapus alokasi | `profit_allocations` |
+| `/api/allocation-rules` | `GET`, `POST` | Aturan pembagian laba | `allocation_rules` |
+| `/api/allocation-rules/[id]` | `PATCH`, `DELETE` | Edit atau hapus aturan | `allocation_rules` |
+| `/api/profit-allocations` | `GET`, `POST` | Detail alokasi laba | `profit_allocations` |
+| `/api/profit-allocations/[id]` | `PATCH`, `DELETE` | Edit atau hapus detail alokasi | `profit_allocations` |
+| `/api/stakeholders` | `GET`, `POST` | Data stakeholder | `stakeholders` |
+| `/api/stakeholders/[id]` | `PATCH`, `DELETE` | Edit atau hapus stakeholder | `stakeholders` |
+| `/api/cash-transactions` | `GET`, `POST` | Mutasi kas | `cash_transactions` |
+| `/api/cash-transactions/[id]` | `PATCH`, `DELETE` | Edit atau hapus mutasi kas | `cash_transactions` |
+| `/api/admin/clear-data` | `POST` | Hapus data outlet terpilih | banyak tabel transaksi |
+
+### Konfigurasi dan Referensi
+
+| Endpoint | Metode | Fungsi | Tabel utama |
+| --- | --- | --- | --- |
+| `/api/settings` | `GET`, `PUT` | Baca/simpan setting outlet | `outlet_settings` |
+| `/api/outlets` | `GET` | Daftar outlet aktif | `outlets`, `businesses` |
+
 ## 🎯 Fitur Utama
 
 ### Dashboard
