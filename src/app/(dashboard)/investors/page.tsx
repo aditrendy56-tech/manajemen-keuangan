@@ -97,10 +97,16 @@ export default function FundingSourcePage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Hapus sumber dana ini?')) return;
     try {
-      // Note: Need to add DELETE endpoint
-      alert('Delete functionality not yet implemented');
+      setSubmitting(true);
+      const res = await fetch(`/api/investors/${id}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete source');
+      await loadSources();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
