@@ -1,38 +1,44 @@
 'use client'
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import type { Investor } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { Trash2, PencilLine } from 'lucide-react';
 
-export default function InvestorsPage() {
+export default function FundingSourcePage() {
   const { outletId } = useOutlet();
-  const [investors, setInvestors] = useState<Investor[]>([]);
+  const [sources, setSources] = useState<Investor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    source_type: 'investor' as 'owner' | 'investor',
     name: '',
     phone: '',
-    initial_contribution: ''
+    initial_contribution: '',
+    notes: ''
   });
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    loadInvestors();
-  }, []);
+    loadSources();
+  }, [outletId]);
 
-  const loadInvestors = async () => {
+  const loadSources = async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/investors?outlet_id=${outletId}`);
-      if (!res.ok) throw new Error('Failed to load investors');
+      if (!res.ok) throw new Error('Failed to load sources');
       const data = await res.json();
-      setInvestors(data || []);
+      setSources(data || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -42,29 +48,71 @@ export default function InvestorsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
       setSubmitting(true);
-      const res = await fetch('/api/investors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outlet_id: outletId,
-          name: formData.name,
-          phone: formData.phone,
-          initial_contribution: parseFloat(formData.initial_contribution) || 0,
-          priority_order: investors.length + 1
-        })
-      });
-
-      if (!res.ok) throw new Error('Failed to add investor');
       
-      setFormData({ name: '', phone: '', initial_contribution: '' });
-      await loadInvestors();
+      const payload = {
+        outlet_id: outletId,
+        source_type: formData.source_type,
+        name: formData.name,
+        phone: formData.phone || null,
+        initial_contribution: parseFloat(formData.initial_contribution) || 0,
+        notes: formData.notes || null,
+        priority_order: editingId ? undefined : sources.length + 1
+      };
+
+      if (editingId) {
+        const res = await fetch('/api/investors', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload })
+        });
+        if (!res.ok) throw new Error('Failed to update source');
+      } else {
+        const res = await fetch('/api/investors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to add source');
+      }
+      
+      setFormData({
+        source_type: 'investor',
+        name: '',
+        phone: '',
+        initial_contribution: '',
+        notes: ''
+      });
+      setEditingId(null);
+      await loadSources();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Hapus sumber dana ini?')) return;
+    try {
+      // Note: Need to add DELETE endpoint
+      alert('Delete functionality not yet implemented');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleEdit = (source: Investor) => {
+    setFormData({
+      source_type: source.source_type || 'investor',
+      name: source.name,
+      phone: source.phone || '',
+      initial_contribution: source.initial_contribution.toString(),
+      notes: source.notes || ''
+    });
+    setEditingId(source.id);
   };
 
   const formatCurrency = (amount: number) => {
@@ -75,34 +123,50 @@ export default function InvestorsPage() {
     }).format(amount);
   };
 
-  const getTotalInvestment = () => {
-    return investors.reduce((sum, inv) => sum + (inv.initial_contribution || 0), 0);
+  const getTotalByType = (type: 'owner' | 'investor') => {
+    return sources
+      .filter(s => (s.source_type || 'investor') === type)
+      .reduce((sum, s) => sum + (s.initial_contribution || 0), 0);
   };
 
-  const getTotalRemaining = () => {
-    return investors.reduce((sum, inv) => sum + (inv.remaining_balance || 0), 0);
-  };
-
-  const getTotalRepaid = () => {
-    return getTotalInvestment() - getTotalRemaining();
-  };
+  const ownerTotal = getTotalByType('owner');
+  const investorTotal = getTotalByType('investor');
+  const grandTotal = ownerTotal + investorTotal;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manajemen Investor</h1>
-        <p className="mt-2 text-gray-600">Kelola daftar investor dan tracking pengembalian modal</p>
+        <h1 className="text-3xl font-bold text-gray-900">Sumber Dana</h1>
+        <p className="mt-2 text-gray-600">Kelola sumber modal: dari owner atau investor eksternal</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Investor</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total Sumber Dana</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{investors.length}</div>
+            <div className="text-2xl font-bold text-gray-900">{sources.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Modal Owner</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrency(ownerTotal)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Modal Investor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{formatCurrency(investorTotal)}</div>
           </CardContent>
         </Card>
 
@@ -111,25 +175,7 @@ export default function InvestorsPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Modal</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{formatCurrency(getTotalInvestment())}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Sudah Dikembalikan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(getTotalRepaid())}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Sisa Modal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{formatCurrency(getTotalRemaining())}</div>
+            <div className="text-2xl font-bold text-orange-600">{formatCurrency(grandTotal)}</div>
           </CardContent>
         </Card>
       </div>
@@ -142,79 +188,115 @@ export default function InvestorsPage() {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Investors List */}
+        {/* Sources List */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Daftar Investor</CardTitle>
-              <CardDescription>Prioritas pengembalian modal</CardDescription>
+              <CardTitle>Daftar Sumber Dana</CardTitle>
+              <CardDescription>Owner dan investor yang terdaftar</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="text-center text-gray-500">Loading...</div>
-              ) : investors.length === 0 ? (
-                <div className="text-center text-gray-500">Belum ada investor</div>
+              ) : sources.length === 0 ? (
+                <div className="text-center text-gray-500">Belum ada sumber dana</div>
               ) : (
                 <div className="space-y-3">
-                  {investors.map((investor) => (
-                    <Link key={investor.id} href={`/investors/${investor.id}`}>
-                      <div className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 cursor-pointer transition">
+                  {sources.map((source) => {
+                    const repaidPercent = source.remaining_balance > 0 
+                      ? ((source.initial_contribution - source.remaining_balance) / source.initial_contribution * 100)
+                      : 100;
+                    const sourceType = source.source_type || 'investor';
+                    
+                    return (
+                      <div key={source.id} className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">{investor.name}</h3>
-                              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
-                                Priority {investor.priority_order}
-                              </span>
+                              <h3 className="font-semibold text-gray-900">{source.name}</h3>
+                              <Badge variant={sourceType === 'owner' ? 'default' : 'secondary'}>
+                                {sourceType === 'owner' ? '👤 Owner' : '🤝 Investor'}
+                              </Badge>
                             </div>
                             <p className="text-sm text-gray-600 mt-1">
-                              Modal: {formatCurrency(investor.initial_contribution)}
+                              Modal: {formatCurrency(source.initial_contribution)}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Sisa: {formatCurrency(investor.remaining_balance)}
+                              Sisa: {formatCurrency(source.remaining_balance)}
                             </p>
-                            {investor.phone && (
-                              <p className="text-sm text-gray-500 mt-1">{investor.phone}</p>
+                            {source.phone && (
+                              <p className="text-sm text-gray-500">{source.phone}</p>
+                            )}
+                            {source.notes && (
+                              <p className="text-sm text-gray-600 italic mt-1">Catatan: {source.notes}</p>
                             )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm font-semibold text-gray-900">
-                              {((1 - investor.remaining_balance / investor.initial_contribution) * 100).toFixed(0)}%
+                          <div className="text-right flex flex-col gap-2">
+                            <div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {repaidPercent.toFixed(0)}%
+                              </div>
+                              <div className="text-xs text-gray-500">dikembalikan</div>
+                              <div className="w-24 h-1 bg-gray-200 rounded mt-1 overflow-hidden">
+                                <div 
+                                  className="h-full bg-green-500 transition-all"
+                                  style={{ width: `${repaidPercent}%` }}
+                                ></div>
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500">dikembalikan</div>
-                            <div className="mt-2">
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                investor.status === 'settled' ? 'bg-green-100 text-green-700' :
-                                investor.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>
-                                {investor.status}
-                              </span>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleEdit(source)}
+                                className="p-1 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded"
+                                title="Edit"
+                              >
+                                <PencilLine className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(source.id)}
+                                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Add Investor Form */}
+        {/* Add/Edit Form */}
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Investor Baru</CardTitle>
+              <CardTitle>{editingId ? 'Edit Sumber Dana' : 'Tambah Sumber Dana'}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
+                  <Label className="text-gray-700">Tipe*</Label>
+                  <Select value={formData.source_type} onValueChange={(val: any) => setFormData({ ...formData, source_type: val })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">👤 Owner (Internal)</SelectItem>
+                      <SelectItem value="investor">🤝 Investor (Eksternal)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
                   <Label htmlFor="name" className="text-gray-700">Nama*</Label>
                   <Input
                     id="name"
-                    placeholder="Nama investor"
+                    placeholder="Nama lengkap"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
@@ -243,13 +325,44 @@ export default function InvestorsPage() {
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-orange-600 hover:bg-orange-700"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Menambah...' : 'Tambah Investor'}
-                </Button>
+                <div>
+                  <Label htmlFor="notes" className="text-gray-700">Catatan</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Catatan tambahan..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Menyimpan...' : (editingId ? 'Perbarui' : 'Tambah')}
+                  </Button>
+                  {editingId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingId(null);
+                        setFormData({
+                          source_type: 'investor',
+                          name: '',
+                          phone: '',
+                          initial_contribution: '',
+                          notes: ''
+                        });
+                      }}
+                    >
+                      Batal
+                    </Button>
+                  )}
+                </div>
               </form>
             </CardContent>
           </Card>

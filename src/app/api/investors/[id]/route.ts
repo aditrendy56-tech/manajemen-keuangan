@@ -3,9 +3,13 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
 
     if (!id) {
       return NextResponse.json({ error: 'ID required' }, { status: 400 });

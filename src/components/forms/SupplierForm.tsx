@@ -120,10 +120,10 @@ export default function SupplierForm({
 
       {message && (
         <Alert
-          className={`mb-4 ${
+          className={`mb-4 bg-white dark:bg-slate-700 ${
             message.type === 'success'
-              ? 'bg-green-50 text-green-800 border-green-200'
-              : 'bg-red-50 text-red-800 border-red-200'
+              ? 'text-green-800 border-green-200 dark:text-green-300'
+              : 'text-red-800 border-red-200 dark:text-red-300'
           }`}
         >
           {message.text}
@@ -131,7 +131,7 @@ export default function SupplierForm({
       )}
 
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div>
             <Label htmlFor="name" className="text-sm font-medium">
               Nama Distributor *

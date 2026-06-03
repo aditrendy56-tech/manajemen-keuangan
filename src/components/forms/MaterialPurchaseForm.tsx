@@ -43,7 +43,7 @@ export function MaterialPurchaseForm({ onSubmit, loading = false }: MaterialPurc
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6 items-start">
             <div>
               <Label htmlFor="quantity">Jumlah</Label>
               <Input
@@ -69,9 +69,9 @@ export function MaterialPurchaseForm({ onSubmit, loading = false }: MaterialPurc
             </div>
           </div>
 
-          <div className="p-4 bg-orange-50 rounded">
-            <p className="text-sm text-gray-600">Total</p>
-            <p className="text-2xl font-bold text-orange-700">Rp {totalAmount.toLocaleString('id-ID')}</p>
+          <div className="p-4 bg-white rounded border border-orange-200 dark:bg-slate-700">
+            <p className="text-sm text-gray-600 dark:text-slate-300">Total</p>
+            <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">Rp {totalAmount.toLocaleString('id-ID')}</p>
           </div>
 
           <div>

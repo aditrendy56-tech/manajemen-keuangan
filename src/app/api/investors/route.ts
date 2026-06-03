@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, name, phone, initial_contribution, priority_order, notes } = body;
+    const { outlet_id, name, phone, initial_contribution, priority_order, source_type, notes } = body;
 
     if (!outlet_id || !name || !initial_contribution) {
       return NextResponse.json(
@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
       initial_contribution,
       remaining_balance: initial_contribution,
       status: 'active',
-      priority_order: priority_order || 999
+      source_type: source_type || 'investor',
+      priority_order: priority_order || 999,
+      notes: notes || null
     };
     const { data, error } = await (getSupabaseServer().from('investors') as any)
       .insert([insertData])
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, remaining_balance, status } = body;
+    const { id, remaining_balance, status, source_type, notes } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -76,6 +78,8 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     if (remaining_balance !== undefined) updateData.remaining_balance = remaining_balance;
     if (status !== undefined) updateData.status = status;
+    if (source_type !== undefined) updateData.source_type = source_type;
+    if (notes !== undefined) updateData.notes = notes;
 
     const { data, error } = await (getSupabaseServer().from('investors') as any)
       .update(updateData)

@@ -53,16 +53,16 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
         <CardTitle>Input Pengeluaran</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-8 md:grid-cols-2 items-start">
             <div>
               <Label htmlFor="date">Tanggal</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <Label htmlFor="category">Kategori</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -76,7 +76,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
             </div>
           </div>
 
-          <div>
+          <div className="pt-1">
             <Label htmlFor="description">Deskripsi</Label>
             <Input
               id="description"
@@ -99,11 +99,11 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-6 md:grid-cols-2 items-start">
             <div>
               <Label htmlFor="payment_method">Metode Bayar</Label>
               <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'qris' | 'bank_transfer' | 'pending')}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -117,7 +117,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
             <div>
               <Label htmlFor="payment_status">Status Bayar</Label>
               <Select value={paymentStatus} onValueChange={(value) => setPaymentStatus(value as 'paid' | 'pending')}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

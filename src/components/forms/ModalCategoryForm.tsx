@@ -119,11 +119,11 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {error && <Alert className="bg-red-50 border-red-200"><AlertDescription className="text-red-700">{error}</AlertDescription></Alert>}
-          {success && <Alert className="bg-green-50 border-green-200"><AlertDescription className="text-green-700">✓ Modal berhasil ditambahkan</AlertDescription></Alert>}
+          {error && <Alert className="bg-white border-red-200 dark:bg-slate-700"><AlertDescription className="text-red-700">{error}</AlertDescription></Alert>}
+          {success && <Alert className="bg-white border-green-200 dark:bg-slate-700"><AlertDescription className="text-green-700">✓ Modal berhasil ditambahkan</AlertDescription></Alert>}
 
           {/* Category Selection */}
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-6 items-start">
             <div>
               <Label htmlFor="category">Kategori Modal</Label>
               <select value={category} onChange={(e: any) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500">
@@ -149,7 +149,7 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
             </div>
 
             {items.map((item, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3 bg-gray-50">
+              <div key={index} className="border rounded-lg p-4 space-y-3 bg-white dark:bg-slate-700">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-sm">Nama Barang</Label>
@@ -219,10 +219,10 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
           </div>
 
           {/* Summary */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="bg-white border border-orange-200 rounded-lg p-4 dark:bg-slate-700">
             <div className="flex justify-between items-center">
-              <span className="font-semibold text-orange-900">Total Modal Kategori:</span>
-              <span className="text-2xl font-bold text-orange-600">
+              <span className="font-semibold text-orange-900 dark:text-slate-50">Total Modal Kategori:</span>
+              <span className="text-2xl font-bold text-orange-600 dark:text-orange-300">
                 Rp {new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(getTotalAmount())}
               </span>
             </div>

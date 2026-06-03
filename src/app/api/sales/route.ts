@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculatePlatformFee } from '@/lib/calculations/platform-fees';
+import { calculatePlatformFee, calculatePlatformFeeServer } from '@/lib/calculations/platform-fees';
 import { recordCashTransaction } from '@/lib/cash/ledger';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 
@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       channel_type,
       platform,
       payment_method,
+      payment_entries,
       gross_amount,
       items,
       payment_status,
@@ -84,8 +85,49 @@ export async function POST(request: NextRequest) {
     const legacyChannel =
       effectiveChannel === 'offline' ? 'offline' : normalizedPlatform || 'offline';
 
-    const platform_fee = calculatePlatformFee(normalizedPlatform || normalizedChannelType, gross_amount);
-    const net_amount = gross_amount - platform_fee;
+    const normalizedEntries = Array.isArray(payment_entries) ? payment_entries : [];
+    if (String(payment_method || '').toLowerCase() === 'split' && normalizedEntries.length === 0) {
+      return NextResponse.json({ error: 'Split payment membutuhkan payment_entries' }, { status: 400 });
+    }
+    const splitAmount = normalizedEntries.reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0);
+    const effectiveGrossAmount = Number(gross_amount || 0);
+
+    if (normalizedEntries.length > 0 && Math.abs(splitAmount - effectiveGrossAmount) > 0.01) {
+      return NextResponse.json(
+        { error: 'Jumlah payment_entries harus sama dengan gross_amount' },
+        { status: 400 }
+      );
+    }
+
+    if (String(payment_method || '').toLowerCase() === 'split' && normalizedEntries.length < 2) {
+      return NextResponse.json({ error: 'Split payment membutuhkan minimal 2 payment_entries' }, { status: 400 });
+    }
+
+    const platform_fee = await calculatePlatformFeeServer(normalizedPlatform || normalizedChannelType, effectiveGrossAmount, outlet_id);
+    const net_amount = effectiveGrossAmount - platform_fee;
+
+    const inferredPaymentMethod =
+      payment_method || (normalizedEntries.length > 1 ? 'split' : normalizedEntries[0]?.payment_method || 'cash');
+    const normalizedPaymentEntries =
+      normalizedEntries.length > 0
+        ? normalizedEntries.map((entry: any) => ({
+            payment_method: entry.payment_method,
+            amount: Number(entry.amount || 0),
+            payment_status: entry.payment_status || (entry.payment_method === 'cash' ? 'settled' : 'pending'),
+            settlement_date: entry.settlement_date || null,
+            payment_reference: entry.payment_reference || null,
+            notes: entry.notes || null,
+          }))
+        : [
+            {
+              payment_method: inferredPaymentMethod,
+              amount: effectiveGrossAmount,
+              payment_status: payment_status || (inferredPaymentMethod === 'cash' ? 'settled' : 'pending'),
+              settlement_date: settlement_date || null,
+              payment_reference: payment_reference || null,
+              notes: notes || null,
+            },
+          ];
 
     const saleInsertData = {
       session_id: session.id,
@@ -93,12 +135,13 @@ export async function POST(request: NextRequest) {
       channel: legacyChannel,
       channel_type: normalizedChannelType,
       platform: normalizedPlatform,
-      payment_method,
-      gross_amount,
+      payment_method: inferredPaymentMethod,
+      gross_amount: effectiveGrossAmount,
       platform_fee,
       net_amount,
-      payment_status: payment_status || (payment_method === 'cash' ? 'settled' : 'pending'),
+      payment_status: payment_status || overallPaymentStatus,
       settlement_date: settlement_date || null,
+      payment_entries: normalizedPaymentEntries,
       payment_reference: payment_reference || null,
       notes: notes || null,
     };
@@ -139,18 +182,30 @@ export async function POST(request: NextRequest) {
       if (itemsError) throw itemsError;
     }
 
-    if (String(saleData.payment_status || '').toLowerCase() === 'settled') {
-      await recordCashTransaction({
-        outlet_id,
-        transaction_date:
-          (saleData.settlement_date as string | null) || session.date || new Date().toISOString().split('T')[0],
-        transaction_type: 'inflow',
-        source_type: 'sale',
-        source_id: saleId,
-        amount: Number(net_amount),
-        description: `Penjualan ${normalizedPlatform || normalizedChannelType}`,
-        notes: notes || null,
-      });
+    const settledEntries = normalizedPaymentEntries.filter((entry) => String(entry.payment_status || '').toLowerCase() === 'settled');
+    if (settledEntries.length > 0) {
+      for (const entry of settledEntries) {
+        const { data: existingCash } = await (getSupabaseServer().from('cash_transactions') as any)
+          .select('id')
+          .eq('source_type', 'sale')
+          .eq('source_id', saleId)
+          .eq('notes', entry.payment_reference || entry.payment_method)
+          .maybeSingle();
+
+        if (!existingCash?.id) {
+          await recordCashTransaction({
+            outlet_id,
+            transaction_date:
+              entry.settlement_date || (saleData.settlement_date as string | null) || session.date || new Date().toISOString().split('T')[0],
+            transaction_type: 'inflow',
+            source_type: 'sale',
+            source_id: saleId,
+            amount: Number(entry.amount || 0),
+            description: `Penjualan ${normalizedPlatform || normalizedChannelType} (${entry.payment_method})`,
+            notes: entry.payment_reference || entry.notes || null,
+          });
+        }
+      }
     }
 
     return NextResponse.json(saleData, { status: 201 });

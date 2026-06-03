@@ -28,16 +28,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, name, description, price, is_active } = body;
+    const { outlet_id, name, description, price, price_offline, price_shopeefood, price_gofood, is_active } = body;
 
-    if (!outlet_id || !name || !price) {
+    if (!outlet_id || !name) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const insertData = { outlet_id, name, description, price, is_active: is_active !== undefined ? is_active : true };
+    // prefer explicit channel prices, fallback to legacy `price` if provided
+    const fallbackPrice = price_offline ?? price_shopeefood ?? price_gofood ?? price ?? null;
+    const insertData: any = {
+      outlet_id,
+      name,
+      description,
+      is_active: is_active !== undefined ? is_active : true,
+      price: fallbackPrice,
+      price_offline: price_offline ?? price ?? null,
+      price_shopeefood: price_shopeefood ?? price ?? null,
+      price_gofood: price_gofood ?? price ?? null,
+    };
     const { data, error } = await (getSupabaseServer().from('products') as any)
       .insert([insertData])
       .select()

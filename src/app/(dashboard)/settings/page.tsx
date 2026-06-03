@@ -19,6 +19,8 @@ export default function SettingsPage() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [currency, setCurrency] = useState('IDR');
+  const [feeShopee, setFeeShopee] = useState('20');
+  const [feeGofood, setFeeGofood] = useState('25');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,6 +42,8 @@ export default function SettingsPage() {
       setAddress(data.address || '');
       setPhone(data.phone || '');
       setCurrency(data.currency || 'IDR');
+      setFeeShopee(data.fee_shopeefood ? String(Number(data.fee_shopeefood) * 100) : '20');
+      setFeeGofood(data.fee_gofood ? String(Number(data.fee_gofood) * 100) : '25');
     } catch (err: any) {
       setError(err.message || 'Gagal memuat pengaturan');
     } finally {
@@ -51,6 +55,16 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       setError('');
+
+      // Validate fee inputs (percent values)
+      const feeShopeeNum = feeShopee ? Number(feeShopee) : NaN;
+      const feeGofoodNum = feeGofood ? Number(feeGofood) : NaN;
+      if (isNaN(feeShopeeNum) || feeShopeeNum < 0 || feeShopeeNum > 100) {
+        throw new Error('Fee ShopeeFood harus berupa angka antara 0 dan 100');
+      }
+      if (isNaN(feeGofoodNum) || feeGofoodNum < 0 || feeGofoodNum > 100) {
+        throw new Error('Fee GoFood harus berupa angka antara 0 dan 100');
+      }
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -61,6 +75,8 @@ export default function SettingsPage() {
           address,
           phone,
           currency,
+          fee_shopeefood: feeShopee ? Number(feeShopee) / 100 : null,
+          fee_gofood: feeGofood ? Number(feeGofood) / 100 : null,
         }),
       });
 
@@ -149,6 +165,16 @@ export default function SettingsPage() {
                   <SelectItem value="USD">USD ($)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="fee_shopee">Fee ShopeeFood (%)</Label>
+              <Input id="fee_shopee" type="number" min={0} max={100} value={feeShopee} onChange={(e) => setFeeShopee(e.target.value)} />
+              <p className="text-xs text-gray-500 mt-1">Masukkan persentase fee platform (contoh: 20 berarti 20%). Sistem menyimpan ini sebagai estimasi dan akan digunakan untuk menghitung platform fee saat input penjualan.</p>
+            </div>
+            <div>
+              <Label htmlFor="fee_gofood">Fee GoFood (%)</Label>
+              <Input id="fee_gofood" type="number" min={0} max={100} value={feeGofood} onChange={(e) => setFeeGofood(e.target.value)} />
+              <p className="text-xs text-gray-500 mt-1">Jika Anda tidak tahu nilai fee pasti, isikan angka estimasi. Nanti bisa direkonsiliasi ketika menerima payout dari platform.</p>
             </div>
 
             {saved && <div className="p-3 bg-green-100 text-green-700 rounded">Pengaturan berhasil disimpan</div>}

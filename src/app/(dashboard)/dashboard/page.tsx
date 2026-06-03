@@ -39,6 +39,10 @@ export default function DashboardPage() {
         payment_methods: { cash: 0, qris: 0 },
         top_products: [],
         weekly_profit: [],
+        today_cash_inflow: 0,
+        today_cash_outflow: 0,
+        today_pending_sales: 0,
+        today_pending_expenses: 0,
       });
     } finally {
       setLoading(false);

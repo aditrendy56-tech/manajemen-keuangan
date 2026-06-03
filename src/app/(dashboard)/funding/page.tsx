@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -192,15 +192,20 @@ export default function FundingPage() {
     const [formData, setFormData] = useState({
       date: new Date().toISOString().split('T')[0],
       amount: '',
-      source: '',
-      source_type: 'owner_personal',
-      investor_id: '',
+      source_id: '', // Selected source (investor/owner from list)
       notes: '',
     });
     const [saving, setSaving] = useState(false);
 
+    const selectedSource = data.investors.find((inv: any) => inv.id === formData.source_id);
+
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
+      if (!selectedSource) {
+        alert('Pilih sumber dana terlebih dahulu');
+        return;
+      }
+      
       setSaving(true);
       try {
         const response = await fetch('/api/capital', {
@@ -208,23 +213,25 @@ export default function FundingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             outlet_id: outletId,
-            ...formData,
+            date: formData.date,
             amount: parseFloat(formData.amount),
-            investor_id: formData.investor_id || null,
+            source: selectedSource.name,
+            source_type: selectedSource.source_type || 'investor',
+            investor_id: selectedSource.id,
+            notes: formData.notes,
           }),
         });
         if (!response.ok) throw new Error('Failed to create capital entry');
         setFormData({
           date: new Date().toISOString().split('T')[0],
           amount: '',
-          source: '',
-          source_type: 'owner_personal',
-          investor_id: '',
+          source_id: '',
           notes: '',
         });
         await fetchAllData();
       } catch (error) {
         console.error('Error:', error);
+        alert('Error saving capital entry');
       } finally {
         setSaving(false);
       }
@@ -259,42 +266,45 @@ export default function FundingPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Sumber Type</Label>
-                  <Select value={formData.source_type} onValueChange={(val: any) => setFormData({ ...formData, source_type: val })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="investor">Investor</SelectItem>
-                      <SelectItem value="owner_personal">Owner Personal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Sumber</Label>
-                  <Input
-                    value={formData.source}
-                    onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                    placeholder="Contoh: PT XYZ, Bank Mandiri"
-                  />
-                </div>
+              <div>
+                <Label>Pilih Sumber Dana*</Label>
+                <Select value={formData.source_id} onValueChange={(val: any) => setFormData({ ...formData, source_id: val })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih sumber dana" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {data.investors.length === 0 ? (
+                      <div className="p-2 text-sm text-gray-500">Belum ada sumber dana. Tambahkan di halaman Sumber Dana.</div>
+                    ) : (
+                      data.investors.map((inv: any) => {
+                        const sourceType = inv.source_type || 'investor';
+                        const icon = sourceType === 'owner' ? '👤' : '🤝';
+                        return (
+                          <SelectItem key={inv.id} value={inv.id}>
+                            {icon} {inv.name}
+                          </SelectItem>
+                        );
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {formData.source_type === 'investor' && (
-                <div>
-                  <Label>Investor (Optional)</Label>
-                  <Select value={formData.investor_id} onValueChange={(val: any) => setFormData({ ...formData, investor_id: val })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih investor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.investors.map((inv: any) => (
-                        <SelectItem key={inv.id} value={inv.id}>{inv.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {selectedSource && (
+                <div className="p-3 bg-blue-50 rounded-lg text-sm">
+                  <p className="text-gray-700">
+                    <span className="font-semibold">{selectedSource.name}</span>
+                    {' • '}
+                    <span className={selectedSource.source_type === 'owner' ? 'text-blue-600' : 'text-purple-600'}>
+                      {selectedSource.source_type === 'owner' ? '👤 Owner' : '🤝 Investor'}
+                    </span>
+                  </p>
+                  <p className="text-gray-600 text-xs mt-1">
+                    Modal awal: {formatCurrency(selectedSource.initial_contribution)}
+                  </p>
+                  {selectedSource.notes && (
+                    <p className="text-gray-600 text-xs mt-1">Catatan: {selectedSource.notes}</p>
+                  )}
                 </div>
               )}
 
@@ -303,10 +313,11 @@ export default function FundingPage() {
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Contoh: Modal awal untuk peralatan"
                 />
               </div>
 
-              <Button disabled={saving} className="bg-orange-600 hover:bg-orange-700">
+              <Button disabled={saving || !selectedSource} className="bg-orange-600 hover:bg-orange-700 w-full">
                 {saving ? 'Menyimpan...' : 'Simpan Modal'}
               </Button>
             </form>
@@ -327,44 +338,49 @@ export default function FundingPage() {
                     <tr className="border-b bg-gray-50">
                       <th className="text-left p-2">Tanggal</th>
                       <th className="text-left p-2">Sumber</th>
-                      <th className="text-left p-2">Type</th>
+                      <th className="text-left p-2">Tipe</th>
                       <th className="text-right p-2">Jumlah</th>
+                      <th className="text-left p-2">Catatan</th>
                       <th className="text-center p-2">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.capitalEntries.map((entry: any) => (
-                      <tr key={entry.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2">{formatDate(entry.date)}</td>
-                        <td className="p-2">{entry.source || '-'}</td>
-                        <td className="p-2">
-                          <Badge variant={entry.source_type === 'investor' ? 'default' : 'outline'}>
-                            {entry.source_type === 'investor' ? 'Investor' : 'Owner'}
-                          </Badge>
-                        </td>
-                        <td className="text-right p-2 font-semibold">{formatCurrency(entry.amount)}</td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={async () => {
-                              if (confirm('Hapus modal masuk ini?')) {
-                                try {
-                                  const response = await fetch(`/api/capital/${entry.id}`, { method: 'DELETE' });
-                                  if (response.ok) {
-                                    await fetchAllData();
+                    {data.capitalEntries.map((entry: any) => {
+                      const sourceType = entry.source_type || 'investor';
+                      return (
+                        <tr key={entry.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2">{formatDate(entry.date)}</td>
+                          <td className="p-2 font-medium">{entry.source || '-'}</td>
+                          <td className="p-2">
+                            <Badge variant={sourceType === 'investor' ? 'default' : 'secondary'}>
+                              {sourceType === 'owner' ? '👤 Owner' : '🤝 Investor'}
+                            </Badge>
+                          </td>
+                          <td className="text-right p-2 font-semibold">{formatCurrency(entry.amount)}</td>
+                          <td className="p-2 text-xs text-gray-600">{entry.notes || '-'}</td>
+                          <td className="p-2 text-center">
+                            <button
+                              onClick={async () => {
+                                if (confirm('Hapus modal masuk ini?')) {
+                                  try {
+                                    const response = await fetch(`/api/capital/${entry.id}`, { method: 'DELETE' });
+                                    if (response.ok) {
+                                      await fetchAllData();
+                                    }
+                                  } catch (error) {
+                                    console.error('Delete failed:', error);
                                   }
-                                } catch (error) {
-                                  console.error('Delete failed:', error);
                                 }
-                              }
-                            }}
-                            className="text-red-600 hover:text-red-800 transition-colors"
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                              }}
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -375,155 +391,87 @@ export default function FundingPage() {
     );
   }
 
-  // ===== TAB 2: Profil Investor =====
+  // ===== TAB 2: Info Sumber Dana =====
   function Tab2InvestorProfiles() {
-    const [formData, setFormData] = useState({
-      name: '',
-      phone: '',
-      initial_contribution: '',
-      priority_order: '',
-      notes: '',
-    });
-    const [saving, setSaving] = useState(false);
-
-    async function handleSubmit(e: React.FormEvent) {
-      e.preventDefault();
-      setSaving(true);
-      try {
-        const response = await fetch('/api/investors', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outlet_id: outletId,
-            ...formData,
-            initial_contribution: parseFloat(formData.initial_contribution),
-            remaining_balance: parseFloat(formData.initial_contribution),
-            priority_order: parseInt(formData.priority_order) || 999,
-            status: 'active',
-          }),
-        });
-        if (!response.ok) throw new Error('Failed to create investor');
-        setFormData({
-          name: '',
-          phone: '',
-          initial_contribution: '',
-          priority_order: '',
-          notes: '',
-        });
-        await fetchAllData();
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setSaving(false);
-      }
-    }
-
     return (
       <div className="space-y-6">
-        <Card>
+        <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
-            <CardTitle>Tambah Investor</CardTitle>
+            <CardTitle className="text-blue-900">ℹ️ Kelola Sumber Dana di Halaman Terpisah</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Nama Investor</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Phone</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Kontribusi Awal (Rp)</Label>
-                  <Input
-                    type="number"
-                    value={formData.initial_contribution}
-                    onChange={(e) => setFormData({ ...formData, initial_contribution: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Priority Order (1=tertinggi)</Label>
-                  <Input
-                    type="number"
-                    value={formData.priority_order}
-                    onChange={(e) => setFormData({ ...formData, priority_order: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label>Catatan</Label>
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-
-              <Button disabled={saving} className="bg-orange-600 hover:bg-orange-700">
-                {saving ? 'Menyimpan...' : 'Tambah Investor'}
-              </Button>
-            </form>
+          <CardContent className="text-blue-900">
+            <p className="mb-4">
+              Untuk menambah, mengubah, atau menghapus sumber dana (owner atau investor), silakan buka halaman <strong>Sumber Dana</strong> di menu navigasi.
+            </p>
+            <p className="text-sm mb-4">
+              Di halaman tersebut Anda dapat:
+            </p>
+            <ul className="text-sm list-disc list-inside space-y-1 mb-4">
+              <li>Membedakan antara owner (internal) dan investor (eksternal)</li>
+              <li>Mencatat nama, nomor telepon, dan jumlah modal</li>
+              <li>Menambahkan catatan untuk setiap sumber dana</li>
+              <li>Melihat progres pengembalian modal untuk setiap sumber</li>
+            </ul>
+            <Button 
+              onClick={() => window.location.href = '/investors'}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Buka Halaman Sumber Dana →
+            </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Daftar Investor</CardTitle>
+            <CardTitle>Daftar Sumber Dana Terdaftar</CardTitle>
+            <CardDescription>Sumber dana yang sudah input di halaman Sumber Dana</CardDescription>
           </CardHeader>
           <CardContent>
             {data.investors.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">Belum ada investor</p>
+              <p className="text-gray-500 text-center py-8">Belum ada sumber dana. Buat di halaman Sumber Dana.</p>
             ) : (
               <div className="grid gap-4">
-                {data.investors.map((inv: any) => (
-                  <div key={inv.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold">#{inv.priority_order || 999} {inv.name}</h3>
-                        <p className="text-sm text-gray-600">{inv.phone}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
+                {data.investors.map((inv: any) => {
+                  const sourceType = inv.source_type || 'investor';
+                  const icon = sourceType === 'owner' ? '👤' : '🤝';
+                  const investedTotal = data.capitalEntries
+                    .filter((c: any) => c.investor_id === inv.id)
+                    .reduce((sum: number, c: any) => sum + parseFloat(c.amount || 0), 0);
+                  
+                  return (
+                    <div key={inv.id} className="border rounded-lg p-4 hover:border-orange-300 hover:bg-orange-50 transition">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{icon} {inv.name}</h3>
+                            <Badge variant={sourceType === 'owner' ? 'default' : 'secondary'}>
+                              {sourceType === 'owner' ? 'Owner' : 'Investor'}
+                            </Badge>
+                          </div>
+                          {inv.phone && <p className="text-sm text-gray-600">{inv.phone}</p>}
+                          {inv.notes && <p className="text-sm text-gray-600 italic">Catatan: {inv.notes}</p>}
+                        </div>
                         <Badge variant={inv.status === 'active' ? 'default' : 'outline'}>
                           {inv.status}
                         </Badge>
-                        <button
-                          onClick={async () => {
-                            if (confirm('Hapus investor ini?')) {
-                              try {
-                                const response = await fetch(`/api/investors/${inv.id}`, { method: 'DELETE' });
-                                if (response.ok) {
-                                  await fetchAllData();
-                                }
-                              } catch (error) {
-                                console.error('Delete failed:', error);
-                              }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      </div>
+                      <div className="text-sm grid grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-gray-600">Modal Awal</p>
+                          <p className="font-semibold">{formatCurrency(inv.initial_contribution)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Sudah Diinvestasi</p>
+                          <p className="font-semibold">{formatCurrency(investedTotal)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Sisa</p>
+                          <p className="font-semibold text-orange-600">{formatCurrency(inv.remaining_balance)}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-sm">
-                      <p>Kontribusi: <span className="font-semibold">{formatCurrency(inv.initial_contribution)}</span></p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -893,10 +841,10 @@ export default function FundingPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label>Pilih Investor</Label>
+                <Label>Pilih Sumber Dana</Label>
                 <Select value={formData.investor_id} onValueChange={(val: any) => setFormData({ ...formData, investor_id: val })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih investor" />
+                    <SelectValue placeholder="Pilih sumber dana untuk dikembalikan" />
                   </SelectTrigger>
                   <SelectContent>
                     {data.investors
@@ -905,19 +853,29 @@ export default function FundingPage() {
                         return invested.length > 0;
                       })
                       .sort((a, b) => (a.priority_order || 999) - (b.priority_order || 999))
-                      .map((inv: any) => (
-                        <SelectItem key={inv.id} value={inv.id}>
-                          ⭐ Priority {inv.priority_order}: {inv.name}
-                        </SelectItem>
-                      ))}
+                      .map((inv: any) => {
+                        const sourceType = inv.source_type || 'investor';
+                        const icon = sourceType === 'owner' ? '👤' : '🤝';
+                        return (
+                          <SelectItem key={inv.id} value={inv.id}>
+                            {icon} {inv.name}
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
 
                 {selectedInvestor && (
                   <div className="mt-3 p-3 bg-blue-50 rounded text-sm">
                     <p className="text-gray-700">
-                      <span className="font-semibold">{selectedInvestor.name}</span> - Sisa hutang:{' '}
-                      <span className="font-semibold text-red-600">{formatCurrency(remaining)}</span>
+                      <span className="font-semibold">{selectedInvestor.name}</span>
+                      {' • '}
+                      <span className={selectedInvestor.source_type === 'owner' ? 'text-blue-600' : 'text-purple-600'}>
+                        {selectedInvestor.source_type === 'owner' ? '👤 Owner' : '🤝 Investor'}
+                      </span>
+                    </p>
+                    <p className="text-gray-600 text-xs mt-1">
+                      Sisa hutang: <span className="font-semibold text-red-600">{formatCurrency(remaining)}</span>
                     </p>
                   </div>
                 )}
@@ -1652,7 +1610,7 @@ export default function FundingPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="modal">Modal</TabsTrigger>
-          <TabsTrigger value="investors">Investor</TabsTrigger>
+          <TabsTrigger value="investors">Sumber Dana</TabsTrigger>
           <TabsTrigger value="balance">Saldo</TabsTrigger>
           <TabsTrigger value="repayment">Pembayaran</TabsTrigger>
           <TabsTrigger value="cash">Kas</TabsTrigger>

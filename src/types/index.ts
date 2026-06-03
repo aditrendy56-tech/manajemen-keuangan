@@ -22,7 +22,12 @@ export interface Product {
   outlet_id: string;
   name: string;
   category?: string;
-  price: number;
+  // legacy single price (kept for backward compatibility)
+  price?: number;
+  // channel-specific gross prices
+  price_offline?: number;
+  price_shopeefood?: number;
+  price_gofood?: number;
   description?: string;
   is_active: boolean;
   created_at?: string;
@@ -66,7 +71,9 @@ export interface Investor {
   initial_contribution: number;
   remaining_balance: number;
   status: 'active' | 'settled' | 'partial';
+  source_type?: 'owner' | 'investor';
   priority_order?: number;
+  notes?: string;
   created_at: string;
 }
 
@@ -102,12 +109,24 @@ export interface Sale {
   channel: 'offline' | 'shopeefood' | 'gofood';
   channel_type?: 'offline' | 'online';
   platform?: 'shopeefood' | 'gofood' | null;
-  payment_method: 'cash' | 'qris';
+  payment_method: 'cash' | 'qris' | 'split';
   gross_amount: number;
   platform_fee: number;
   net_amount: number;
   payment_status?: 'settled' | 'pending' | 'refunded';
   settlement_date?: string | null;
+  refund_amount?: number | null;
+  refund_reason?: string | null;
+  refunded_at?: string | null;
+  refund_reference?: string | null;
+  payment_entries?: Array<{
+    payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+    amount: number;
+    payment_status?: 'settled' | 'pending';
+    settlement_date?: string | null;
+    payment_reference?: string | null;
+    notes?: string | null;
+  }>;
   order_ref?: string | null;
   notes?: string | null;
   created_at: string;
@@ -133,6 +152,10 @@ export interface Expense {
   payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
   payment_status?: 'paid' | 'pending' | 'refunded';
   settlement_date?: string | null;
+  refund_amount?: number | null;
+  refund_reason?: string | null;
+  refunded_at?: string | null;
+  refund_reference?: string | null;
   notes?: string;
   created_at: string;
 }
@@ -262,7 +285,15 @@ export interface CashTransaction {
 export interface SaleFormData {
   channel_type: 'offline' | 'online';
   platform?: 'shopeefood' | 'gofood' | '';
-  payment_method: 'cash' | 'qris';
+  payment_method: 'cash' | 'qris' | 'split';
+  payment_entries?: Array<{
+    payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+    amount: number;
+    payment_status?: 'settled' | 'pending';
+    settlement_date?: string | null;
+    payment_reference?: string | null;
+    notes?: string | null;
+  }>;
   items: { product_id: string; quantity: number }[];
   notes?: string;
 }
@@ -307,6 +338,7 @@ export interface RevenueByChannel {
 export interface PaymentMethodBreakdown {
   cash: number;
   qris: number;
+  split?: number;
 }
 
 export interface DashboardMetrics {

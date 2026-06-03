@@ -11,6 +11,18 @@ function normalizeChannel(sale: any) {
   return sale.channel || 'offline';
 }
 
+function getRecognizedSaleAmount(sale: any) {
+  const netAmount = Number(sale.net_amount || 0);
+  const refundAmount = Number(sale.refund_amount || 0);
+  return Math.max(netAmount - refundAmount, 0);
+}
+
+function getRecognizedExpenseAmount(expense: any) {
+  const amount = Number(expense.amount || 0);
+  const refundAmount = Number(expense.refund_amount || 0);
+  return Math.max(amount - refundAmount, 0);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -60,11 +72,10 @@ export async function GET(request: NextRequest) {
       .lte('date', date);
 
     // Calculate metrics
-    const gross_revenue = sales?.reduce((sum: number, s: any) => sum + (s.gross_amount || 0), 0) || 0;
-    const net_revenue = sales?.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0) || 0;
-    const total_expenses = expenses?.reduce((sum: number, e: any) => sum + (e.amount || 0), 0) || 0;
-    const platform_fees =
-      sales?.reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
+    const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
+    const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
+    const total_expenses = (expenses || []).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
     const profit = net_revenue - total_expenses;
 
     const today_cash_inflow = cashTransactions?.reduce(
@@ -75,12 +86,12 @@ export async function GET(request: NextRequest) {
       (sum: number, tx: any) => sum + (tx.transaction_type === 'outflow' ? (tx.amount || 0) : 0),
       0
     ) || 0;
-    const today_pending_sales = sales?.reduce(
-      (sum: number, sale: any) => sum + (String(sale.payment_status || '').toLowerCase() === 'settled' ? 0 : (sale.net_amount || 0)),
+    const today_pending_sales = (sales || []).reduce(
+      (sum: number, sale: any) => sum + (String(sale.payment_status || '').toLowerCase() === 'settled' ? 0 : getRecognizedSaleAmount(sale)),
       0
     ) || 0;
-    const today_pending_expenses = expenses?.reduce(
-      (sum: number, expense: any) => sum + (String(expense.payment_status || '').toLowerCase() === 'paid' ? 0 : (expense.amount || 0)),
+    const today_pending_expenses = (expenses || []).reduce(
+      (sum: number, expense: any) => sum + (String(expense.payment_status || '').toLowerCase() === 'paid' ? 0 : getRecognizedExpenseAmount(expense)),
       0
     ) || 0;
 
@@ -91,11 +102,10 @@ export async function GET(request: NextRequest) {
       gofood: 0,
     };
 
-    sales?.forEach((sale: any) => {
+    (sales || []).forEach((sale: any) => {
       const channel = normalizeChannel(sale);
       if (revenue_by_channel.hasOwnProperty(channel)) {
-        revenue_by_channel[channel as keyof typeof revenue_by_channel] +=
-          sale.net_amount || 0;
+        revenue_by_channel[channel as keyof typeof revenue_by_channel] += getRecognizedSaleAmount(sale);
       }
     });
 
@@ -105,15 +115,14 @@ export async function GET(request: NextRequest) {
       qris: 0,
     };
 
-    sales?.forEach((sale: any) => {
+    (sales || []).forEach((sale: any) => {
       if (payment_methods.hasOwnProperty(sale.payment_method)) {
-        payment_methods[sale.payment_method as keyof typeof payment_methods] +=
-          sale.net_amount || 0;
+        payment_methods[sale.payment_method as keyof typeof payment_methods] += getRecognizedSaleAmount(sale);
       }
     });
 
     const topProducts = [] as DashboardMetrics['top_products'];
-    const saleIds = sales?.map((sale: any) => sale.id) || [];
+    const saleIds = (sales || []).map((sale: any) => sale.id) || [];
     if (saleIds.length > 0) {
       const { data: saleItems } = await getSupabaseServer().from('sale_items')
         .select('sale_id, product_id, quantity, subtotal, products(name)')
@@ -150,18 +159,18 @@ export async function GET(request: NextRequest) {
       dailyTotals.set(dayKey, { revenue: 0, expense: 0 });
     }
 
-    weeklySales?.forEach((sale: any) => {
+    (weeklySales || []).forEach((sale: any) => {
       const dayKey = new Date(sale.created_at).toISOString().split('T')[0];
       const current = dailyTotals.get(dayKey);
       if (current) {
-        current.revenue += sale.net_amount || 0;
+        current.revenue += getRecognizedSaleAmount(sale);
       }
     });
 
-    weeklyExpenses?.forEach((expense: any) => {
+    (weeklyExpenses || []).forEach((expense: any) => {
       const current = dailyTotals.get(expense.date);
       if (current) {
-        current.expense += expense.amount || 0;
+        current.expense += getRecognizedExpenseAmount(expense);
       }
     });
 

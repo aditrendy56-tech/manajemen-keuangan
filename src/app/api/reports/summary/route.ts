@@ -11,6 +11,18 @@ function normalizeChannel(sale: any) {
   return sale.channel || 'offline';
 }
 
+function getRecognizedSaleAmount(sale: any) {
+  const netAmount = Number(sale.net_amount || 0);
+  const refundAmount = Number(sale.refund_amount || 0);
+  return Math.max(netAmount - refundAmount, 0);
+}
+
+function getRecognizedExpenseAmount(expense: any) {
+  const amount = Number(expense.amount || 0);
+  const refundAmount = Number(expense.refund_amount || 0);
+  return Math.max(amount - refundAmount, 0);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -49,9 +61,9 @@ export async function GET(request: NextRequest) {
       .lte('transaction_date', endDate);
 
     // Calculate metrics
-    const gross_revenue = sales?.reduce((sum: number, s: any) => sum + (s.gross_amount || 0), 0) || 0;
-    const net_revenue = sales?.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0) || 0;
-    const platform_fees = sales?.reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
+    const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
+    const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
+    const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
     const settled_cash_inflow = cashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
       0
@@ -65,19 +77,20 @@ export async function GET(request: NextRequest) {
     const expenses_by_category: Record<string, number> = {};
     let total_expenses = 0;
 
-    expenses?.forEach((expense: any) => {
+    (expenses || []).forEach((expense: any) => {
+      const recognizedAmount = getRecognizedExpenseAmount(expense);
       expenses_by_category[expense.category] =
-        (expenses_by_category[expense.category] || 0) + (expense.amount || 0);
-      total_expenses += expense.amount || 0;
+        (expenses_by_category[expense.category] || 0) + recognizedAmount;
+      total_expenses += recognizedAmount;
     });
 
-    const pending_sales_amount = sales?.reduce(
-      (sum: number, s: any) => sum + (String(s.payment_status || '').toLowerCase() === 'settled' ? 0 : (s.net_amount || 0)),
+    const pending_sales_amount = (sales || []).reduce(
+      (sum: number, s: any) => sum + (String(s.payment_status || '').toLowerCase() === 'settled' ? 0 : getRecognizedSaleAmount(s)),
       0
     ) || 0;
 
-    const pending_expenses_amount = expenses?.reduce(
-      (sum: number, e: any) => sum + (String(e.payment_status || '').toLowerCase() === 'paid' ? 0 : (e.amount || 0)),
+    const pending_expenses_amount = (expenses || []).reduce(
+      (sum: number, e: any) => sum + (String(e.payment_status || '').toLowerCase() === 'paid' ? 0 : getRecognizedExpenseAmount(e)),
       0
     ) || 0;
 
@@ -104,18 +117,20 @@ export async function GET(request: NextRequest) {
 
     // Revenue by channel
     const revenueByChannel = { offline: 0, shopeefood: 0, gofood: 0 };
-    sales?.forEach((s: any) => {
+    (sales || []).forEach((s: any) => {
       const channel = normalizeChannel(s);
-      if (channel === 'offline') revenueByChannel.offline += s.gross_amount || 0;
-      else if (channel === 'shopeefood') revenueByChannel.shopeefood += s.gross_amount || 0;
-      else if (channel === 'gofood') revenueByChannel.gofood += s.gross_amount || 0;
+      const recognizedGross = getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 });
+      if (channel === 'offline') revenueByChannel.offline += recognizedGross;
+      else if (channel === 'shopeefood') revenueByChannel.shopeefood += recognizedGross;
+      else if (channel === 'gofood') revenueByChannel.gofood += recognizedGross;
     });
 
     // Payment method
     const paymentMethod = { cash: 0, qris: 0 };
-    sales?.forEach((s: any) => {
-      if (s.payment_method === 'cash') paymentMethod.cash += s.gross_amount || 0;
-      else if (s.payment_method === 'qris') paymentMethod.qris += s.gross_amount || 0;
+    (sales || []).forEach((s: any) => {
+      const recognizedGross = getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 });
+      if (s.payment_method === 'cash') paymentMethod.cash += recognizedGross;
+      else if (s.payment_method === 'qris') paymentMethod.qris += recognizedGross;
     });
 
     // Get sale items to count products

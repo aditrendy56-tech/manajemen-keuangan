@@ -25,9 +25,10 @@ const categoryColors: Record<string, string> = {
 interface ExpensesTableProps {
   expenses: Expense[];
   onDelete?: (id: string) => void;
+  onRefund?: (expense: Expense) => void;
 }
 
-export function ExpensesTable({ expenses, onDelete }: ExpensesTableProps) {
+export function ExpensesTable({ expenses, onDelete, onRefund }: ExpensesTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -45,6 +46,7 @@ export function ExpensesTable({ expenses, onDelete }: ExpensesTableProps) {
                   <th className="text-left p-2">Kategori</th>
                   <th className="text-left p-2">Deskripsi</th>
                   <th className="text-right p-2">Jumlah</th>
+                  <th className="text-center p-2">Status</th>
                   <th className="text-center p-2">Aksi</th>
                 </tr>
               </thead>
@@ -60,16 +62,41 @@ export function ExpensesTable({ expenses, onDelete }: ExpensesTableProps) {
                     <td className="p-2">{expense.description}</td>
                     <td className="text-right p-2 font-semibold">Rp {expense.amount.toLocaleString('id-ID')}</td>
                     <td className="p-2 text-center">
-                      {onDelete && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onDelete(expense.id)}
-                          className="text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {expense.payment_status === 'refunded' && (
+                          <Badge variant="destructive">Refunded</Badge>
+                        )}
+                        {expense.payment_status === 'pending' && (
+                          <Badge variant="outline">Pending</Badge>
+                        )}
+                        {expense.payment_status === 'paid' && (
+                          <Badge variant="default">Paid</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {onRefund && expense.payment_status !== 'refunded' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onRefund(expense)}
+                            className="text-amber-700 hover:bg-amber-50"
+                          >
+                            Refund
+                          </Button>
+                        )}
+                        {onDelete && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onDelete(expense.id)}
+                            className="text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

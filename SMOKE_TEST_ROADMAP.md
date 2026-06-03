@@ -185,6 +185,54 @@ Allocations:
 
 ---
 
+## Phase 4: Deferred Edge Case Smoke Tests
+
+> Status: ditunda dulu. Bagian ini dipakai setelah smoke test normal stabil, untuk cek kasus yang lebih ekstrem dan memastikan laporan tetap konsisten.
+
+### Test 4.1 — Historical Ledger Cleanup Regression
+**Goal:** Pastikan row historis yang pernah salah tanggal tidak lagi mempengaruhi laporan harian.
+
+**Steps:**
+1. Buka reports untuk tanggal historis yang sebelumnya bermasalah.
+2. Verify semua angka menjadi nol jika memang tidak ada transaksi di tanggal itu.
+3. Buka range 2 hari yang mencakup tanggal aktif dan tanggal kosong.
+4. Verify total range tetap konsisten dengan transaksi aktual.
+
+**Expected:**
+- `cash_basis_profit` tidak lagi negatif karena row historis lama.
+- Tidak ada transaksi refund historis yang muncul di tanggal yang salah.
+
+---
+
+### Test 4.2 — Split Payment and Partial Refund Regression
+**Goal:** Uji kombinasi split payment lalu partial refund untuk memastikan cash ledger dan agregat tidak double count.
+
+**Steps:**
+1. Buat sale split payment dengan 2 entry settled.
+2. Refund sebagian dari sale itu dengan nominal lebih kecil dari gross amount.
+3. Buka session detail, dashboard, dan reports.
+4. Verify nilai penjualan turun sesuai nominal refund, bukan full sale hilang.
+
+**Expected:**
+- Session summary turun sesuai nominal refund.
+- Dashboard dan reports memakai angka bersih setelah refund parsial.
+
+---
+
+### Test 4.3 — Duplicate Submit Guard
+**Goal:** Pastikan aksi simpan/refund ganda tidak membuat cash transaction dobel.
+
+**Steps:**
+1. Trigger submit refund dua kali cepat berurutan.
+2. Trigger simpan sale dua kali dari UI yang sama.
+3. Cek cash_transactions untuk source yang sama.
+
+**Expected:**
+- Hanya ada 1 row ledger per source/aksi bisnis.
+- Tidak ada double count di dashboard atau reports.
+
+---
+
 ### Test 3.2 — Execute (Persist)
 
 #### Option A: UI Approach
