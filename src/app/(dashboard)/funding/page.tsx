@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Save, Trash } from 'lucide-react';
+import { Trash2, Plus, Save } from 'lucide-react';
 import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -66,7 +66,7 @@ export default function FundingPage() {
     }
   }
 
-  // ===== TAB 1: MODAL MASUK =====
+  // TAB 1: Modal Masuk
   function TabModalMasuk() {
     const [formData, setFormData] = useState({
       date: new Date().toISOString().split('T')[0],
@@ -147,18 +147,17 @@ export default function FundingPage() {
               </div>
 
               <div>
-                <Label>Pilih Sumber Dana (Owner/Investor/Karyawan)*</Label>
-                <Select value={formData.source_id} onValueChange={(val: any) => setFormData({ ...formData, source_id: val })}>
+                <Label>Pilih Role (Owner/Investor/Karyawan)*</Label>
+                <Select value={formData.source_id || ''} onValueChange={(val) => setFormData({ ...formData, source_id: val || '' })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih sumber dana" />
+                    <SelectValue placeholder="Pilih role" />
                   </SelectTrigger>
                   <SelectContent>
                     {data.investors.length === 0 ? (
                       <div className="p-2 text-sm text-gray-500">Belum ada role. Buat di halaman Kelola Role.</div>
                     ) : (
                       data.investors.map((inv: any) => {
-                        const sourceType = inv.source_type || 'investor';
-                        const icon = sourceType === 'owner' ? '👤' : sourceType === 'karyawan' ? '🧑' : '🤝';
+                        const icon = inv.source_type === 'owner' ? '👤' : inv.source_type === 'karyawan' ? '🧑' : '🤝';
                         return (
                           <SelectItem key={inv.id} value={inv.id}>
                             {icon} {inv.name}
@@ -179,12 +178,8 @@ export default function FundingPage() {
                       {selectedSource.source_type === 'owner' ? '👤 Owner' : selectedSource.source_type === 'karyawan' ? '🧑 Karyawan' : '🤝 Investor'}
                     </span>
                   </p>
-                  {selectedSource.phone && (
-                    <p className="text-gray-600 text-xs mt-1">📞 {selectedSource.phone}</p>
-                  )}
-                  {selectedSource.notes && (
-                    <p className="text-gray-600 text-xs mt-1">💬 {selectedSource.notes}</p>
-                  )}
+                  {selectedSource.phone && <p className="text-gray-600 text-xs mt-1">📞 {selectedSource.phone}</p>}
+                  {selectedSource.notes && <p className="text-gray-600 text-xs mt-1">💬 {selectedSource.notes}</p>}
                 </div>
               )}
 
@@ -257,7 +252,7 @@ export default function FundingPage() {
     );
   }
 
-  // ===== TAB 2: ALOKASI LABA =====
+  // TAB 2: Alokasi Laba
   function TabAllokasiLaba() {
     const [netProfit, setNetProfit] = useState<number>(0);
     const [kasAmount, setKasAmount] = useState('');
@@ -266,7 +261,6 @@ export default function FundingPage() {
     const [itemAmount, setItemAmount] = useState('');
     const [saving, setSaving] = useState(false);
 
-    // Calculate remainder
     const kasNum = parseFloat(kasAmount) || 0;
     const allocatedTotal = allocationItems.reduce((sum, item) => sum + item.amount, 0);
     const remainder = netProfit - kasNum - allocatedTotal;
@@ -339,7 +333,6 @@ export default function FundingPage() {
 
     return (
       <div className="space-y-6">
-        {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -373,7 +366,6 @@ export default function FundingPage() {
           </Card>
         </div>
 
-        {/* Input Kas */}
         <Card>
           <CardHeader>
             <CardTitle>1. Potong Kas</CardTitle>
@@ -392,7 +384,6 @@ export default function FundingPage() {
           </CardContent>
         </Card>
 
-        {/* Manual Allocation */}
         <Card>
           <CardHeader>
             <CardTitle>2. Bagikan Sisa Laba</CardTitle>
@@ -442,7 +433,6 @@ export default function FundingPage() {
               </div>
             </div>
 
-            {/* Allocation List */}
             {allocationItems.length > 0 && (
               <div className="mt-6 pt-6 border-t">
                 <h3 className="font-semibold mb-3">Daftar Alokasi ({allocationItems.length})</h3>
@@ -467,7 +457,7 @@ export default function FundingPage() {
                             onClick={() => removeAllocationItem(idx)}
                             className="text-red-600 hover:text-red-800"
                           >
-                            <Trash className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -491,7 +481,7 @@ export default function FundingPage() {
     );
   }
 
-  // ===== TAB 3: PEMBAYARAN KEMBALI =====
+  // TAB 3: Pembayaran Kembali
   function TabRepayment() {
     const [formData, setFormData] = useState({
       investor_id: '',
@@ -548,7 +538,7 @@ export default function FundingPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Pilih Role</Label>
-                <Select value={formData.investor_id} onValueChange={(val: any) => setFormData({ ...formData, investor_id: val })}>
+                <Select value={formData.investor_id || ''} onValueChange={(val) => setFormData({ ...formData, investor_id: val || '' })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih role untuk dikembalikan" />
                   </SelectTrigger>
@@ -640,7 +630,6 @@ export default function FundingPage() {
           </CardContent>
         </Card>
 
-        {/* History */}
         <Card>
           <CardHeader>
             <CardTitle>Riwayat Pembayaran</CardTitle>

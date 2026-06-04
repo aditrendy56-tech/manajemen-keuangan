@@ -1,31 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Save } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { Plus, Save, Trash2 } from 'lucide-react';
 import { useOutlet } from '@/lib/context/OutletContext';
 
-interface InvestorRole {
+interface Role {
   id: string;
   outlet_id: string;
   name: string;
   source_type: 'owner' | 'investor' | 'karyawan';
   phone?: string;
   notes?: string;
-  status: 'active' | 'settled' | 'partial';
   created_at: string;
 }
 
 export default function InvestorsPage() {
   const { outletId } = useOutlet();
-  const [roles, setRoles] = useState<InvestorRole[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
