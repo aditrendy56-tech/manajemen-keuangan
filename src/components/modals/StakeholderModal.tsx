@@ -20,21 +20,20 @@ export default function StakeholderModal({ open, onOpenChange, initial, onSave }
     name: '',
     role: 'owner',
     investor_id: '',
-    default_share_percent: '',
     notes: '',
     is_active: true,
   })
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
-    if (initial) setForm({ ...initial, default_share_percent: initial.default_share_percent ? String(initial.default_share_percent) : '' })
-    else setForm({ name: '', role: 'owner', investor_id: '', default_share_percent: '', notes: '', is_active: true })
+    if (initial) setForm({ ...initial })
+    else setForm({ name: '', role: 'owner', investor_id: '', notes: '', is_active: true })
   }, [initial, open])
 
   async function handleSave() {
     setSaving(true)
     try {
-      await onSave({ ...form, default_share_percent: Number(form.default_share_percent || 0) })
+      await onSave(form)
       onOpenChange(false)
     } catch (err) {
       console.error(err)
@@ -62,17 +61,12 @@ export default function StakeholderModal({ open, onOpenChange, initial, onSave }
             <Select value={form.role} onValueChange={(val: any) => setForm({ ...form, role: val })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="owner">Owner</SelectItem>
-                <SelectItem value="investor">Investor</SelectItem>
-                <SelectItem value="karyawan">Karyawan</SelectItem>
+                <SelectItem value="owner">👤 Owner</SelectItem>
+                <SelectItem value="investor">🤝 Investor</SelectItem>
+                <SelectItem value="karyawan">🧑 Karyawan</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          <div>
-            <Label>Share %</Label>
-            <Input type="number" value={form.default_share_percent} onChange={(e) => setForm({ ...form, default_share_percent: e.target.value })} />
           </div>
 
           <div>

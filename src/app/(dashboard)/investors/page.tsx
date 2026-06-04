@@ -1,341 +1,309 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import type { Investor } from '@/types';
+import { Trash2, Plus, Save } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
-import { Trash2, PencilLine } from 'lucide-react';
 
-export default function FundingSourcePage() {
+interface InvestorRole {
+  id: string;
+  outlet_id: string;
+  name: string;
+  source_type: 'owner' | 'investor' | 'karyawan';
+  phone?: string;
+  notes?: string;
+  status: 'active' | 'settled' | 'partial';
+  created_at: string;
+}
+
+export default function InvestorsPage() {
   const { outletId } = useOutlet();
-  const [sources, setSources] = useState<Investor[]>([]);
+  const [roles, setRoles] = useState<InvestorRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     source_type: 'investor' as 'owner' | 'investor' | 'karyawan',
     name: '',
     phone: '',
-    notes: ''
+    notes: '',
   });
 
   useEffect(() => {
-    loadSources();
+    fetchRoles();
   }, [outletId]);
 
-  const loadSources = async () => {
+  async function fetchRoles() {
     try {
       setLoading(true);
       const res = await fetch(`/api/investors?outlet_id=${outletId}`);
-      if (!res.ok) throw new Error('Failed to load sources');
       const data = await res.json();
-      setSources(data || []);
-    } catch (err: any) {
-      setError(err.message);
+      setRoles(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
+    if (!form.name.trim()) {
+      alert('Nama harus diisi');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      setSubmitting(true);
-      
       const payload = {
         outlet_id: outletId,
-        source_type: formData.source_type,
-        name: formData.name,
-        phone: formData.phone || null,
-        initial_contribution: 0,
-        notes: formData.notes || null,
-        priority_order: editingId ? undefined : sources.length + 1
+        source_type: form.source_type,
+        name: form.name,
+        phone: form.phone || null,
+        notes: form.notes || null,
+        priority_order: editingId ? undefined : roles.length + 1,
       };
 
       if (editingId) {
         const res = await fetch('/api/investors', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, ...payload })
+          body: JSON.stringify({ id: editingId, ...payload }),
         });
-        if (!res.ok) throw new Error('Failed to update source');
+        if (!res.ok) throw new Error('Gagal update role');
       } else {
         const res = await fetch('/api/investors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error('Failed to add source');
+        if (!res.ok) throw new Error('Gagal tambah role');
       }
-      
-      setFormData({
-        source_type: 'investor',
-        name: '',
-        phone: '',
-        notes: ''
-      });
+
+      setForm({ source_type: 'investor', name: '', phone: '', notes: '' });
       setEditingId(null);
-      await loadSources();
-    } catch (err: any) {
-      setError(err.message);
+      await fetchRoles();
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Error saving role');
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus sumber dana ini?')) return;
+  async function handleDelete(id: string) {
+    if (!confirm('Hapus role ini?')) return;
     try {
-      setSubmitting(true);
-      const res = await fetch(`/api/investors/${id}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to delete source');
-      await loadSources();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
+      const res = await fetch(`/api/investors/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal hapus');
+      await fetchRoles();
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Error deleting role');
     }
+  }
+
+  const roleIcon = {
+    owner: '👤',
+    investor: '🤝',
+    karyawan: '🧑',
   };
 
-  const handleEdit = (source: Investor) => {
-    setFormData({
-      source_type: (source.source_type || 'investor') as 'owner' | 'investor' | 'karyawan',
-      name: source.name,
-      phone: source.phone || '',
-      notes: source.notes || ''
-    });
-    setEditingId(source.id);
+  const roleLabel = {
+    owner: 'Owner',
+    investor: 'Investor',
+    karyawan: 'Karyawan',
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const getTotalByType = (type: 'owner' | 'investor') => {
-    return sources
-      .filter(s => (s.source_type || 'investor') === type)
-      .reduce((sum, s) => sum + (s.initial_contribution || 0), 0);
-  };
-
-  const ownerTotal = getTotalByType('owner');
-  const investorTotal = getTotalByType('investor');
-  const grandTotal = ownerTotal + investorTotal;
+  const ownerCount = roles.filter((r) => r.source_type === 'owner').length;
+  const investorCount = roles.filter((r) => r.source_type === 'investor').length;
+  const employeeCount = roles.filter((r) => r.source_type === 'karyawan').length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Kelola Role</h1>
-        <p className="mt-2 text-gray-600">Daftar owner, investor, dan karyawan untuk alokasi pembagian laba</p>
+        <h1 className="text-3xl font-bold">Kelola Role</h1>
+        <p className="text-gray-600">Atur owner, investor, dan karyawan yang akan menerima alokasi laba</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Role</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{sources.length}</div>
+          <CardContent className="pt-6">
+            <p className="text-sm text-gray-600">Total Role</p>
+            <p className="text-2xl font-bold">{roles.length}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Owner</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{sources.filter(s => (s.source_type || 'investor') === 'owner').length}</div>
+          <CardContent className="pt-6">
+            <p className="text-sm text-gray-600">👤 Owner</p>
+            <p className="text-2xl font-bold text-blue-600">{ownerCount}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Investor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{sources.filter(s => (s.source_type || 'investor') === 'investor').length}</div>
+          <CardContent className="pt-6">
+            <p className="text-sm text-gray-600">🤝 Investor</p>
+            <p className="text-2xl font-bold text-purple-600">{investorCount}</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Karyawan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">{sources.filter(s => (s.source_type || 'investor') === 'karyawan').length}</div>
+          <CardContent className="pt-6">
+            <p className="text-sm text-gray-600">🧑 Karyawan</p>
+            <p className="text-2xl font-bold text-green-600">{employeeCount}</p>
           </CardContent>
         </Card>
       </div>
 
-      {error && (
-        <Alert className="border-red-200 bg-red-50">
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sources List */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Daftar Role</CardTitle>
-              <CardDescription>Owner, investor, dan karyawan yang terdaftar</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center text-gray-500">Loading...</div>
-              ) : sources.length === 0 ? (
-                <div className="text-center text-gray-500">Belum ada sumber dana</div>
-              ) : (
-                <div className="space-y-3">
-                  {sources.map((source) => {
-                    const sourceType = source.source_type || 'investor';
-                    const roleDisplay = sourceType === 'owner' ? '👤 Owner' : sourceType === 'karyawan' ? '👨‍💼 Karyawan' : '🤝 Investor';
-                    const badgeVariant = sourceType === 'owner' ? 'default' : sourceType === 'karyawan' ? 'outline' : 'secondary';
-                    
-                    return (
-                      <div key={source.id} className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">{source.name}</h3>
-                              <Badge variant={badgeVariant}>
-                                {roleDisplay}
-                              </Badge>
-                            </div>
-                            {source.phone && (
-                              <p className="text-sm text-gray-600 mt-1">{source.phone}</p>
-                            )}
-                            {source.notes && (
-                              <p className="text-sm text-gray-600 italic mt-2">Catatan: {source.notes}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEdit(source)}
-                              className="p-1 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded"
-                              title="Edit"
-                            >
-                              <PencilLine className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(source.id)}
-                              className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+        {/* Form */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit Role' : 'Tambah Role Baru'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label>Tipe Role*</Label>
+                <Select
+                  value={form.source_type}
+                  onValueChange={(val: any) => setForm({ ...form, source_type: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">👤 Owner</SelectItem>
+                    <SelectItem value="investor">🤝 Investor</SelectItem>
+                    <SelectItem value="karyawan">🧑 Karyawan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Nama*</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Nama owner/investor/karyawan"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>Telepon (opsional)</Label>
+                <Input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="08xx..."
+                />
+              </div>
+
+              <div>
+                <Label>Catatan (opsional)</Label>
+                <Textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Catatan tambahan"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  <Save className="w-4 h-4 mr-1" />
+                  {submitting ? 'Menyimpan...' : editingId ? 'Update' : 'Simpan'}
+                </Button>
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingId(null);
+                      setForm({ source_type: 'investor', name: '', phone: '', notes: '' });
+                    }}
+                  >
+                    Batal
+                  </Button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* List */}
+        <div className="lg:col-span-2 space-y-4">
+          {loading ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-gray-500">
+                Loading...
+              </CardContent>
+            </Card>
+          ) : roles.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-gray-500">
+                Belum ada role. Tambahkan yang pertama!
+              </CardContent>
+            </Card>
+          ) : (
+            roles.map((role) => (
+              <Card key={role.id}>
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">{roleIcon[role.source_type]}</span>
+                        <div>
+                          <h3 className="font-semibold text-lg">{role.name}</h3>
+                          <p className="text-sm text-gray-600">{roleLabel[role.source_type]}</p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Add/Edit Form */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>{editingId ? 'Edit Role' : 'Tambah Role'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label className="text-gray-700">Tipe Role*</Label>
-                  <Select value={formData.source_type} onValueChange={(val: any) => setFormData({ ...formData, source_type: val })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="owner">👤 Owner</SelectItem>
-                      <SelectItem value="investor">🤝 Investor</SelectItem>
-                      <SelectItem value="karyawan">🧑 Karyawan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="name" className="text-gray-700">Nama*</Label>
-                  <Input
-                    id="name"
-                    placeholder="Nama lengkap"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="phone" className="text-gray-700">Nomor HP</Label>
-                  <Input
-                    id="phone"
-                    placeholder="0812-3456-7890"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="notes" className="text-gray-700">Catatan</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Catatan tambahan..."
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="flex-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Menyimpan...' : (editingId ? 'Perbarui' : 'Tambah')}
-                  </Button>
-                  {editingId && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingId(null);
-                        setFormData({
-                          source_type: 'investor',
-                          name: '',
-                          phone: '',
-                          notes: ''
-                        });
-                      }}
-                    >
-                      Batal
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                      {role.phone && (
+                        <p className="text-sm text-gray-600">📞 {role.phone}</p>
+                      )}
+                      {role.notes && (
+                        <p className="text-sm text-gray-600 italic mt-2">💬 {role.notes}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingId(role.id);
+                          setForm({
+                            source_type: role.source_type,
+                            name: role.name,
+                            phone: role.phone || '',
+                            notes: role.notes || '',
+                          });
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDelete(role.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </div>

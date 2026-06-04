@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { outlet_id, name, role, investor_id, default_share_percent } = body;
+    const { outlet_id, name, role, investor_id } = body;
     if (!outlet_id || !name || !role) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
       name,
       role,
       investor_id: investor_id || null,
-      default_share_percent: Number(default_share_percent || 0),
     };
     const { data, error } = await (getSupabaseServer().from('stakeholders') as any).insert([insert]).select().single();
     if (error) throw error;

@@ -38,9 +38,6 @@ export async function POST(request: NextRequest) {
       total_profit,
       reserve_amount,
       distributed_amount,
-      allocation_mode,
-      reserve_label,
-      distribution_label,
       notes,
     } = body;
 
@@ -66,9 +63,6 @@ export async function POST(request: NextRequest) {
       total_profit: total,
       reserve_amount: reserve,
       distributed_amount: distributed,
-      allocation_mode: allocation_mode || 'retain',
-      reserve_label: reserve_label || null,
-      distribution_label: distribution_label || null,
       notes: notes || null,
     };
 
