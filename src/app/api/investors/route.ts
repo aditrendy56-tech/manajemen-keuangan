@@ -30,11 +30,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, name, phone, initial_contribution, priority_order, source_type, notes } = body;
+    const { outlet_id, name, phone, priority_order, source_type, notes } = body;
 
-    if (!outlet_id || !name || !initial_contribution) {
+    if (!outlet_id || !name) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: outlet_id and name' },
         { status: 400 }
       );
     }
@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
     const insertData = {
       outlet_id,
       name,
-      phone,
-      initial_contribution,
-      remaining_balance: initial_contribution,
+      phone: phone || null,
+      initial_contribution: 0,
+      remaining_balance: 0,
       status: 'active',
       source_type: source_type || 'investor',
       priority_order: priority_order || 999,

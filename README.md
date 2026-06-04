@@ -18,6 +18,10 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - **Outlet Context**: Hardcoded demo outlet dihapus dan diganti selector outlet dari API.
 - **Settings**: Halaman pengaturan sekarang simpan dan baca data dari API/DB lewat `outlet_settings`.
 - **Cleanup**: Beberapa fallback demo dan nilai dummy yang bisa mengubah data sudah dibersihkan.
+- **Sistem Alokasi Dana (Refactor)**: Alur baru untuk pembagian laba yang lebih manual dan transparan:
+  - **Kelola Role**: Halaman terpisah untuk mendaftar owner, investor, dan karyawan (tanpa share %).
+  - **Alokasi Laba Manual**: Masukkan laba bersih, potong kas operasional, lalu bagikan sisa secara nominal ke stakeholder terpilih.
+  - **Hapus Rule-based Allocation**: Menghilangkan kompleksitas otomatis; pembagian sepenuhnya berdasarkan input manual per periode.
 
 ## Rencana Ke Depan
 
@@ -72,20 +76,45 @@ flowchart LR
 
 ## Alur Fitur Utama
 
+### Alokasi Dana & Pembagian Laba (Alur Baru - Manual & Transparan)
+
 ```mermaid
 flowchart TD
-  A[Outlet dipilih] --> B[Session aktif dibuka]
-  B --> C[Input sales]
-  B --> D[Input expenses]
-  C --> E[Dashboard update]
-  D --> E
-  C --> F[Reports summary]
-  D --> F
-  B --> G[Tutup sesi]
-  G --> H[closed_at tersimpan]
-  H --> E
-  H --> F
+  A["1. Kelola Role"] --> B["Daftarkan owner, investor, karyawan"]
+  B --> C["Halaman: /dashboard/investors"]
+  C --> D["2. Input Alokasi Laba"]
+  D --> E["Masukkan laba bersih dari laporan"]
+  E --> F["Tentukan kas cadangan"]
+  F --> G["Hitung otomatis: sisa = laba - kas"]
+  G --> H["3. Bagikan Sisa Manual"]
+  H --> I["Pilih stakeholder"]
+  I --> J["Input nominal pembagian"]
+  J --> K["Validasi: total alokasi ≤ sisa"]
+  K --> L["Simpan record"]
 ```
+
+**Langkah-langkah:**
+
+1. **Kelola Role** (`/dashboard/investors`):
+   - Tambah nama dengan tipe: Owner, Investor, atau Karyawan
+   - Simpan nomor HP dan catatan (opsional)
+   - Tidak ada input share % (hanya nominal saat alokasi)
+
+2. **Alokasi Laba** (`/dashboard/funding`, tab "Alokasi Laba"):
+   - Input **Laba Bersih** dari laporan penjualan
+   - Input **Kas Cadangan** untuk operasional (nominal langsung)
+   - Sistem hitung: `sisa_alokasi = laba_bersih - kas_cadangan`
+   - Bagikan sisa ke stakeholder yang sudah terdaftar (entry per orang, nominal per entry)
+   - Validasi: total alokasi tidak boleh melebihi sisa
+   - Catatan alokasi tersimpan untuk audit trail
+
+3. **Keuntungan Model Baru**:
+   - ✓ Lebih transparan: semua angka terlihat jelas
+   - ✓ Lebih fleksibel: bisa disesuaikan per periode tanpa setup rule
+   - ✓ Lebih manual: kontrol penuh kepada pengguna
+   - ✓ Lebih sederhana: tanpa kalkulasi persen otomatis
+
+### Alur Original (Disimpan untuk Referensi)
 
 ```mermaid
 flowchart LR
@@ -108,11 +137,38 @@ flowchart LR
 | `expenses` | Pengeluaran operasional | Refer ke `daily_sessions` dan `outlets` |
 | `capital_entries` | Catatan modal masuk | Refer ke `outlets` dan opsional `investors` |
 | `capital_repayments` | Riwayat pengembalian modal | Refer ke `investors` |
-| `investors` | Data investor | Refer ke `outlets` |
+| `investors` | Data investor / owner | Refer ke `outlets` |
+| `stakeholders` | Penerima bagian laba | Refer ke `outlets` dan opsional `investors` |
+| `allocation_rules` | Aturan pembagian laba | Refer ke `outlets` |
 | `raw_materials` | Master bahan baku | Refer ke `outlets` |
 | `material_purchases` | Pembelian bahan | Refer ke `outlets` dan `raw_materials` |
 | `products` | Master produk jualan | Refer ke `outlets` |
 | `outlet_settings` | Konfigurasi per outlet | Unique per `outlet_id` |
+
+## Model Funding dan Alokasi Hasil
+
+Model yang digunakan di sistem ini memisahkan dua konsep utama:
+
+- **Sumber modal** (`investors` / owner) adalah data yang merekam siapa yang menaruh modal.
+- **Stakeholder** adalah data penerima alokasi laba, yang bisa berhubungan dengan sumber modal atau berdiri sendiri.
+
+Alur ideal:
+1. `capital_entries` mencatat modal masuk nyata.
+2. `capital_repayments` mencatat modal yang dikembalikan.
+3. `allocation_rules` menentukan apakah modal dikembalikan dulu (`recover_first`) dan berapa yang disisihkan untuk kas.
+4. `stakeholders` menentukan siapa yang mendapat bagian laba dan berapa `share_percent` mereka.
+5. Sisa laba setelah recover modal dan reserve kas dibagi menurut `share_percent` stakeholder.
+
+### Role dan relasi stakeholder
+
+- `owner` / `investor`: pilih dari sumber modal yang sudah terdaftar.
+- `karyawan` / `other`: dapat diinput secara manual dan tidak perlu terhubung ke sumber modal.
+
+### Prinsip penting
+
+- `share_percent` hanya untuk pembagian laba, bukan untuk mencatat modal.
+- `kas reserve` dipotong sebelum pembagian laba dan bisa ditentukan secara fleksibel per periode.
+- `recover_first` memastikan modal yang belum kembali dibayar sebelum hasil dibagi.
 
 ## Diagram Relasi Tabel
 

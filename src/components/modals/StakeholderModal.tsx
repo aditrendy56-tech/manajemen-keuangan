@@ -18,7 +18,7 @@ interface Props {
 export default function StakeholderModal({ open, onOpenChange, initial, onSave }: Props) {
   const [form, setForm] = React.useState<any>({
     name: '',
-    role: 'founder',
+    role: 'owner',
     investor_id: '',
     default_share_percent: '',
     notes: '',
@@ -28,7 +28,7 @@ export default function StakeholderModal({ open, onOpenChange, initial, onSave }
 
   React.useEffect(() => {
     if (initial) setForm({ ...initial, default_share_percent: initial.default_share_percent ? String(initial.default_share_percent) : '' })
-    else setForm({ name: '', role: 'founder', investor_id: '', default_share_percent: '', notes: '', is_active: true })
+    else setForm({ name: '', role: 'owner', investor_id: '', default_share_percent: '', notes: '', is_active: true })
   }, [initial, open])
 
   async function handleSave() {
@@ -62,9 +62,9 @@ export default function StakeholderModal({ open, onOpenChange, initial, onSave }
             <Select value={form.role} onValueChange={(val: any) => setForm({ ...form, role: val })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="founder">Founder</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
                 <SelectItem value="investor">Investor</SelectItem>
-                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="karyawan">Karyawan</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>
@@ -78,6 +78,7 @@ export default function StakeholderModal({ open, onOpenChange, initial, onSave }
           <div>
             <Label>Investor ID (opsional)</Label>
             <Input value={form.investor_id} onChange={(e) => setForm({ ...form, investor_id: e.target.value })} />
+            <p className="text-xs text-gray-500 mt-1">Hanya gunakan jika stakeholder owner/investor ingin dihubungkan ke sumber modal yang sudah ada.</p>
           </div>
 
           <div>

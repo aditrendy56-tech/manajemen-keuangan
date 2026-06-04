@@ -17,7 +17,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       notes,
     };
 
-    const { data, error } = await getSupabaseServer().from('allocation_rules').update(update).eq('id', id).select().single();
+    const updateData = Object.fromEntries(Object.entries(update).filter(([_, v]) => v !== undefined));
+
+    const { data, error } = await (getSupabaseServer().from('allocation_rules') as any).update(updateData).eq('id', id).select().single();
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err: any) {

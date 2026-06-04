@@ -21,10 +21,9 @@ export default function FundingSourcePage() {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    source_type: 'investor' as 'owner' | 'investor',
+    source_type: 'investor' as 'owner' | 'investor' | 'karyawan',
     name: '',
     phone: '',
-    initial_contribution: '',
     notes: ''
   });
 
@@ -57,7 +56,7 @@ export default function FundingSourcePage() {
         source_type: formData.source_type,
         name: formData.name,
         phone: formData.phone || null,
-        initial_contribution: parseFloat(formData.initial_contribution) || 0,
+        initial_contribution: 0,
         notes: formData.notes || null,
         priority_order: editingId ? undefined : sources.length + 1
       };
@@ -82,7 +81,6 @@ export default function FundingSourcePage() {
         source_type: 'investor',
         name: '',
         phone: '',
-        initial_contribution: '',
         notes: ''
       });
       setEditingId(null);
@@ -112,10 +110,9 @@ export default function FundingSourcePage() {
 
   const handleEdit = (source: Investor) => {
     setFormData({
-      source_type: source.source_type || 'investor',
+      source_type: (source.source_type || 'investor') as 'owner' | 'investor' | 'karyawan',
       name: source.name,
       phone: source.phone || '',
-      initial_contribution: source.initial_contribution.toString(),
       notes: source.notes || ''
     });
     setEditingId(source.id);
@@ -143,15 +140,15 @@ export default function FundingSourcePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Sumber Dana</h1>
-        <p className="mt-2 text-gray-600">Kelola sumber modal: dari owner atau investor eksternal</p>
+        <h1 className="text-3xl font-bold text-gray-900">Kelola Role</h1>
+        <p className="mt-2 text-gray-600">Daftar owner, investor, dan karyawan untuk alokasi pembagian laba</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Sumber Dana</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total Role</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">{sources.length}</div>
@@ -160,28 +157,28 @@ export default function FundingSourcePage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Modal Owner</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Owner</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(ownerTotal)}</div>
+            <div className="text-2xl font-bold text-blue-600">{sources.filter(s => (s.source_type || 'investor') === 'owner').length}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Modal Investor</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Investor</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{formatCurrency(investorTotal)}</div>
+            <div className="text-2xl font-bold text-purple-600">{sources.filter(s => (s.source_type || 'investor') === 'investor').length}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Modal</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Karyawan</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{formatCurrency(grandTotal)}</div>
+            <div className="text-2xl font-bold text-emerald-600">{sources.filter(s => (s.source_type || 'investor') === 'karyawan').length}</div>
           </CardContent>
         </Card>
       </div>
@@ -198,8 +195,8 @@ export default function FundingSourcePage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Daftar Sumber Dana</CardTitle>
-              <CardDescription>Owner dan investor yang terdaftar</CardDescription>
+              <CardTitle>Daftar Role</CardTitle>
+              <CardDescription>Owner, investor, dan karyawan yang terdaftar</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -209,10 +206,9 @@ export default function FundingSourcePage() {
               ) : (
                 <div className="space-y-3">
                   {sources.map((source) => {
-                    const repaidPercent = source.remaining_balance > 0 
-                      ? ((source.initial_contribution - source.remaining_balance) / source.initial_contribution * 100)
-                      : 100;
                     const sourceType = source.source_type || 'investor';
+                    const roleDisplay = sourceType === 'owner' ? '👤 Owner' : sourceType === 'karyawan' ? '👨‍💼 Karyawan' : '🤝 Investor';
+                    const badgeVariant = sourceType === 'owner' ? 'default' : sourceType === 'karyawan' ? 'outline' : 'secondary';
                     
                     return (
                       <div key={source.id} className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition">
@@ -220,52 +216,32 @@ export default function FundingSourcePage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-gray-900">{source.name}</h3>
-                              <Badge variant={sourceType === 'owner' ? 'default' : 'secondary'}>
-                                {sourceType === 'owner' ? '👤 Owner' : '🤝 Investor'}
+                              <Badge variant={badgeVariant}>
+                                {roleDisplay}
                               </Badge>
                             </div>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Modal: {formatCurrency(source.initial_contribution)}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Sisa: {formatCurrency(source.remaining_balance)}
-                            </p>
                             {source.phone && (
-                              <p className="text-sm text-gray-500">{source.phone}</p>
+                              <p className="text-sm text-gray-600 mt-1">{source.phone}</p>
                             )}
                             {source.notes && (
-                              <p className="text-sm text-gray-600 italic mt-1">Catatan: {source.notes}</p>
+                              <p className="text-sm text-gray-600 italic mt-2">Catatan: {source.notes}</p>
                             )}
                           </div>
-                          <div className="text-right flex flex-col gap-2">
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">
-                                {repaidPercent.toFixed(0)}%
-                              </div>
-                              <div className="text-xs text-gray-500">dikembalikan</div>
-                              <div className="w-24 h-1 bg-gray-200 rounded mt-1 overflow-hidden">
-                                <div 
-                                  className="h-full bg-green-500 transition-all"
-                                  style={{ width: `${repaidPercent}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => handleEdit(source)}
-                                className="p-1 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded"
-                                title="Edit"
-                              >
-                                <PencilLine className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(source.id)}
-                                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEdit(source)}
+                              className="p-1 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded"
+                              title="Edit"
+                            >
+                              <PencilLine className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(source.id)}
+                              className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -281,19 +257,20 @@ export default function FundingSourcePage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>{editingId ? 'Edit Sumber Dana' : 'Tambah Sumber Dana'}</CardTitle>
+              <CardTitle>{editingId ? 'Edit Role' : 'Tambah Role'}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label className="text-gray-700">Tipe*</Label>
+                  <Label className="text-gray-700">Tipe Role*</Label>
                   <Select value={formData.source_type} onValueChange={(val: any) => setFormData({ ...formData, source_type: val })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="owner">👤 Owner (Internal)</SelectItem>
-                      <SelectItem value="investor">🤝 Investor (Eksternal)</SelectItem>
+                      <SelectItem value="owner">👤 Owner</SelectItem>
+                      <SelectItem value="investor">🤝 Investor</SelectItem>
+                      <SelectItem value="karyawan">🧑 Karyawan</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -316,18 +293,6 @@ export default function FundingSourcePage() {
                     placeholder="0812-3456-7890"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="amount" className="text-gray-700">Modal (Rp)*</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="1000000"
-                    value={formData.initial_contribution}
-                    onChange={(e) => setFormData({ ...formData, initial_contribution: e.target.value })}
-                    required
                   />
                 </div>
 
@@ -360,7 +325,6 @@ export default function FundingSourcePage() {
                           source_type: 'investor',
                           name: '',
                           phone: '',
-                          initial_contribution: '',
                           notes: ''
                         });
                       }}

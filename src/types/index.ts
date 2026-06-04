@@ -71,7 +71,7 @@ export interface Investor {
   initial_contribution: number;
   remaining_balance: number;
   status: 'active' | 'settled' | 'partial';
-  source_type?: 'owner' | 'investor';
+  source_type?: 'owner' | 'investor' | 'karyawan';
   priority_order?: number;
   notes?: string;
   created_at: string;
@@ -225,7 +225,7 @@ export interface Stakeholder {
   id: string;
   outlet_id: string;
   name: string;
-  role: 'founder' | 'investor' | 'employee' | 'other';
+  role: 'founder' | 'owner' | 'investor' | 'employee' | 'karyawan' | 'other';
   investor_id?: string | null;
   default_share_percent: number;
   is_active: boolean;
