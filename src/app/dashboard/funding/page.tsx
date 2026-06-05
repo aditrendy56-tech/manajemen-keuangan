@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Save } from 'lucide-react';
+import { Trash2, Plus, Save, Edit2, X } from 'lucide-react';
 import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -280,7 +280,12 @@ export default function FundingPage() {
                 </CardContent>
               </Card>
             ) : (
-              data.investors.map((role: any) => (
+              data.investors.map((role: any) => {
+                const roleCapital = data.capitalEntries
+                  .filter((c: any) => c.investor_id === role.id)
+                  .reduce((sum: number, c: any) => sum + parseFloat(c.amount || 0), 0);
+                
+                return (
                 <Card key={role.id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between gap-4">
@@ -298,6 +303,9 @@ export default function FundingPage() {
                         {role.notes && (
                           <p className="text-sm text-gray-600 italic mt-2">💬 {role.notes}</p>
                         )}
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-sm font-semibold text-blue-600">💰 Total Modal: {formatCurrency(roleCapital)}</p>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -326,7 +334,8 @@ export default function FundingPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
+              );
+              })
             )}
           </div>
         </div>
@@ -343,6 +352,17 @@ export default function FundingPage() {
       notes: '',
     });
     const [saving, setSaving] = useState(false);
+
+    // Edit modal state
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState({
+      date: '',
+      amount: '',
+      notes: '',
+      edit_reason: '',
+    });
+    const [editReason, setEditReason] = useState('');
+    const [editSaving, setEditSaving] = useState(false);
 
     const selectedSource = data.investors.find((inv: any) => inv.id === formData.source_id);
 
@@ -382,6 +402,70 @@ export default function FundingPage() {
       } finally {
         setSaving(false);
       }
+    }
+
+    async function handleEditSubmit(e: React.FormEvent) {
+      e.preventDefault();
+      if (!editingId) return;
+      if (!editForm.date || !editForm.amount) {
+        alert('Tanggal dan jumlah harus diisi');
+        return;
+      }
+      if (!editReason.trim()) {
+        alert('Alasan edit harus diisi (contoh: kesalahan ketik)');
+        return;
+      }
+
+      setEditSaving(true);
+      try {
+        const response = await fetch(`/api/capital/${editingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: editForm.date,
+            amount: parseFloat(editForm.amount),
+            notes: editForm.notes,
+            edit_reason: editReason,
+          }),
+        });
+        if (!response.ok) throw new Error('Failed to update capital entry');
+        
+        setEditingId(null);
+        setEditForm({ date: '', amount: '', notes: '', edit_reason: '' });
+        setEditReason('');
+        await fetchAllData();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating capital entry');
+      } finally {
+        setEditSaving(false);
+      }
+    }
+
+    async function handleDelete(id: string) {
+      if (!confirm('Hapus entri modal ini? Tindakan ini tidak dapat dibatalkan.')) return;
+
+      try {
+        const response = await fetch(`/api/capital/${id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete capital entry');
+        await fetchAllData();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error deleting capital entry');
+      }
+    }
+
+    function openEditModal(entry: any) {
+      setEditingId(entry.id);
+      setEditForm({
+        date: entry.date,
+        amount: entry.amount.toString(),
+        notes: entry.notes || '',
+        edit_reason: '',
+      });
+      setEditReason('');
     }
 
     return (
@@ -475,47 +559,179 @@ export default function FundingPage() {
         <Card>
           <CardHeader>
             <CardTitle>Riwayat Modal Masuk</CardTitle>
+            <CardDescription>Klik Edit untuk mengubah atau hapus entri</CardDescription>
           </CardHeader>
           <CardContent>
             {data.capitalEntries.length === 0 ? (
               <p className="text-gray-500 text-center py-8">Belum ada modal masuk</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left p-2">Tanggal</th>
-                      <th className="text-left p-2">Sumber</th>
-                      <th className="text-left p-2">Role</th>
-                      <th className="text-right p-2">Jumlah</th>
-                      <th className="text-left p-2">Catatan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.capitalEntries.map((entry: any) => {
-                      const sourceType = entry.source_type || 'investor';
-                      const icon = sourceType === 'owner' ? '👤' : sourceType === 'karyawan' ? '🧑' : '🤝';
-                      const label = sourceType === 'owner' ? 'Owner' : sourceType === 'karyawan' ? 'Karyawan' : 'Investor';
-                      return (
-                        <tr key={entry.id} className="border-b hover:bg-gray-50">
-                          <td className="p-2">{formatDate(entry.date)}</td>
-                          <td className="p-2 font-medium">{entry.source || '-'}</td>
-                          <td className="p-2">
+              <div className="space-y-3">
+                {data.capitalEntries.map((entry: any) => {
+                  const sourceType = entry.source_type || 'investor';
+                  const icon = sourceType === 'owner' ? '👤' : sourceType === 'karyawan' ? '🧑' : '🤝';
+                  const label = sourceType === 'owner' ? 'Owner' : sourceType === 'karyawan' ? 'Karyawan' : 'Investor';
+                  
+                  return (
+                    <div key={entry.id} className={`p-4 border rounded-lg ${entry.edited_at ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">{icon}</span>
+                            <span className="font-semibold">{entry.source || '-'}</span>
                             <Badge variant={sourceType === 'investor' ? 'default' : 'secondary'}>
-                              {icon} {label}
+                              {label}
                             </Badge>
-                          </td>
-                          <td className="text-right p-2 font-semibold">{formatCurrency(entry.amount)}</td>
-                          <td className="p-2 text-xs text-gray-600">{entry.notes || '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                              <p className="text-gray-600">Tanggal</p>
+                              <p className="font-semibold">{formatDate(entry.date)}</p>
+                              {entry.original_date && (
+                                <p className="text-xs text-gray-500">Sebelumnya: {formatDate(entry.original_date)}</p>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Jumlah</p>
+                              <p className="font-semibold">{formatCurrency(entry.amount)}</p>
+                              {entry.original_amount && (
+                                <p className="text-xs text-gray-500">Sebelumnya: {formatCurrency(entry.original_amount)}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {entry.notes && (
+                            <div className="text-sm mb-2">
+                              <p className="text-gray-600">Catatan</p>
+                              <p className="text-gray-700">{entry.notes}</p>
+                            </div>
+                          )}
+
+                          {entry.edited_at && (
+                            <div className="text-xs p-2 bg-amber-100 rounded border border-amber-200 mt-2">
+                              <p className="font-semibold text-amber-800">✏️ Diedit</p>
+                              <p className="text-amber-700">{formatDate(entry.edited_at)}</p>
+                              {entry.edit_reason && (
+                                <p className="text-amber-700 mt-1">
+                                  <span className="font-semibold">Alasan:</span> {entry.edit_reason}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditModal(entry)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(entry.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Modal */}
+        {editingId && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-lg">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Edit Modal Masuk</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingId(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleEditSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Tanggal</Label>
+                      <Input
+                        type="date"
+                        value={editForm.date}
+                        onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Jumlah (Rp)</Label>
+                      <Input
+                        type="number"
+                        value={editForm.amount}
+                        onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                        placeholder="0"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Catatan</Label>
+                    <Textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      placeholder="Catatan tambahan (opsional)"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Alasan Edit* (contoh: kesalahan ketik, typo)</Label>
+                    <Input
+                      type="text"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      placeholder="Jelaskan mengapa di-edit..."
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ini akan dicatat dalam audit trail untuk transparansi
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      disabled={editSaving}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Save className="w-4 h-4 mr-1" />
+                      {editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditingId(null)}
+                    >
+                      Batal
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
