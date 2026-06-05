@@ -13,6 +13,7 @@ import { Trash2, Plus, Save, Edit2, X } from 'lucide-react';
 import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
 
 interface FundingState {
   capitalEntries: CapitalEntry[];
@@ -44,6 +45,7 @@ export default function FundingPage() {
     notes: '',
   });
   const [roleSubmitting, setRoleSubmitting] = useState(false);
+  const [refreshBalance, setRefreshBalance] = useState(0);
 
   useEffect(() => {
     fetchAllData();
@@ -69,6 +71,9 @@ export default function FundingPage() {
         loading: false,
         error: null,
       });
+      
+      // Trigger refresh cash balance dashboard
+      setRefreshBalance(prev => prev + 1);
     } catch (error: any) {
       setData(prev => ({ ...prev, loading: false, error: error.message }));
     }
@@ -1154,6 +1159,9 @@ export default function FundingPage() {
         <h1 className="text-3xl font-bold">Manajemen Pendanaan</h1>
         <p className="text-gray-600">Kelola modal, alokasi laba, dan pembayaran</p>
       </div>
+
+      {/* Cash Balance Dashboard - Real-time status kas */}
+      <CashBalanceDashboard outletId={outletId} refreshTrigger={refreshBalance} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">

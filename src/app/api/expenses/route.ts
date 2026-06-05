@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
 import { recordCashTransaction } from '@/lib/cash/ledger';
+import { validateExpenseTransaction } from '@/lib/cash/validation';
 import { resolveSessionForTransaction } from '@/lib/sessions';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,9 +45,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { session_id, outlet_id, date, category, description, amount, notes, payment_method, payment_status, settlement_date, payment_reference } = body;
+    const { session_id, outlet_id, date, category, description, amount, notes, payment_method, payment_status, settlement_date, payment_reference, force_override } = body;
 
-    console.log('[POST /api/expenses] Received:', { session_id, outlet_id, date, category, description, amount });
+    console.log('[POST /api/expenses] Received:', { session_id, outlet_id, date, category, description, amount, force_override });
 
     if (!outlet_id || !date || !category || !description || !amount) {
       return NextResponse.json(
@@ -66,6 +67,24 @@ export async function POST(request: NextRequest) {
         { error: 'Session belum tersedia. Buka sesi harian terlebih dahulu.' },
         { status: 400 }
       );
+    }
+
+    // VALIDATION: Cek apakah kas cukup untuk pengeluaran ini (unless force_override)
+    if (!force_override) {
+      const validation = await validateExpenseTransaction(outlet_id, parseFloat(amount));
+      
+      if (!validation.canProceed) {
+        // Return warning tapi jangan blocking - client bisa pilih untuk proceed dengan soft warning
+        return NextResponse.json({
+          error: validation.message,
+          errorType: 'KAS_TIDAK_CUKUP',
+          availableCash: validation.availableCash,
+          requestedAmount: parseFloat(amount),
+          shortfall: validation.shortfall,
+          message: validation.message,
+          status: 'warning' // Soft warning, bukan hard block
+        }, { status: 400 });
+      }
     }
 
     const insertData = {

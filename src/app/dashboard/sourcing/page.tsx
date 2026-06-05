@@ -471,25 +471,54 @@ export default function SourcingPage() {
       notes: '',
     });
     const [saving, setSaving] = useState(false);
+    const [purchaseWarning, setPurchaseWarning] = useState<{
+      availableCash: number;
+      requestedAmount: number;
+      shortfall: number;
+      message: string;
+      pendingData?: any;
+    } | null>(null);
+    const [forceOverride, setForceOverride] = useState(false);
 
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
       setSaving(true);
       try {
+        const totalAmount = parseFloat(formData.quantity) * parseFloat(formData.unit_price);
         const response = await fetch('/api/material-purchases', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             outlet_id: outletId,
+            force_override: forceOverride,
             ...formData,
             raw_material_id: formData.raw_material_id || null,
             supplier_id: formData.supplier_id || null,
             quantity: parseFloat(formData.quantity),
             unit_price: parseFloat(formData.unit_price),
-            total_amount: parseFloat(formData.quantity) * parseFloat(formData.unit_price),
+            total_amount: totalAmount,
           }),
         });
-        if (!response.ok) throw new Error('Failed to create purchase');
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          
+          // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
+          if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
+            setPurchaseWarning({
+              availableCash: errorData.availableCash,
+              requestedAmount: errorData.requestedAmount,
+              shortfall: errorData.shortfall,
+              message: errorData.message,
+              pendingData: formData,
+            });
+            setSaving(false);
+            return;
+          }
+          
+          throw new Error(errorData.message || errorData.error || 'Gagal membuat pembelian');
+        }
+        
         setFormData({
           raw_material_id: '',
           supplier_id: '',
@@ -502,9 +531,12 @@ export default function SourcingPage() {
           delivery_date: '',
           notes: '',
         });
+        setPurchaseWarning(null);
+        setForceOverride(false);
         await fetchAllData();
       } catch (error) {
         console.error('Error:', error);
+        alert(`Error: ${error instanceof Error ? error.message : 'Gagal membuat pembelian'}`);
       } finally {
         setSaving(false);
       }
@@ -512,6 +544,52 @@ export default function SourcingPage() {
 
     return (
       <div className="space-y-6">
+        {purchaseWarning && (
+          <Alert className="border-yellow-400 bg-yellow-50">
+            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+            <AlertDescription className="text-yellow-800 ml-3">
+              <div className="space-y-3">
+                <div>
+                  <strong>⚠️ Peringatan Kas Tidak Cukup!</strong>
+                  <p className="mt-1 text-sm">{purchaseWarning.message}</p>
+                </div>
+                <div className="bg-white p-3 rounded border border-yellow-200 space-y-1 text-sm">
+                  <div>Kas Tersedia: <strong>Rp {purchaseWarning.availableCash.toLocaleString('id-ID')}</strong></div>
+                  <div>Yang Diminta: <strong>Rp {purchaseWarning.requestedAmount.toLocaleString('id-ID')}</strong></div>
+                  <div className="text-red-600">Kurang: <strong>Rp {purchaseWarning.shortfall.toLocaleString('id-ID')}</strong></div>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <p className="text-xs">Apakah Anda akan melakukan injeksi modal atau penjualan untuk cover pembelian ini?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPurchaseWarning(null)}
+                      className="px-4 py-2 text-sm bg-gray-300 hover:bg-gray-400 rounded text-black"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={() => {
+                        setForceOverride(true);
+                        setPurchaseWarning(null);
+                        setTimeout(() => {
+                          const form = document.querySelector('form');
+                          if (form) {
+                            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                          }
+                        }, 0);
+                      }}
+                      disabled={saving}
+                      className="px-4 py-2 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded disabled:opacity-50"
+                    >
+                      {saving ? 'Memproses...' : 'Lanjutkan Walaupun Kas Kurang'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Input Pembelian Bahan</CardTitle>

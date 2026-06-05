@@ -1,6 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { recordCashTransaction } from '@/lib/cash/ledger';
+import { validateExpenseTransaction } from '@/lib/cash/validation';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 
 export const dynamic = 'force-dynamic';
@@ -112,6 +113,26 @@ export async function POST(request: NextRequest) {
     if (!session?.id) {
       return NextResponse.json(
         { error: 'Session belum tersedia. Buka sesi harian terlebih dahulu.' },
+        { status: 400 }
+      );
+    }
+
+    // Validate cash balance before creating material purchase
+    const totalAmount = Number(total_amount || (Number(quantity) * Number(unit_price)));
+    const validation = await validateExpenseTransaction(outlet_id, totalAmount);
+    
+    if (!validation.canProceed) {
+      // Soft warning - return 400 but allow client to override
+      return NextResponse.json(
+        {
+          error: validation.message,
+          errorType: 'KAS_TIDAK_CUKUP',
+          status: 'warning',
+          availableCash: validation.availableCash,
+          requestedAmount: totalAmount,
+          shortfall: validation.shortfall,
+          message: validation.message,
+        },
         { status: 400 }
       );
     }

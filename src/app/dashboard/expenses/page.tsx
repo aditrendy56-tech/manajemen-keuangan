@@ -5,6 +5,17 @@ import { ExpenseForm } from '@/components/forms/ExpenseForm';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
 import { Expense } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
+interface ValidationWarning {
+  errorType: string;
+  availableCash: number;
+  requestedAmount: number;
+  shortfall: number;
+  message: string;
+  pendingData?: any;
+}
 
 export default function ExpensesPage() {
   const { outletId, sessionId } = useOutlet();
@@ -12,6 +23,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<ValidationWarning | null>(null);
 
   // Fetch expenses dari database saat component mount
   useEffect(() => {
@@ -35,7 +47,7 @@ export default function ExpensesPage() {
     }
   }
 
-  async function handleSubmit(data: any) {
+  async function handleSubmit(data: any, forceOverride: boolean = false) {
     if (!sessionId) {
       alert('Session belum tersedia. Mohon tunggu...');
       return;
@@ -44,23 +56,43 @@ export default function ExpensesPage() {
     setLoading(true);
     try {
       setError(null);
+      setWarning(null);
+      
       const response = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
           outlet_id: outletId,
+          force_override: forceOverride,
           ...data,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save expense');
+        
+        // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
+        if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
+          setWarning({
+            errorType: errorData.errorType,
+            availableCash: errorData.availableCash,
+            requestedAmount: errorData.requestedAmount,
+            shortfall: errorData.shortfall,
+            message: errorData.message,
+            pendingData: data,
+          });
+          setLoading(false);
+          return;
+        }
+        
+        // Hard error - show and don't allow override
+        throw new Error(errorData.message || errorData.error || 'Failed to save expense');
       }
 
       const newExpense = await response.json();
       setExpenses([newExpense, ...expenses]);
+      setWarning(null);
       // Reset form akan di-handle oleh component
     } catch (err: any) {
       console.error('Error saving expense:', err);
@@ -101,6 +133,49 @@ export default function ExpensesPage() {
       {error && (
         <div className="bg-red-50 text-red-800 border border-red-200 rounded-lg p-4">
           <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {warning && (
+        <Alert className="border-yellow-400 bg-yellow-50">
+          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+          <AlertDescription className="text-yellow-800 ml-3">
+            <div className="space-y-3">
+              <div>
+                <strong>⚠️ Peringatan Kas Tidak Cukup!</strong>
+                <p className="mt-1 text-sm">{warning.message}</p>
+              </div>
+              <div className="bg-white p-3 rounded border border-yellow-200 space-y-1 text-sm">
+                <div>Kas Tersedia: <strong>Rp {warning.availableCash.toLocaleString('id-ID')}</strong></div>
+                <div>Yang Diminta: <strong>Rp {warning.requestedAmount.toLocaleString('id-ID')}</strong></div>
+                <div className="text-red-600">Kurang: <strong>Rp {warning.shortfall.toLocaleString('id-ID')}</strong></div>
+              </div>
+              <div className="space-y-2 pt-2">
+                <p className="text-xs">Apakah Anda akan melakukan injeksi modal atau penjualan untuk cover pengeluaran ini?</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWarning(null)}
+                    className="px-4 py-2 text-sm bg-gray-300 hover:bg-gray-400 rounded text-black"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (warning.pendingData) {
+                        handleSubmit(warning.pendingData, true);
+                      }
+                    }}
+                    disabled={loading}
+                    className="px-4 py-2 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded disabled:opacity-50"
+                  >
+                    {loading ? 'Memproses...' : 'Lanjutkan Walaupun Kas Kurang'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
         </div>
       )}
 
