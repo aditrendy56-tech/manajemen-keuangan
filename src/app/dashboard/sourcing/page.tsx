@@ -548,6 +548,8 @@ export default function SourcingPage() {
             quantity: parseFloat(formData.quantity),
             unit_price: parseFloat(formData.unit_price),
             total_amount: totalAmount,
+            delivery_date: formData.delivery_date || null,
+            invoice_number: formData.invoice_number || null,
           }),
         });
         
