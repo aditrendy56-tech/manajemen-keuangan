@@ -455,149 +455,6 @@ export default function SourcingPage() {
       </div>
     );
   }
-
-  // ===== TAB 4: Riwayat Pembelian =====
-  function Tab4Purchases() {
-    const [formData, setFormData] = useState({
-      raw_material_id: '',
-      supplier_id: '',
-      date: new Date().toISOString().split('T')[0],
-      quantity: '',
-      unit_price: '',
-      quality: 'Baik',
-      invoice_number: '',
-      payment_status: 'Paid',
-      delivery_date: '',
-      notes: '',
-    });
-    const [saving, setSaving] = useState(false);
-    const [purchaseWarning, setPurchaseWarning] = useState<{
-      availableCash: number;
-      requestedAmount: number;
-      shortfall: number;
-      message: string;
-      pendingData?: any;
-    } | null>(null);
-    const [forceOverride, setForceOverride] = useState(false);
-    const [purchaseError, setPurchaseError] = useState<string | null>(null);
-
-    async function handleSubmit(e: React.FormEvent) {
-      e.preventDefault();
-      setSaving(true);
-      console.log('[Material Purchase] handleSubmit called with:', {
-        outletId,
-        sessionId,
-        raw_material_id: formData.raw_material_id,
-        quantity: formData.quantity,
-        unit_price: formData.unit_price,
-      });
-      try {
-        // Validasi form
-        if (!formData.raw_material_id) {
-          console.log('[Material Purchase] Validation error: raw_material_id is empty');
-          alert('Bahan Baku wajib dipilih');
-          setSaving(false);
-          return;
-        }
-
-        if (!formData.quantity || !formData.unit_price) {
-          console.log('[Material Purchase] Validation error: quantity or unit_price is empty');
-          alert('Qty dan Harga/Unit wajib diisi');
-          setSaving(false);
-          return;
-        }
-
-        if (!outletId) {
-          console.log('[Material Purchase] Validation error: outletId is empty');
-          alert('Outlet belum dipilih');
-          setSaving(false);
-          return;
-        }
-
-        // NOTE: We no longer block on sessionId here. The API will resolve or create one if needed.
-        // This prevents timing issues where sessionId hasn't finished loading yet.
-        if (sessionId) {
-          console.log('[Material Purchase] SessionId available:', sessionId);
-        } else {
-          console.warn('[Material Purchase] SessionId is not set, API will try to create one');
-        }
-
-        console.log('[Material Purchase] All validations passed, proceeding with submission');
-        setPurchaseError(null);
-        const totalAmount = parseFloat(formData.quantity) * parseFloat(formData.unit_price);
-        
-        console.log('[Material Purchase] Submitting:', {
-          outlet_id: outletId,
-          session_id: sessionId,
-          quantity: formData.quantity,
-          unit_price: formData.unit_price,
-          totalAmount,
-          forceOverride,
-        });
-
-        const response = await fetch('/api/material-purchases', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            outlet_id: outletId,
-            force_override: forceOverride,
-            ...formData,
-            raw_material_id: formData.raw_material_id || null,
-            supplier_id: formData.supplier_id || null,
-            quantity: parseFloat(formData.quantity),
-            unit_price: parseFloat(formData.unit_price),
-            total_amount: totalAmount,
-            delivery_date: formData.delivery_date || null,
-            invoice_number: formData.invoice_number || null,
-          }),
-        });
-        
-        console.log('[Material Purchase] Response status:', response.status);
-        console.log('[Material Purchase] Response headers:', Object.fromEntries(response.headers));
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.log('[Material Purchase] Error response:', JSON.stringify(errorData, null, 2));
-          
-          // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
-          if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
-            console.log('[Material Purchase] Showing cash warning');
-            setPurchaseWarning({
-              availableCash: errorData.availableCash,
-              requestedAmount: errorData.requestedAmount,
-              shortfall: errorData.shortfall,
-              message: errorData.message,
-              pendingData: formData,
-            });
-            setSaving(false);
-            return;
-          }
-          
-          const errorMsg = errorData.message || errorData.error || errorData.details || 'Gagal membuat pembelian';
-          console.error('[Material Purchase] Error detail:', errorMsg);
-          setPurchaseError(errorMsg);
-          setSaving(false);
-          return;
-        }
-        
-        console.log('[Material Purchase] Success!');
-        
-        setFormData({
-          raw_material_id: '',
-          supplier_id: '',
-          date: new Date().toISOString().split('T')[0],
-          quantity: '',
-          unit_price: '',
-          quality: 'Baik',
-          invoice_number: '',
-          payment_status: 'Paid',
-          delivery_date: '',
-          notes: '',
-        });
-        setPurchaseWarning(null);
-        setPurchaseError(null);
-        setForceOverride(false);
         await fetchAllData();
       } catch (error) {
         console.error('[Material Purchase] Error:', error);
@@ -1060,11 +917,10 @@ export default function SourcingPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="materials">Bahan</TabsTrigger>
           <TabsTrigger value="suppliers">Supplier</TabsTrigger>
           <TabsTrigger value="prices">Harga</TabsTrigger>
-          <TabsTrigger value="purchases">Pembelian</TabsTrigger>
           <TabsTrigger value="analysis">Analisis</TabsTrigger>
           <TabsTrigger value="performance">Performa</TabsTrigger>
         </TabsList>
@@ -1079,10 +935,6 @@ export default function SourcingPage() {
 
         <TabsContent value="prices">
           <Tab3Prices />
-        </TabsContent>
-
-        <TabsContent value="purchases">
-          <Tab4Purchases />
         </TabsContent>
 
         <TabsContent value="analysis">

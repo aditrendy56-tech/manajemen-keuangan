@@ -130,15 +130,64 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bahan_baku">Bahan Baku</SelectItem>
+                  <SelectItem value="bahan">Bahan</SelectItem>
                   <SelectItem value="operasional">Operasional</SelectItem>
-                  <SelectItem value="transport">Transport</SelectItem>
                   <SelectItem value="peralatan">Peralatan</SelectItem>
-                  <SelectItem value="lain_lain">Lain-lain</SelectItem>
+                  <SelectItem value="gabungan">Gabungan (Fleksibel)</SelectItem>
+                  <SelectItem value="transport">Transport</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* Conditional: Bahan-specific fields */}
+          {category === 'bahan' && (
+            <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div>
+                <Label htmlFor="rawMaterialId">Pilih Bahan</Label>
+                <Select value={rawMaterialId} onValueChange={setRawMaterialId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={loadingData ? 'Loading...' : 'Pilih bahan'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {materials.length > 0 ? (
+                      materials.map((mat) => (
+                        <SelectItem key={mat.id} value={mat.id}>{mat.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="_empty" disabled>Tidak ada bahan - silahkan input terlebih dahulu di Manajemen Bahan</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-600 mt-1">⚠️ Jika belum ada pilihan bahan, silahkan input terlebih dahulu di Manajemen Bahan</p>
+              </div>
+
+              <div>
+                <Label htmlFor="supplierId">Supplier (Opsional)</Label>
+                <Select value={supplierId} onValueChange={setSupplierId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih supplier (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Tidak ada supplier</SelectItem>
+                    {suppliers.map((sup) => (
+                      <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="deliveryDate">Tanggal Pengiriman (Opsional)</Label>
+                <Input
+                  id="deliveryDate"
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="pt-1">
             <Label htmlFor="description">Deskripsi</Label>
@@ -207,7 +256,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
             <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <Button disabled={loading} type="submit" className="w-full bg-orange-600 hover:bg-orange-700">
+          <Button disabled={loading || loadingData} type="submit" className="w-full bg-orange-600 hover:bg-orange-700">
             {loading ? 'Memproses...' : 'Simpan Pengeluaran'}
           </Button>
         </form>

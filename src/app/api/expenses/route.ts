@@ -19,7 +19,14 @@ export async function GET(request: NextRequest) {
 
     console.log('[GET /api/expenses] Fetching expenses for outlet:', outletId);
 
-    let query = getSupabaseServer().from('expenses').select('*').eq('outlet_id', outletId);
+    let query = (getSupabaseServer() as any)
+      .from('expenses')
+      .select(`
+        *,
+        raw_materials:raw_material_id (id, name, unit),
+        suppliers:supplier_id (id, name)
+      `)
+      .eq('outlet_id', outletId);
 
     if (sessionId) {
       query = query.eq('session_id', sessionId);
@@ -45,9 +52,37 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { session_id, outlet_id, date, category, description, amount, notes, payment_method, payment_status, settlement_date, payment_reference, force_override } = body;
+    const { 
+      session_id, 
+      outlet_id, 
+      date, 
+      category, 
+      description, 
+      amount, 
+      notes, 
+      payment_method, 
+      payment_status, 
+      settlement_date, 
+      payment_reference, 
+      force_override,
+      raw_material_id,
+      supplier_id,
+      delivery_date,
+      quality,
+      invoice_number,
+    } = body;
 
-    console.log('[POST /api/expenses] Received:', { session_id, outlet_id, date, category, description, amount, force_override });
+    console.log('[POST /api/expenses] Received:', { 
+      session_id, 
+      outlet_id, 
+      date, 
+      category, 
+      description, 
+      amount, 
+      force_override,
+      raw_material_id,
+      supplier_id,
+    });
 
     if (!outlet_id || !date || !category || !description || !amount) {
       return NextResponse.json(
@@ -91,7 +126,7 @@ export async function POST(request: NextRequest) {
       console.log('[POST /api/expenses] Cash validation passed, proceeding with insert');
     }
 
-    const insertData = {
+    const insertData: any = {
       session_id: session.id,
       outlet_id,
       date,
@@ -104,6 +139,15 @@ export async function POST(request: NextRequest) {
       settlement_date: settlement_date || null,
       payment_reference: payment_reference || null,
     };
+
+    // Add material fields if kategori = bahan
+    if (category === 'bahan') {
+      insertData.raw_material_id = raw_material_id || null;
+      insertData.supplier_id = supplier_id || null;
+      insertData.delivery_date = delivery_date || null;
+      insertData.quality = quality || null;
+      insertData.invoice_number = invoice_number || null;
+    }
 
     let expenseResult = await (getSupabaseServer().from('expenses') as any)
       .insert([insertData])

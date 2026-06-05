@@ -17,13 +17,28 @@ export async function GET(request: NextRequest) {
       ? await resolveSessionForTransaction({ sessionId })
       : null;
 
-    let query = supabase
-      .from('material_purchases')
+    // Query from expenses table where category='bahan' (merged model)
+    let query = (supabase as any)
+      .from('expenses')
       .select(`
-        *,
+        id,
+        session_id,
+        outlet_id,
+        date,
+        category,
+        description,
+        amount,
+        raw_material_id,
+        supplier_id,
+        delivery_date,
+        quality,
+        invoice_number,
+        notes,
+        created_at,
         raw_materials:raw_material_id (id, name, unit),
         suppliers:supplier_id (id, name)
-      `);
+      `)
+      .eq('category', 'bahan');
 
     if (outletId) {
       query = query.eq('outlet_id', outletId);
@@ -40,13 +55,27 @@ export async function GET(request: NextRequest) {
     let { data, error } = await query.order('date', { ascending: false });
 
     if (error && sessionId && String(error.message || '').toLowerCase().includes('session_id')) {
-      const fallbackQuery = supabase
-        .from('material_purchases')
+      const fallbackQuery = (supabase as any)
+        .from('expenses')
         .select(`
-          *,
+          id,
+          session_id,
+          outlet_id,
+          date,
+          category,
+          description,
+          amount,
+          raw_material_id,
+          supplier_id,
+          delivery_date,
+          quality,
+          invoice_number,
+          notes,
+          created_at,
           raw_materials:raw_material_id (id, name, unit),
           suppliers:supplier_id (id, name)
-        `);
+        `)
+        .eq('category', 'bahan');
 
       if (outletId) {
         fallbackQuery.eq('outlet_id', outletId);
