@@ -43,6 +43,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
         setOutletIdState(preferredOutletId);
         if (preferredOutletId) {
           window.localStorage.setItem(STORAGE_KEY, preferredOutletId);
+          window.localStorage.setItem('DEBUG_outletId', preferredOutletId);
           
           // Load current session for this outlet
           try {
@@ -50,18 +51,26 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
             const sessionRes = await fetch(`/api/sessions?outlet_id=${preferredOutletId}`);
             console.log('[OutletContext] /api/sessions response:', sessionRes.status);
             const sessions = sessionRes.ok ? await sessionRes.json() : [];
-            console.log('[OutletContext] Loaded sessions:', sessions.length, sessions);
+            console.log('[OutletContext] Loaded sessions:', sessions.length, JSON.stringify(sessions, null, 2));
             if (Array.isArray(sessions) && sessions.length > 0) {
               // Get the first open session, or just the first one
               const openSession = sessions.find((s: any) => s.status === 'open') || sessions[0];
               console.log('[OutletContext] Selected session:', openSession?.id);
               if (openSession?.id) {
                 setSessionId(openSession.id);
+                window.localStorage.setItem('DEBUG_sessionId', openSession.id);
                 console.log('[OutletContext] SessionId set to:', openSession.id);
+              } else {
+                console.warn('[OutletContext] No session ID found in openSession');
+                window.localStorage.setItem('DEBUG_sessionId', 'NONE');
               }
+            } else {
+              console.warn('[OutletContext] No sessions returned from API');
+              window.localStorage.setItem('DEBUG_sessionId', 'EMPTY_ARRAY');
             }
           } catch (err) {
             console.warn('[OutletContext] Failed to load current session:', err);
+            window.localStorage.setItem('DEBUG_sessionId', 'ERROR: ' + String(err).substring(0, 50));
           }
         }
       } catch (err) {
