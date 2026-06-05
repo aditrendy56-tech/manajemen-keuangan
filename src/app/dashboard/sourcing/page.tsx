@@ -460,6 +460,210 @@ export default function SourcingPage() {
     return <div className="p-8 text-center">Loading...</div>;
   }
 
+  // ===== TAB 5: Analisis Harga =====
+  function Tab5PriceAnalysis() {
+    const [selectedMaterial, setSelectedMaterial] = useState<string>('');
+
+    const materialPrices = selectedMaterial
+      ? data.prices.filter((p: any) => p.raw_material_id === selectedMaterial)
+      : [];
+
+    const chartData = materialPrices.map((p: any) => ({
+      name: p.suppliers?.name || p.supplier_name || 'Unknown',
+      price: parseFloat(p.unit_price),
+    }));
+
+    const avgPrice = materialPrices.length > 0 
+      ? materialPrices.reduce((sum: number, p: any) => sum + parseFloat(p.unit_price), 0) / materialPrices.length 
+      : 0;
+
+    const minPrice = materialPrices.length > 0 ? Math.min(...materialPrices.map((p: any) => parseFloat(p.unit_price))) : 0;
+    const maxPrice = materialPrices.length > 0 ? Math.max(...materialPrices.map((p: any) => parseFloat(p.unit_price))) : 0;
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Pilih Bahan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedMaterial} onValueChange={(val: any) => setSelectedMaterial(val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih material untuk analisis" />
+              </SelectTrigger>
+              <SelectContent>
+                {data.materials.map((m: any) => (
+                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {selectedMaterial && (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Harga Rata-rata</p>
+                  <p className="text-3xl font-bold text-orange-600 mt-2">{formatCurrency(avgPrice)}</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Harga Termurah</p>
+                  <p className="text-3xl font-bold text-emerald-600 mt-2">{formatCurrency(minPrice)}</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Harga Termahal</p>
+                  <p className="text-3xl font-bold text-rose-600 mt-2">{formatCurrency(maxPrice)}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Perbandingan Harga Supplier</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="0" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="name" stroke="#9ca3af" style={{ fontSize: '11px' }} />
+                      <YAxis stroke="#9ca3af" style={{ fontSize: '11px' }} />
+                      <Tooltip 
+                        formatter={(value) => formatCurrency(value as number)}
+                        contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                        cursor={{ fill: 'rgba(234, 88, 12, 0.05)' }}
+                      />
+                      <Bar dataKey="price" fill="#ea580c" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-center py-8 text-gray-500">Tidak ada data harga untuk material ini</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Detail Harga</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {materialPrices.map((p: any) => (
+                    <div key={p.id} className="flex justify-between items-center border-b pb-3">
+                      <div>
+                        <p className="font-medium">{p.supplier_name}</p>
+                        <p className="text-xs text-gray-600">Min Order: {p.minimum_order || '-'} | Updated: {formatDate(p.last_updated)}</p>
+                      </div>
+                      <p className="text-lg font-semibold">{formatCurrency(p.unit_price)}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ===== TAB 6: Performa Supplier =====
+  function Tab6SupplierPerformance() {
+    const supplierStats = data.suppliers.map((supplier: any) => {
+      const supplierPurchases = data.purchases.filter((p: any) => p.supplier_id === supplier.id);
+      const totalSpending = supplierPurchases.reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || 0), 0);
+      const avgQuality = supplierPurchases.length > 0 
+        ? supplierPurchases.filter((p: any) => p.quality === 'Baik').length / supplierPurchases.length 
+        : 0;
+
+      return {
+        id: supplier.id,
+        name: supplier.name,
+        purchaseCount: supplierPurchases.length,
+        totalSpending,
+        avgPrice: supplierPurchases.length > 0 ? totalSpending / supplierPurchases.length : 0,
+        qualityScore: avgQuality,
+        reliability: supplier.reliability,
+      };
+    }).sort((a, b) => b.totalSpending - a.totalSpending);
+
+    const chartData = supplierStats.map(s => ({
+      name: s.name,
+      spending: s.totalSpending,
+    }));
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Grafik Pengeluaran per Supplier</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {supplierStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="0" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="name" stroke="#9ca3af" style={{ fontSize: '11px' }} />
+                  <YAxis stroke="#9ca3af" style={{ fontSize: '11px' }} />
+                  <Tooltip 
+                    formatter={(value) => formatCurrency(value as number)}
+                    contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                    cursor={{ fill: 'rgba(234, 88, 12, 0.05)' }}
+                  />
+                  <Bar dataKey="spending" fill="#fb923c" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center py-8 text-gray-500">Tidak ada data pembelian</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Ranking Supplier</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {supplierStats.map((stat, idx) => (
+                <div key={stat.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow hover:border-orange-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">#{idx + 1} {stat.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">{stat.purchaseCount} transaksi</p>
+                    </div>
+                    <Badge variant={stat.reliability === 'Excellent' ? 'default' : 'outline'} className={stat.reliability === 'Excellent' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : ''}>
+                      {stat.reliability}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-50/50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Pengeluaran</p>
+                      <p className="font-bold text-orange-600 mt-1">{formatCurrency(stat.totalSpending)}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-50/50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Rata-rata Harga</p>
+                      <p className="font-bold text-blue-600 mt-1">{formatCurrency(stat.avgPrice)}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Quality Score</p>
+                      <p className="font-bold text-emerald-600 mt-1">{(stat.qualityScore * 100).toFixed(0)}%</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
