@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertTriangle } from 'lucide-react';
 import { RawMaterial, Supplier, SupplierPrice, MaterialPurchase } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -479,6 +479,7 @@ export default function SourcingPage() {
       pendingData?: any;
     } | null>(null);
     const [forceOverride, setForceOverride] = useState(false);
+    const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
@@ -509,6 +510,7 @@ export default function SourcingPage() {
           return;
         }
 
+        setPurchaseError(null);
         const totalAmount = parseFloat(formData.quantity) * parseFloat(formData.unit_price);
         
         console.log('[Material Purchase] Submitting:', {
@@ -555,7 +557,11 @@ export default function SourcingPage() {
             return;
           }
           
-          throw new Error(errorData.message || errorData.error || 'Gagal membuat pembelian');
+          const errorMsg = errorData.message || errorData.error || errorData.details || 'Gagal membuat pembelian';
+          console.error('[Material Purchase] Error detail:', errorMsg);
+          setPurchaseError(errorMsg);
+          setSaving(false);
+          return;
         }
         
         console.log('[Material Purchase] Success!');
@@ -573,11 +579,13 @@ export default function SourcingPage() {
           notes: '',
         });
         setPurchaseWarning(null);
+        setPurchaseError(null);
         setForceOverride(false);
         await fetchAllData();
       } catch (error) {
         console.error('[Material Purchase] Error:', error);
-        alert(`Error: ${error instanceof Error ? error.message : 'Gagal membuat pembelian'}`);
+        const msg = error instanceof Error ? error.message : 'Gagal membuat pembelian';
+        setPurchaseError(msg);
       } finally {
         setSaving(false);
       }
@@ -626,6 +634,24 @@ export default function SourcingPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {purchaseError && (
+          <Alert className="border-red-400 bg-red-50">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+            <AlertDescription className="text-red-800 ml-3">
+              <div className="space-y-2">
+                <strong>❌ Error: Gagal Menyimpan Pembelian</strong>
+                <p className="text-sm">{purchaseError}</p>
+                <button
+                  onClick={() => setPurchaseError(null)}
+                  className="text-xs text-red-600 underline hover:text-red-800"
+                >
+                  Tutup
+                </button>
               </div>
             </AlertDescription>
           </Alert>

@@ -94,16 +94,28 @@ export async function POST(request: NextRequest) {
       payment_status,
       delivery_date,
       notes,
+      force_override,
     } = body;
+
+    console.log('[POST /api/material-purchases] Received body:', {
+      session_id,
+      outlet_id,
+      raw_material_id,
+      quantity,
+      unit_price,
+      force_override,
+    });
 
     // supplier_id is OPTIONAL - klo ga isi tetap bisa simpan
     if (!outlet_id || !raw_material_id || !quantity || !unit_price) {
+      console.log('[POST /api/material-purchases] Validation error - missing required fields');
       return NextResponse.json(
         { error: 'outlet_id, raw_material_id, quantity, dan unit_price wajib diisi' },
         { status: 400 }
       );
     }
 
+    console.log('[POST /api/material-purchases] Resolving session...');
     const session = await resolveSessionForTransaction({
       sessionId: session_id,
       outletId: outlet_id,
@@ -111,18 +123,30 @@ export async function POST(request: NextRequest) {
     });
 
     if (!session?.id) {
+      console.log('[POST /api/material-purchases] Session error - session not found or invalid');
       return NextResponse.json(
         { error: 'Session belum tersedia. Buka sesi harian terlebih dahulu.' },
         { status: 400 }
       );
     }
 
+    console.log('[POST /api/material-purchases] Session found:', session.id);
+
     // Validate cash balance before creating material purchase
     const totalAmount = Number(total_amount || (Number(quantity) * Number(unit_price)));
+    console.log('[POST /api/material-purchases] Validating cash for amount:', totalAmount);
+    
     const validation = await validateExpenseTransaction(outlet_id, totalAmount);
     
-    if (!validation.canProceed) {
+    console.log('[POST /api/material-purchases] Cash validation result:', {
+      canProceed: validation.canProceed,
+      availableCash: validation.availableCash,
+      shortfall: validation.shortfall,
+    });
+    
+    if (!validation.canProceed && !force_override) {
       // Soft warning - return 400 but allow client to override
+      console.log('[POST /api/material-purchases] Returning cash warning (soft warning)');
       return NextResponse.json(
         {
           error: validation.message,
@@ -135,6 +159,10 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    if (!validation.canProceed && force_override) {
+      console.log('[POST /api/material-purchases] Cash validation failed but force_override=true, proceeding anyway');
     }
 
     const insertData = {
@@ -153,6 +181,7 @@ export async function POST(request: NextRequest) {
       notes,
     };
 
+    console.log('[POST /api/material-purchases] Inserting into database...');
     let { data, error } = await (supabase
       .from('material_purchases') as any)
       .insert([insertData])
@@ -160,6 +189,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error && String(error.message || '').toLowerCase().includes('session_id')) {
+      console.log('[POST /api/material-purchases] Session field error, retrying without session_id...');
       const { session_id: _sessionId, ...legacyInsertData } = insertData as any;
       ({ data, error } = await (supabase
         .from('material_purchases') as any)
@@ -168,7 +198,12 @@ export async function POST(request: NextRequest) {
         .single());
     }
 
-    if (error) throw error;
+    if (error) {
+      console.error('[POST /api/material-purchases] Database error:', error);
+      throw error;
+    }
+
+    console.log('[POST /api/material-purchases] Insert successful, recording cash transaction...');
 
     await recordCashTransaction({
       outlet_id,
@@ -181,11 +216,12 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
     });
 
+    console.log('[POST /api/material-purchases] Success! Created purchase:', data.id);
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating purchase:', error);
+    console.error('[POST /api/material-purchases] Fatal error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create purchase' },
+      { error: error.message || 'Failed to create purchase', details: error.toString() },
       { status: 500 }
     );
   }
