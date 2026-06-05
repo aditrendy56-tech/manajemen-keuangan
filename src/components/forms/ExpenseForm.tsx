@@ -1,12 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/card';
+import { useOutlet } from '@/lib/context/OutletContext';
+
+interface RawMaterial {
+  id: string;
+  name: string;
+  unit: string;
+}
+
+interface Supplier {
+  id: string;
+  name: string;
+}
 
 interface ExpenseFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -14,6 +27,7 @@ interface ExpenseFormProps {
 }
 
 export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
+  const { outletId } = useOutlet();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [category, setCategory] = useState<string | null>('operasional');
   const [description, setDescription] = useState('');
@@ -22,11 +36,48 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'bank_transfer' | 'pending'>('cash');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
   const [settlementDate, setSettlementDate] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [rawMaterialId, setRawMaterialId] = useState<string>('');
+  const [supplierId, setSupplierId] = useState<string>('');
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // Fetch materials and suppliers
+  useEffect(() => {
+    if (!outletId) return;
+    
+    async function fetchData() {
+      try {
+        setLoadingData(true);
+        const [materialsRes, suppliersRes] = await Promise.all([
+          fetch(`/api/raw-materials?outlet_id=${outletId}`),
+          fetch(`/api/suppliers?outlet_id=${outletId}`),
+        ]);
+        
+        if (materialsRes.ok) {
+          const mats = await materialsRes.json();
+          setMaterials(Array.isArray(mats) ? mats : []);
+        }
+        
+        if (suppliersRes.ok) {
+          const sups = await suppliersRes.json();
+          setSuppliers(Array.isArray(sups) ? sups : []);
+        }
+      } catch (error) {
+        console.error('Error fetching materials/suppliers:', error);
+      } finally {
+        setLoadingData(false);
+      }
+    }
+    
+    fetchData();
+  }, [outletId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await onSubmit({
+      const formData: any = {
         date,
         category,
         description,
@@ -35,13 +86,26 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
         payment_status: paymentStatus,
         settlement_date: settlementDate || null,
         notes,
-      });
+      };
+
+      // Add material fields if kategori = bahan
+      if (category === 'bahan') {
+        formData.raw_material_id = rawMaterialId || null;
+        formData.supplier_id = supplierId || null;
+        formData.delivery_date = deliveryDate || null;
+      }
+
+      await onSubmit(formData);
+      
       // Reset form setelah submit sukses
       setDate(new Date().toISOString().split('T')[0]);
       setCategory('operasional');
       setDescription('');
       setAmount('0');
       setNotes('');
+      setDeliveryDate('');
+      setRawMaterialId('');
+      setSupplierId('');
     } catch (error) {
       console.error('Error submitting form:', error);
     }
