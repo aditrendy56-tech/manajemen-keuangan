@@ -25,10 +25,13 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadOutlets() {
       try {
+        console.log('[OutletContext] Starting loadOutlets...');
         const res = await fetch('/api/outlets');
+        console.log('[OutletContext] /api/outlets response:', res.status);
         const data = res.ok ? await res.json() : [];
         const outlets = Array.isArray(data) ? data : [];
         setAvailableOutlets(outlets);
+        console.log('[OutletContext] Loaded outlets:', outlets.length);
 
         const savedOutletId = window.localStorage.getItem(STORAGE_KEY);
         const preferredOutletId =
@@ -36,26 +39,33 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
           outlets[0]?.id ||
           '';
 
+        console.log('[OutletContext] Setting outletId to:', preferredOutletId);
         setOutletIdState(preferredOutletId);
         if (preferredOutletId) {
           window.localStorage.setItem(STORAGE_KEY, preferredOutletId);
           
           // Load current session for this outlet
           try {
+            console.log('[OutletContext] Loading sessions for outlet:', preferredOutletId);
             const sessionRes = await fetch(`/api/sessions?outlet_id=${preferredOutletId}`);
+            console.log('[OutletContext] /api/sessions response:', sessionRes.status);
             const sessions = sessionRes.ok ? await sessionRes.json() : [];
+            console.log('[OutletContext] Loaded sessions:', sessions.length, sessions);
             if (Array.isArray(sessions) && sessions.length > 0) {
               // Get the first open session, or just the first one
               const openSession = sessions.find((s: any) => s.status === 'open') || sessions[0];
+              console.log('[OutletContext] Selected session:', openSession?.id);
               if (openSession?.id) {
                 setSessionId(openSession.id);
+                console.log('[OutletContext] SessionId set to:', openSession.id);
               }
             }
           } catch (err) {
-            console.warn('Failed to load current session:', err);
+            console.warn('[OutletContext] Failed to load current session:', err);
           }
         }
-      } catch {
+      } catch (err) {
+        console.error('[OutletContext] Error in loadOutlets:', err);
         setAvailableOutlets([]);
         setOutletIdState('');
       } finally {
