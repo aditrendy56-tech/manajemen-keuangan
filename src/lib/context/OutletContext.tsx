@@ -78,6 +78,8 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
         setAvailableOutlets([]);
         setOutletIdState('');
       } finally {
+        // Mark as ready AFTER everything is loaded, including sessions
+        console.log('[OutletContext] Setting isReady to true');
         setIsReady(true);
       }
     }

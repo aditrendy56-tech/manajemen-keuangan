@@ -514,11 +514,12 @@ export default function SourcingPage() {
           return;
         }
 
-        if (!sessionId) {
-          console.log('[Material Purchase] Validation error: sessionId is empty');
-          alert('Session belum tersedia. Buka sesi harian terlebih dahulu.');
-          setSaving(false);
-          return;
+        // NOTE: We no longer block on sessionId here. The API will resolve or create one if needed.
+        // This prevents timing issues where sessionId hasn't finished loading yet.
+        if (sessionId) {
+          console.log('[Material Purchase] SessionId available:', sessionId);
+        } else {
+          console.warn('[Material Purchase] SessionId is not set, API will try to create one');
         }
 
         console.log('[Material Purchase] All validations passed, proceeding with submission');
