@@ -134,7 +134,7 @@ export default function SessionsPage() {
                         >
                           {session.status === 'open' ? '🟢 Buka' : '🔴 Tutup'}
                         </span>
-                        <Link href={`/sessions/${session.id}`}>
+                        <Link href={`/dashboard/sessions/${session.id}`}>
                           <Button variant="outline" size="sm">
                             <ArrowRight className="w-4 h-4" />
                           </Button>
