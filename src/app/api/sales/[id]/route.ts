@@ -126,7 +126,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await recordCashTransaction({
           outlet_id: updated.outlet_id,
           transaction_date: (refunded_at as string | undefined)?.split?.('T')?.[0] || settlement_date || new Date().toISOString().split('T')[0],
-          transaction_type: 'outflow',
+          transaction_type: 'inflow',
           source_type: 'sale_refund',
           source_id: id,
           amount: effectiveRefundAmount,
