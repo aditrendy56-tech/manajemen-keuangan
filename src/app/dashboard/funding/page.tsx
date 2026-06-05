@@ -26,7 +26,7 @@ interface FundingState {
 
 export default function FundingPage() {
   const { outletId } = useOutlet();
-  const [activeTab, setActiveTab] = useState('modal');
+  const [activeTab, setActiveTab] = useState('kelola');
   const [data, setData] = useState<FundingState>({
     capitalEntries: [],
     investors: [],
@@ -36,6 +36,14 @@ export default function FundingPage() {
     loading: true,
     error: null,
   });
+  const [roleEditingId, setRoleEditingId] = useState<string | null>(null);
+  const [roleForm, setRoleForm] = useState({
+    source_type: 'investor' as 'owner' | 'investor' | 'karyawan',
+    name: '',
+    phone: '',
+    notes: '',
+  });
+  const [roleSubmitting, setRoleSubmitting] = useState(false);
 
   useEffect(() => {
     fetchAllData();
@@ -64,6 +72,266 @@ export default function FundingPage() {
     } catch (error: any) {
       setData(prev => ({ ...prev, loading: false, error: error.message }));
     }
+  }
+
+  // Role Management Functions
+  async function handleRoleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!roleForm.name.trim()) {
+      alert('Nama harus diisi');
+      return;
+    }
+
+    setRoleSubmitting(true);
+    try {
+      const payload = {
+        outlet_id: outletId,
+        source_type: roleForm.source_type,
+        name: roleForm.name,
+        phone: roleForm.phone || null,
+        notes: roleForm.notes || null,
+        priority_order: roleEditingId ? undefined : data.investors.length + 1,
+      };
+
+      if (roleEditingId) {
+        const res = await fetch('/api/investors', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: roleEditingId, ...payload }),
+        });
+        if (!res.ok) throw new Error('Gagal update role');
+      } else {
+        const res = await fetch('/api/investors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Gagal tambah role');
+      }
+
+      setRoleForm({ source_type: 'investor', name: '', phone: '', notes: '' });
+      setRoleEditingId(null);
+      await fetchAllData();
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Error saving role');
+    } finally {
+      setRoleSubmitting(false);
+    }
+  }
+
+  async function handleRoleDelete(id: string) {
+    if (!confirm('Hapus role ini?')) return;
+    try {
+      const res = await fetch(`/api/investors/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal hapus');
+      await fetchAllData();
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Error deleting role');
+    }
+  }
+
+  // TAB 0: Kelola Role
+  function TabKelolaRole() {
+    const roleIcon = {
+      owner: '👤',
+      investor: '🤝',
+      karyawan: '🧑',
+    };
+
+    const roleLabel = {
+      owner: 'Owner',
+      investor: 'Investor',
+      karyawan: 'Karyawan',
+    };
+
+    const ownerCount = data.investors.filter((r: any) => r.source_type === 'owner').length;
+    const investorCount = data.investors.filter((r: any) => r.source_type === 'investor').length;
+    const employeeCount = data.investors.filter((r: any) => r.source_type === 'karyawan').length;
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Kelola Role</h2>
+          <p className="text-gray-600">Atur owner, investor, dan karyawan yang akan menerima alokasi laba</p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">Total Role</p>
+              <p className="text-2xl font-bold">{data.investors.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">👤 Owner</p>
+              <p className="text-2xl font-bold text-blue-600">{ownerCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">🤝 Investor</p>
+              <p className="text-2xl font-bold text-purple-600">{investorCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-gray-600">🧑 Karyawan</p>
+              <p className="text-2xl font-bold text-green-600">{employeeCount}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Form */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>{roleEditingId ? 'Edit Role' : 'Tambah Role Baru'}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleRoleSubmit} className="space-y-4">
+                <div>
+                  <Label>Tipe Role*</Label>
+                  <Select
+                    value={roleForm.source_type}
+                    onValueChange={(val: any) => setRoleForm({ ...roleForm, source_type: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">👤 Owner</SelectItem>
+                      <SelectItem value="investor">🤝 Investor</SelectItem>
+                      <SelectItem value="karyawan">🧑 Karyawan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Nama*</Label>
+                  <Input
+                    value={roleForm.name}
+                    onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                    placeholder="Nama owner/investor/karyawan"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label>Telepon (opsional)</Label>
+                  <Input
+                    value={roleForm.phone}
+                    onChange={(e) => setRoleForm({ ...roleForm, phone: e.target.value })}
+                    placeholder="08xx..."
+                  />
+                </div>
+
+                <div>
+                  <Label>Catatan (opsional)</Label>
+                  <Textarea
+                    value={roleForm.notes}
+                    onChange={(e) => setRoleForm({ ...roleForm, notes: e.target.value })}
+                    placeholder="Catatan tambahan"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={roleSubmitting}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  >
+                    <Save className="w-4 h-4 mr-1" />
+                    {roleSubmitting ? 'Menyimpan...' : roleEditingId ? 'Update' : 'Simpan'}
+                  </Button>
+                  {roleEditingId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setRoleEditingId(null);
+                        setRoleForm({ source_type: 'investor', name: '', phone: '', notes: '' });
+                      }}
+                    >
+                      Batal
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* List */}
+          <div className="lg:col-span-2 space-y-4">
+            {data.loading ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-gray-500">
+                  Loading...
+                </CardContent>
+              </Card>
+            ) : data.investors.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-gray-500">
+                  Belum ada role. Tambahkan yang pertama!
+                </CardContent>
+              </Card>
+            ) : (
+              data.investors.map((role: any) => (
+                <Card key={role.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-2xl">{roleIcon[role.source_type as keyof typeof roleIcon]}</span>
+                          <div>
+                            <h3 className="font-semibold text-lg">{role.name}</h3>
+                            <p className="text-sm text-gray-600">{roleLabel[role.source_type as keyof typeof roleLabel]}</p>
+                          </div>
+                        </div>
+                        {role.phone && (
+                          <p className="text-sm text-gray-600">📞 {role.phone}</p>
+                        )}
+                        {role.notes && (
+                          <p className="text-sm text-gray-600 italic mt-2">💬 {role.notes}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRoleEditingId(role.id);
+                            setRoleForm({
+                              source_type: role.source_type,
+                              name: role.name,
+                              phone: role.phone || '',
+                              notes: role.notes || '',
+                            });
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRoleDelete(role.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // TAB 1: Modal Masuk
@@ -672,11 +940,16 @@ export default function FundingPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="kelola">🧑 Kelola Role</TabsTrigger>
           <TabsTrigger value="modal">📥 Modal Masuk</TabsTrigger>
           <TabsTrigger value="alokasi">💰 Alokasi Laba</TabsTrigger>
           <TabsTrigger value="repayment">📤 Pembayaran</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="kelola" className="space-y-4">
+          {<TabKelolaRole />}
+        </TabsContent>
 
         <TabsContent value="modal" className="space-y-4">
           {<TabModalMasuk />}
