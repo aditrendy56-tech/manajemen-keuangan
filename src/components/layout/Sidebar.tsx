@@ -20,14 +20,14 @@ import { getSupabase } from '@/lib/supabase/client';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Sesi Harian', href: '/sessions', icon: Calendar },
-  { name: 'Penjualan', href: '/sales', icon: ShoppingCart },
-  { name: 'Pengeluaran', href: '/expenses', icon: DollarSign },
-  { name: 'Manajemen Pendanaan', href: '/funding', icon: Zap, group: 'Admin' },
-  { name: 'Manajemen Bahan', href: '/sourcing', icon: Package, group: 'Admin' },
-  { name: 'Produk', href: '/products', icon: BarChart3 },
-  { name: 'Laporan', href: '/reports', icon: BarChart3 },
-  { name: 'Pengaturan', href: '/settings', icon: Settings },
+  { name: 'Sesi Harian', href: '/dashboard/sessions', icon: Calendar },
+  { name: 'Penjualan', href: '/dashboard/sales', icon: ShoppingCart },
+  { name: 'Pengeluaran', href: '/dashboard/expenses', icon: DollarSign },
+  { name: 'Manajemen Pendanaan', href: '/dashboard/funding', icon: Zap, group: 'Admin' },
+  { name: 'Manajemen Bahan', href: '/dashboard/sourcing', icon: Package, group: 'Admin' },
+  { name: 'Produk', href: '/dashboard/products', icon: BarChart3 },
+  { name: 'Laporan', href: '/dashboard/reports', icon: BarChart3 },
+  { name: 'Pengaturan', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {
