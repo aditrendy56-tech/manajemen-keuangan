@@ -13,22 +13,39 @@ ALTER TABLE expenses ADD COLUMN IF NOT EXISTS quality VARCHAR(50);
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100);
 
 -- Phase 4: Update expenses.category enum to include new categories
--- First, create new enum type
-CREATE TYPE category_new AS ENUM (
-  'operasional',
-  'bahan',
-  'peralatan',
-  'gabungan',
-  'transport',
-  'lain_lain'
-);
-
--- Alter the column to use new enum
-ALTER TABLE expenses 
-  ALTER COLUMN category SET DATA TYPE category_new USING category::text::category_new;
-
--- Drop old enum
-DROP TYPE category CASCADE;
-
--- Rename new enum
-ALTER TYPE category_new RENAME TO category;
+-- Check if category enum exists and handle accordingly
+DO $$ 
+DECLARE
+  v_enum_exists boolean;
+BEGIN
+  -- Check if the category enum type exists
+  SELECT EXISTS(SELECT 1 FROM pg_type WHERE typname = 'category' AND typtype = 'e') INTO v_enum_exists;
+  
+  IF NOT v_enum_exists THEN
+    -- Create the enum from scratch if it doesn't exist
+    CREATE TYPE category AS ENUM (
+      'operasional',
+      'bahan',
+      'peralatan',
+      'gabungan'
+    );
+  ELSE
+    -- If enum exists, add new values that don't exist yet
+    -- Note: ALTER TYPE ADD VALUE can only be done in a transaction or with restrictions
+    -- Safe approach: create new type and migrate
+    CREATE TYPE category_new AS ENUM (
+      'operasional',
+      'bahan',
+      'peralatan',
+      'gabungan'
+    );
+    
+    -- Migrate column to new enum type
+    ALTER TABLE expenses 
+      ALTER COLUMN category SET DATA TYPE category_new USING category::text::category_new;
+    
+    -- Drop old enum and rename new one
+    DROP TYPE category;
+    ALTER TYPE category_new RENAME TO category;
+  END IF;
+END $$;

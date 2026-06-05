@@ -134,7 +134,6 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                   <SelectItem value="operasional">Operasional</SelectItem>
                   <SelectItem value="peralatan">Peralatan</SelectItem>
                   <SelectItem value="gabungan">Gabungan (Fleksibel)</SelectItem>
-                  <SelectItem value="transport">Transport</SelectItem>
                 </SelectContent>
               </Select>
             </div>
