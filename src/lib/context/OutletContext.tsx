@@ -39,6 +39,21 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
         setOutletIdState(preferredOutletId);
         if (preferredOutletId) {
           window.localStorage.setItem(STORAGE_KEY, preferredOutletId);
+          
+          // Load current session for this outlet
+          try {
+            const sessionRes = await fetch(`/api/sessions?outlet_id=${preferredOutletId}`);
+            const sessions = sessionRes.ok ? await sessionRes.json() : [];
+            if (Array.isArray(sessions) && sessions.length > 0) {
+              // Get the first open session, or just the first one
+              const openSession = sessions.find((s: any) => s.status === 'open') || sessions[0];
+              if (openSession?.id) {
+                setSessionId(openSession.id);
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to load current session:', err);
+          }
         }
       } catch {
         setAvailableOutlets([]);
