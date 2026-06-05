@@ -26,7 +26,7 @@ interface TabState {
 }
 
 export default function SourcingPage() {
-  const { outletId } = useOutlet();
+  const { outletId, sessionId } = useOutlet();
   const [activeTab, setActiveTab] = useState('materials');
   const [data, setData] = useState<TabState>({
     materials: [],
@@ -484,11 +484,46 @@ export default function SourcingPage() {
       e.preventDefault();
       setSaving(true);
       try {
+        // Validasi form
+        if (!formData.raw_material_id) {
+          alert('Bahan Baku wajib dipilih');
+          setSaving(false);
+          return;
+        }
+
+        if (!formData.quantity || !formData.unit_price) {
+          alert('Qty dan Harga/Unit wajib diisi');
+          setSaving(false);
+          return;
+        }
+
+        if (!outletId) {
+          alert('Outlet belum dipilih');
+          setSaving(false);
+          return;
+        }
+
+        if (!sessionId) {
+          alert('Session belum tersedia. Buka sesi harian terlebih dahulu.');
+          setSaving(false);
+          return;
+        }
+
         const totalAmount = parseFloat(formData.quantity) * parseFloat(formData.unit_price);
+        
+        console.log('[Material Purchase] Submitting:', {
+          outlet_id: outletId,
+          quantity: formData.quantity,
+          unit_price: formData.unit_price,
+          totalAmount,
+          forceOverride,
+        });
+
         const response = await fetch('/api/material-purchases', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            session_id: sessionId,
             outlet_id: outletId,
             force_override: forceOverride,
             ...formData,
@@ -500,11 +535,15 @@ export default function SourcingPage() {
           }),
         });
         
+        console.log('[Material Purchase] Response status:', response.status);
+        
         if (!response.ok) {
           const errorData = await response.json();
+          console.log('[Material Purchase] Error response:', errorData);
           
           // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
           if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
+            console.log('[Material Purchase] Showing cash warning');
             setPurchaseWarning({
               availableCash: errorData.availableCash,
               requestedAmount: errorData.requestedAmount,
@@ -518,6 +557,8 @@ export default function SourcingPage() {
           
           throw new Error(errorData.message || errorData.error || 'Gagal membuat pembelian');
         }
+        
+        console.log('[Material Purchase] Success!');
         
         setFormData({
           raw_material_id: '',
@@ -535,7 +576,7 @@ export default function SourcingPage() {
         setForceOverride(false);
         await fetchAllData();
       } catch (error) {
-        console.error('Error:', error);
+        console.error('[Material Purchase] Error:', error);
         alert(`Error: ${error instanceof Error ? error.message : 'Gagal membuat pembelian'}`);
       } finally {
         setSaving(false);
