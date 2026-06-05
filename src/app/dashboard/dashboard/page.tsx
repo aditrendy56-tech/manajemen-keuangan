@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, TrendingUp, ShoppingCart, Zap } from 'lucide-react';
 import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart';
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { DailyProfitChart } from '@/components/charts/DailyProfitChart';

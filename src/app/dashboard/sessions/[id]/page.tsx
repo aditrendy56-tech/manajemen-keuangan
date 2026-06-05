@@ -109,18 +109,6 @@ export default function SessionDetailPage() {
 
         // fetch sales, expenses, purchases, and cash transactions
         await loadData();
-            console.warn('Failed to fetch material purchases:', e);
-            setPurchases([]);
-          }
-
-          try {
-            const cashRes = await fetch(`/api/cash-transactions?outlet_id=${outletId}&limit=500`);
-            const cashData = cashRes.ok ? await cashRes.json() : [];
-            setCashTransactions(Array.isArray(cashData) ? cashData : []);
-          } catch (e) {
-            console.warn('Failed to fetch cash transactions:', e);
-            setCashTransactions([]);
-          }
       } catch (err: any) {
         console.error('Error loading session detail:', err);
         setError(err.message || 'Failed to load data');
