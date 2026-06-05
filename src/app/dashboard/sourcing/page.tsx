@@ -763,7 +763,7 @@ export default function SourcingPage() {
                 <Label>Notes</Label>
                 <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
               </div>
-              <Button disabled={saving} className="bg-orange-600 hover:bg-orange-700">
+              <Button type="submit" disabled={saving} className="bg-orange-600 hover:bg-orange-700">
                 {saving ? 'Menyimpan...' : 'Simpan Pembelian'}
               </Button>
             </form>
