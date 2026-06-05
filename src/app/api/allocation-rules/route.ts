@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         recover_first: true,
         cash_reserve_percent: 10,
         allow_overdraft: false,
-      };
+      } as const;
       const { data: inserted, error: insErr } = await supabase.from('allocation_rules').insert([defaultRule]).select().single();
       if (insErr) throw insErr;
       return NextResponse.json([inserted]);

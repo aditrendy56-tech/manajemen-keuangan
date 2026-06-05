@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface SessionFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -66,14 +67,13 @@ export function SessionForm({
             />
           </div>
           <div>
-            <Label htmlFor="opening_cash">Modal Awal (Rp)</Label>
-            <Input
-              id="opening_cash"
-              type="number"
+            <CurrencyInput
+              label="Modal Awal (Rp)"
               value={openingCash}
               onChange={(e) => setOpeningCash(e.target.value)}
               placeholder="0"
               required
+              showVisual={true}
             />
           </div>
           <div>

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/card';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { useOutlet } from '@/lib/context/OutletContext';
 
 interface RawMaterial {
@@ -200,14 +201,13 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="amount">Jumlah (Rp)</Label>
-            <Input
-              id="amount"
-              type="number"
+            <CurrencyInput
+              label="Jumlah (Rp)"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
               required
+              showVisual={true}
             />
           </div>
 

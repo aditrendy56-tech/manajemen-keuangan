@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface MaterialPurchaseFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -57,14 +58,13 @@ export function MaterialPurchaseForm({ onSubmit, loading = false }: MaterialPurc
               />
             </div>
             <div>
-              <Label htmlFor="unit_price">Harga per Unit (Rp)</Label>
-              <Input
-                id="unit_price"
-                type="number"
+              <CurrencyInput
+                label="Harga per Unit (Rp)"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
                 placeholder="0"
                 required
+                showVisual={true}
               />
             </div>
           </div>

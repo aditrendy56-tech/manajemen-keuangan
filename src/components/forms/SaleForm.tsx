@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface SaleFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -210,14 +211,13 @@ export function SaleForm({
           )}
 
           <div>
-            <Label htmlFor="gross_amount">Jumlah Kotor (Rp)</Label>
-            <Input
-              id="gross_amount"
-              type="number"
+            <CurrencyInput
+              label="Jumlah Kotor (Rp)"
               value={grossAmount}
               onChange={(e) => setGrossAmount(e.target.value)}
               placeholder="0"
               required
+              showVisual={true}
             />
           </div>
 
@@ -304,12 +304,12 @@ export function SaleForm({
                     </Select>
                   </div>
                   <div className="col-span-2">
-                    <Label>Jumlah</Label>
-                    <Input
-                      type="number"
+                    <CurrencyInput
+                      label="Jumlah"
                       value={entry.amount}
                       onChange={(e) => updatePaymentEntry(entry.id, { amount: e.target.value })}
                       placeholder="0"
+                      showVisual={true}
                     />
                   </div>
                   <div className="col-span-2">

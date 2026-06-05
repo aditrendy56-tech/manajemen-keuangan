@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { ModalItem } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface ModalCategoryFormProps {
   investorId: string;
@@ -187,13 +188,11 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
                     />
                   </div>
                   <div>
-                    <Label className="text-sm">Harga Satuan (Rp)</Label>
-                    <Input
-                      type="number"
-                      min="0"
+                    <CurrencyInput
+                      label="Harga Satuan (Rp)"
                       value={item.unit_price}
                       onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                      className="mt-1"
+                      showVisual={true}
                     />
                   </div>
                   <div>

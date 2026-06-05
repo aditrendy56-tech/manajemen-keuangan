@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface SupplierPriceFormProps {
   supplierId: string;
@@ -147,18 +148,13 @@ export default function SupplierPriceForm({
           </div>
 
           <div>
-            <Label htmlFor="unit_price" className="text-sm font-medium">
-              Harga per Unit *
-            </Label>
-            <Input
-              id="unit_price"
-              name="unit_price"
-              type="number"
-              step="100"
+            <CurrencyInput
+              label="Harga per Unit"
               value={formData.unit_price}
               onChange={handleChange}
               placeholder="50000"
               required
+              showVisual={true}
             />
           </div>
 

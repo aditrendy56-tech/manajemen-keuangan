@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface CapitalFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -41,14 +42,13 @@ export function CapitalForm({ onSubmit, loading = false }: CapitalFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="amount">Jumlah (Rp)</Label>
-            <Input
-              id="amount"
-              type="number"
+            <CurrencyInput
+              label="Jumlah (Rp)"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
               required
+              showVisual={true}
             />
           </div>
 
