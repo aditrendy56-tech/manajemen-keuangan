@@ -181,12 +181,10 @@ export function CashBalanceDashboard({ outletId, refreshTrigger = 0 }: CashBalan
                 <span>Pengeluaran (net):</span>
                 <span className="text-red-600 font-semibold">-{formatCurrency(balance.totalExpenses)}</span>
               </div>
-              {balance.totalRefunds > 0 && (
-                <div className="flex justify-between p-2 bg-amber-50 rounded text-amber-800">
-                  <span>💸 Refund Dikembalikan:</span>
-                  <span className="font-semibold">+{formatCurrency(balance.totalRefunds)}</span>
-                </div>
-              )}
+              <div className={`flex justify-between p-2 rounded ${balance.totalRefunds > 0 ? 'bg-amber-50 text-amber-800' : 'bg-gray-50 text-gray-600'}`}>
+                <span>💸 Refund Dikembalikan:</span>
+                <span className="font-semibold">{balance.totalRefunds > 0 ? '+' : ''}{formatCurrency(balance.totalRefunds)}</span>
+              </div>
               <div className="flex justify-between pt-2 border-t font-bold">
                 <span>Kas Tersedia:</span>
                 <span className={balance.availableCash < 0 ? 'text-red-600' : 'text-green-600'}>
