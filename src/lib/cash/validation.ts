@@ -17,7 +17,8 @@ export interface CashBalance {
 
 /**
  * Hitung cash balance saat ini untuk outlet
- * Available Cash = Total Modal + Total Penjualan - Total Pengeluaran - Total Refund
+ * Available Cash = Total Modal + Total Penjualan (net of refunds) - Total Pengeluaran (net of refunds)
+ * Refunds ditampilkan terpisah untuk visibility
  */
 export async function calculateCashBalance(outletId: string): Promise<CashBalance> {
   const supabase = await getSupabaseServer();
@@ -32,41 +33,42 @@ export async function calculateCashBalance(outletId: string): Promise<CashBalanc
     if (capitalError) throw capitalError;
     const totalCapitalIn = capitalData?.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0) || 0;
 
-    // Get total sales
+    // Get total sales with refund amounts
     const { data: salesData, error: salesError } = await supabase
       .from('sales')
-      .select('net_amount')
+      .select('net_amount, refund_amount')
       .eq('outlet_id', outletId);
 
     if (salesError) throw salesError;
-    const totalSales = salesData?.reduce((sum, row) => sum + (parseFloat(row.net_amount) || 0), 0) || 0;
+    const totalSalesGross = salesData?.reduce((sum, row) => sum + (parseFloat(row.net_amount) || 0), 0) || 0;
+    const totalSalesRefunds = salesData?.reduce((sum, row) => sum + (parseFloat(row.refund_amount) || 0), 0) || 0;
+    const totalSales = totalSalesGross - totalSalesRefunds;
 
-    // Get total expenses
+    // Get total expenses with refund amounts
     const { data: expensesData, error: expensesError } = await supabase
       .from('expenses')
-      .select('amount')
+      .select('amount, refund_amount')
       .eq('outlet_id', outletId);
 
     if (expensesError) throw expensesError;
-    const totalExpenses = expensesData?.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0) || 0;
+    const totalExpensesGross = expensesData?.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0) || 0;
+    const totalExpensesRefunds = expensesData?.reduce((sum, row) => sum + (parseFloat(row.refund_amount) || 0), 0) || 0;
+    const totalExpenses = totalExpensesGross - totalExpensesRefunds;
 
-    // Get total refunds (dari sales dengan payment_status = refunded)
-    const { data: refundsData, error: refundsError } = await supabase
-      .from('sales')
-      .select('net_amount')
-      .eq('outlet_id', outletId)
-      .eq('payment_status', 'refunded');
-
-    if (refundsError) throw refundsError;
-    const totalRefunds = refundsData?.reduce((sum, row) => sum + (parseFloat(row.net_amount) || 0), 0) || 0;
+    // Total refunds from both sales and expenses
+    const totalRefunds = totalSalesRefunds + totalExpensesRefunds;
 
     // Calculate available cash
-    const availableCash = totalCapitalIn + totalSales - totalExpenses - totalRefunds;
+    const availableCash = totalCapitalIn + totalSales - totalExpenses;
 
     console.log('[calculateCashBalance] For outlet:', outletId, {
       totalCapitalIn,
-      totalSales,
-      totalExpenses,
+      totalSalesGross,
+      totalSalesRefunds,
+      totalSales: totalSales,
+      totalExpensesGross,
+      totalExpensesRefunds,
+      totalExpenses: totalExpenses,
       totalRefunds,
       availableCash,
     });

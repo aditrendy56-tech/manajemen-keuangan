@@ -171,20 +171,20 @@ export function CashBalanceDashboard({ outletId, refreshTrigger = 0 }: CashBalan
             <div className="space-y-2 text-sm font-mono">
               <div className="flex justify-between">
                 <span>Modal Masuk:</span>
-                <span className="text-green-600">+{formatCurrency(balance.totalCapitalIn)}</span>
+                <span className="text-blue-600 font-semibold">+{formatCurrency(balance.totalCapitalIn)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Penjualan:</span>
-                <span className="text-green-600">+{formatCurrency(balance.totalSales)}</span>
+                <span>Penjualan (net):</span>
+                <span className="text-green-600 font-semibold">+{formatCurrency(balance.totalSales)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Pengeluaran:</span>
-                <span className="text-red-600">-{formatCurrency(balance.totalExpenses)}</span>
+                <span>Pengeluaran (net):</span>
+                <span className="text-red-600 font-semibold">-{formatCurrency(balance.totalExpenses)}</span>
               </div>
               {balance.totalRefunds > 0 && (
-                <div className="flex justify-between">
-                  <span>Refund:</span>
-                  <span className="text-red-600">-{formatCurrency(balance.totalRefunds)}</span>
+                <div className="flex justify-between p-2 bg-amber-50 rounded text-amber-800">
+                  <span>💸 Refund Dikembalikan:</span>
+                  <span className="font-semibold">+{formatCurrency(balance.totalRefunds)}</span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t font-bold">

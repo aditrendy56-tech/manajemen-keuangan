@@ -236,6 +236,48 @@ export default function SessionDetailPage() {
     setRefundTarget(null);
   }
 
+  async function handleDeleteExpense(expenseId: string) {
+    if (!confirm('Hapus pengeluaran ini? Data akan hilang selamanya.')) return;
+
+    try {
+      const response = await fetch(`/api/expenses/${expenseId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal menghapus');
+      }
+
+      setExpenses((prev) => prev.filter((item) => item.id !== expenseId));
+      alert('Pengeluaran dihapus');
+    } catch (err: any) {
+      alert('Gagal hapus: ' + (err.message || err));
+    }
+  }
+
+  async function handleDeleteSale(saleId: string) {
+    if (!confirm('Hapus penjualan ini? Data akan hilang selamanya.')) return;
+
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal menghapus');
+      }
+
+      setSales((prev) => prev.filter((item) => item.id !== saleId));
+      alert('Penjualan dihapus');
+    } catch (err: any) {
+      alert('Gagal hapus: ' + (err.message || err));
+    }
+  }
+
   function getRecognizedSaleAmount(sale: Sale) {
     const netAmount = Number(sale.net_amount || 0);
     const refundAmount = Number(sale.refund_amount || 0);
@@ -369,7 +411,11 @@ export default function SessionDetailPage() {
             </Button>
           )}
         </div>
-        <ExpensesTable expenses={expenses} onRefund={(expense) => openRefundDialog(expense, 'expense')} />
+        <ExpensesTable 
+          expenses={expenses} 
+          onRefund={(expense) => openRefundDialog(expense, 'expense')}
+          onDelete={handleDeleteExpense}
+        />
       </section>
 
       <Card>
@@ -473,7 +519,7 @@ export default function SessionDetailPage() {
             inline
           />
         )}
-        <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} withCard={false} />
+        <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
       </section>
 
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
