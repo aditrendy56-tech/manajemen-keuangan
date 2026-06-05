@@ -484,37 +484,50 @@ export default function SourcingPage() {
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
       setSaving(true);
+      console.log('[Material Purchase] handleSubmit called with:', {
+        outletId,
+        sessionId,
+        raw_material_id: formData.raw_material_id,
+        quantity: formData.quantity,
+        unit_price: formData.unit_price,
+      });
       try {
         // Validasi form
         if (!formData.raw_material_id) {
+          console.log('[Material Purchase] Validation error: raw_material_id is empty');
           alert('Bahan Baku wajib dipilih');
           setSaving(false);
           return;
         }
 
         if (!formData.quantity || !formData.unit_price) {
+          console.log('[Material Purchase] Validation error: quantity or unit_price is empty');
           alert('Qty dan Harga/Unit wajib diisi');
           setSaving(false);
           return;
         }
 
         if (!outletId) {
+          console.log('[Material Purchase] Validation error: outletId is empty');
           alert('Outlet belum dipilih');
           setSaving(false);
           return;
         }
 
         if (!sessionId) {
+          console.log('[Material Purchase] Validation error: sessionId is empty');
           alert('Session belum tersedia. Buka sesi harian terlebih dahulu.');
           setSaving(false);
           return;
         }
 
+        console.log('[Material Purchase] All validations passed, proceeding with submission');
         setPurchaseError(null);
         const totalAmount = parseFloat(formData.quantity) * parseFloat(formData.unit_price);
         
         console.log('[Material Purchase] Submitting:', {
           outlet_id: outletId,
+          session_id: sessionId,
           quantity: formData.quantity,
           unit_price: formData.unit_price,
           totalAmount,
@@ -538,10 +551,11 @@ export default function SourcingPage() {
         });
         
         console.log('[Material Purchase] Response status:', response.status);
+        console.log('[Material Purchase] Response headers:', Object.fromEntries(response.headers));
         
         if (!response.ok) {
-          const errorData = await response.json();
-          console.log('[Material Purchase] Error response:', errorData);
+          const errorData = await response.json().catch(() => ({}));
+          console.log('[Material Purchase] Error response:', JSON.stringify(errorData, null, 2));
           
           // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
           if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
