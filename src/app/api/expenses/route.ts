@@ -71,9 +71,12 @@ export async function POST(request: NextRequest) {
 
     // VALIDATION: Cek apakah kas cukup untuk pengeluaran ini (unless force_override)
     if (!force_override) {
+      console.log('[POST /api/expenses] Validating cash for amount:', amount);
       const validation = await validateExpenseTransaction(outlet_id, parseFloat(amount));
+      console.log('[POST /api/expenses] Cash validation result:', JSON.stringify(validation));
       
       if (!validation.canProceed) {
+        console.log('[POST /api/expenses] KAS_TIDAK_CUKUP - returning 400 with warning');
         // Return warning tapi jangan blocking - client bisa pilih untuk proceed dengan soft warning
         return NextResponse.json({
           error: validation.message,
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest) {
           status: 'warning' // Soft warning, bukan hard block
         }, { status: 400 });
       }
+      console.log('[POST /api/expenses] Cash validation passed, proceeding with insert');
     }
 
     const insertData = {

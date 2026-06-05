@@ -63,6 +63,14 @@ export async function calculateCashBalance(outletId: string): Promise<CashBalanc
     // Calculate available cash
     const availableCash = totalCapitalIn + totalSales - totalExpenses - totalRefunds;
 
+    console.log('[calculateCashBalance] For outlet:', outletId, {
+      totalCapitalIn,
+      totalSales,
+      totalExpenses,
+      totalRefunds,
+      availableCash,
+    });
+
     // Determine status
     let status: 'healthy' | 'warning' | 'critical' = 'healthy';
     let message = '✅ Kas sehat, operasional lancar';

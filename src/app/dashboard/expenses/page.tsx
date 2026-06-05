@@ -48,6 +48,8 @@ export default function ExpensesPage() {
   }
 
   async function handleSubmit(data: any, forceOverride: boolean = false) {
+    console.log('[Expenses] handleSubmit called:', { data, forceOverride, sessionId, outletId });
+    
     if (!sessionId) {
       alert('Session belum tersedia. Mohon tunggu...');
       return;
@@ -58,22 +60,30 @@ export default function ExpensesPage() {
       setError(null);
       setWarning(null);
       
+      const payload = {
+        session_id: sessionId,
+        outlet_id: outletId,
+        force_override: forceOverride,
+        ...data,
+      };
+      
+      console.log('[Expenses] Sending POST to /api/expenses:', JSON.stringify(payload, null, 2));
+      
       const response = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          outlet_id: outletId,
-          force_override: forceOverride,
-          ...data,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.log('[Expenses] Response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.log('[Expenses] Error response data:', JSON.stringify(errorData, null, 2));
         
         // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
         if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
+          console.log('[Expenses] Detected KAS_TIDAK_CUKUP, showing warning');
           setWarning({
             errorType: errorData.errorType,
             availableCash: errorData.availableCash,
@@ -87,15 +97,17 @@ export default function ExpensesPage() {
         }
         
         // Hard error - show and don't allow override
+        console.error('[Expenses] Hard error, not KAS_TIDAK_CUKUP:', errorData);
         throw new Error(errorData.message || errorData.error || 'Failed to save expense');
       }
 
       const newExpense = await response.json();
+      console.log('[Expenses] Success! Created expense:', newExpense);
       setExpenses([newExpense, ...expenses]);
       setWarning(null);
       // Reset form akan di-handle oleh component
     } catch (err: any) {
-      console.error('Error saving expense:', err);
+      console.error('[Expenses] Error saving expense:', err);
       setError(err.message);
     } finally {
       setLoading(false);
