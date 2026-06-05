@@ -45,6 +45,57 @@ export default function SessionDetailPage() {
     paymentMethod: 'cash' | 'qris' | 'split';
   }>({ channelType: 'offline', platform: '', paymentMethod: 'cash' });
 
+  async function loadData() {
+    if (!sessionId) return;
+    setLoading(true);
+    setError(null);
+
+    if (!outletId) {
+      setSales([]);
+      setExpenses([]);
+      setPurchases([]);
+      return;
+    }
+
+    try {
+      const salesRes = await fetch(`/api/sales?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
+      const salesData = salesRes.ok ? await salesRes.json() : [];
+      setSales(Array.isArray(salesData) ? salesData : []);
+    } catch (e) {
+      console.warn('Failed to fetch sales:', e);
+      setSales([]);
+    }
+
+    try {
+      const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
+      const expensesData = expensesRes.ok ? await expensesRes.json() : [];
+      setExpenses(Array.isArray(expensesData) ? expensesData : []);
+    } catch (e) {
+      console.warn('Failed to fetch expenses:', e);
+      setExpenses([]);
+    }
+
+    try {
+      const purchasesRes = await fetch(`/api/material-purchases?outlet_id=${outletId}&session_id=${sessionId}`);
+      const purchasesData = purchasesRes.ok ? await purchasesRes.json() : [];
+      setPurchases(Array.isArray(purchasesData) ? purchasesData : []);
+    } catch (e) {
+      console.warn('Failed to fetch material purchases:', e);
+      setPurchases([]);
+    }
+
+    try {
+      const cashRes = await fetch(`/api/cash-transactions?outlet_id=${outletId}&limit=500`);
+      const cashData = cashRes.ok ? await cashRes.json() : [];
+      setCashTransactions(Array.isArray(cashData) ? cashData : []);
+    } catch (e) {
+      console.warn('Failed to fetch cash transactions:', e);
+      setCashTransactions([]);
+    }
+
+    setLoading(false);
+  }
+
   useEffect(() => {
     async function load() {
       if (!sessionId) return;
@@ -56,37 +107,8 @@ export default function SessionDetailPage() {
         const sessionData = await sessionRes.json();
         setSession(sessionData || null);
 
-        // fetch sales and expenses but don't let them block session display
-          if (!outletId) {
-            setSales([]);
-            setExpenses([]);
-            setPurchases([]);
-            return;
-          }
-
-          try {
-            const salesRes = await fetch(`/api/sales?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
-            const salesData = salesRes.ok ? await salesRes.json() : [];
-            setSales(Array.isArray(salesData) ? salesData : []);
-          } catch (e) {
-            console.warn('Failed to fetch sales:', e);
-            setSales([]);
-          }
-
-          try {
-            const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
-            const expensesData = expensesRes.ok ? await expensesRes.json() : [];
-            setExpenses(Array.isArray(expensesData) ? expensesData : []);
-          } catch (e) {
-            console.warn('Failed to fetch expenses:', e);
-            setExpenses([]);
-          }
-
-          try {
-            const purchasesRes = await fetch(`/api/material-purchases?outlet_id=${outletId}&session_id=${sessionId}`);
-            const purchasesData = purchasesRes.ok ? await purchasesRes.json() : [];
-            setPurchases(Array.isArray(purchasesData) ? purchasesData : []);
-          } catch (e) {
+        // fetch sales, expenses, purchases, and cash transactions
+        await loadData();
             console.warn('Failed to fetch material purchases:', e);
             setPurchases([]);
           }
@@ -250,7 +272,7 @@ export default function SessionDetailPage() {
         throw new Error(errorData.error || 'Gagal menghapus');
       }
 
-      setExpenses((prev) => prev.filter((item) => item.id !== expenseId));
+      await loadData();
       alert('Pengeluaran dihapus');
     } catch (err: any) {
       alert('Gagal hapus: ' + (err.message || err));
@@ -271,7 +293,7 @@ export default function SessionDetailPage() {
         throw new Error(errorData.error || 'Gagal menghapus');
       }
 
-      setSales((prev) => prev.filter((item) => item.id !== saleId));
+      await loadData();
       alert('Penjualan dihapus');
     } catch (err: any) {
       alert('Gagal hapus: ' + (err.message || err));
