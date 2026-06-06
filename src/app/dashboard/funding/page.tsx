@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, Plus, Save, Edit2, X } from 'lucide-react';
-import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction } from '@/types';
+import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction, DashboardMetrics } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
@@ -21,6 +21,7 @@ interface FundingState {
   repayments: CapitalRepayment[];
   profitAllocations: ProfitAllocation[];
   cashTransactions: CashTransaction[];
+  metrics: DashboardMetrics | null;
   loading: boolean;
   error: string | null;
 }
@@ -34,6 +35,7 @@ export default function FundingPage() {
     repayments: [],
     profitAllocations: [],
     cashTransactions: [],
+    metrics: null,
     loading: true,
     error: null,
   });
@@ -54,12 +56,13 @@ export default function FundingPage() {
   async function fetchAllData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
-      const [entries, investors, repayments, profitAllocations, cashTransactions] = await Promise.all([
+      const [entries, investors, repayments, profitAllocations, cashTransactions, metricsRes] = await Promise.all([
         fetch(`/api/capital?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/investors?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/capital-repayments?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/profit-allocations?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/cash-transactions?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/dashboard?outlet_id=${outletId}`).then(r => r.json()),
       ]);
 
       setData({
@@ -68,6 +71,7 @@ export default function FundingPage() {
         repayments: Array.isArray(repayments) ? repayments : [],
         profitAllocations: Array.isArray(profitAllocations) ? profitAllocations : [],
         cashTransactions: Array.isArray(cashTransactions) ? cashTransactions : [],
+        metrics: metricsRes || null,
         loading: false,
         error: null,
       });
@@ -752,6 +756,15 @@ export default function FundingPage() {
     const [itemAmount, setItemAmount] = useState('');
     const [saving, setSaving] = useState(false);
 
+    // AUTO-CALCULATE PROFIT from metrics: Profit = Net Revenue - Operational Expenses ONLY
+    useEffect(() => {
+      if (data.metrics) {
+        // Profit = Net Revenue - Operational Expenses (from dashboard metrics)
+        const calculatedProfit = (data.metrics.today_net_revenue || 0) - (data.metrics.today_operational_expenses || 0);
+        setNetProfit(Math.max(0, calculatedProfit));
+      }
+    }, [data.metrics]);
+
     const kasNum = parseFloat(kasAmount) || 0;
     const allocatedTotal = allocationItems.reduce((sum, item) => sum + item.amount, 0);
     const remainder = netProfit - kasNum - allocatedTotal;
@@ -824,6 +837,56 @@ export default function FundingPage() {
 
     return (
       <div className="space-y-6">
+        {/* Profit Breakdown - show it clearly aligned with OPSI A */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-lg">💡 Profit Calculation (OPSI A)</CardTitle>
+            <CardDescription className="mt-2">
+              Profit = Penjualan Bersih - Operasional ONLY (Bahan & Peralatan = ASSETS, bukan expense)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
+              <div className="p-3 bg-white rounded border border-blue-200">
+                <p className="text-xs text-gray-600">Penjualan Bersih</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(data.metrics?.today_net_revenue || 0)}</p>
+              </div>
+              <div className="flex items-center justify-center">
+                <span className="text-2xl font-bold text-gray-400">−</span>
+              </div>
+              <div className="p-3 bg-white rounded border border-orange-200">
+                <p className="text-xs text-gray-600">Operasional</p>
+                <p className="text-lg font-bold text-orange-600">{formatCurrency(data.metrics?.today_operational_expenses || 0)}</p>
+              </div>
+              <div className="flex items-center justify-center">
+                <span className="text-2xl font-bold text-gray-400">=</span>
+              </div>
+              <div className="p-3 bg-white rounded border border-blue-300">
+                <p className="text-xs text-gray-600 font-semibold">🎯 Profit</p>
+                <p className="text-lg font-bold text-blue-600">{formatCurrency(netProfit)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-3 italic">
+              📌 Catatan: Bahan & Peralatan dihitung sebagai ASSETS (tidak mengurangi profit). Hanya Operasional yang mengurangi profit.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Settlement Priority Guide */}
+        <Card className="border-purple-200 bg-purple-50">
+          <CardHeader>
+            <CardTitle className="text-sm">📋 Prioritas Penggunaan Profit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-2 text-sm">
+              <li><span className="font-semibold">1️⃣ Operasional Expenses:</span> Bayar dari Kas Penjualan (Dari Kas)</li>
+              <li><span className="font-semibold">2️⃣ Modal Repayment:</span> Bayar Cicil/Lunas investor (Tab "📤 Pembayaran")</li>
+              <li><span className="font-semibold">3️⃣ Reserve Kas:</span> Simpan untuk operasional bulan depan</li>
+              <li><span className="font-semibold">4️⃣ Profit Sharing:</span> Bagikan ke investors (HANYA jika modal 100% sudah lunas)</li>
+            </ol>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -982,11 +1045,20 @@ export default function FundingPage() {
       repayment_date: new Date().toISOString().split('T')[0],
       method: 'cash',
       notes: '',
+      repayment_type: 'lunas' as 'lunas' | 'cicil',
+      remaining_modal: '',
     });
     const [saving, setSaving] = useState(false);
 
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
+
+      // VALIDATION: If cicil, require remaining_modal
+      if (formData.repayment_type === 'cicil' && !formData.remaining_modal) {
+        alert('Sisa modal harus diisi untuk pembayaran cicil');
+        return;
+      }
+
       setSaving(true);
       try {
         const response = await fetch('/api/capital-repayments', {
@@ -995,6 +1067,7 @@ export default function FundingPage() {
           body: JSON.stringify({
             ...formData,
             amount: parseFloat(formData.amount),
+            remaining_modal: formData.repayment_type === 'cicil' ? parseFloat(formData.remaining_modal) : null,
           }),
         });
         if (!response.ok) throw new Error('Failed to create repayment');
@@ -1004,6 +1077,8 @@ export default function FundingPage() {
           repayment_date: new Date().toISOString().split('T')[0],
           method: 'cash',
           notes: '',
+          repayment_type: 'lunas',
+          remaining_modal: '',
         });
         await fetchAllData();
       } catch (error) {
@@ -1021,38 +1096,64 @@ export default function FundingPage() {
     const totalRepaid = investorRepayments.reduce((sum: number, r: any) => sum + parseFloat(r.amount || 0), 0);
     const remaining = investorCapital - totalRepaid;
 
+    // Smart guidance: Check if lunas is possible
+    const repaymentAmount = parseFloat(formData.amount) || 0;
+    const isLunasAllowed = repaymentAmount > 0 && repaymentAmount >= remaining && remaining > 0;
+    const isCisilAllowed = repaymentAmount > 0 && repaymentAmount < remaining;
+
     return (
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Input Pembayaran Kembali</CardTitle>
+            <CardTitle>Input Pembayaran Kembali Modal</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label>Pilih Role</Label>
+                <Label>📥 Investor/Owner dengan Modal Masuk *</Label>
                 <Select value={formData.investor_id || ''} onValueChange={(val) => setFormData({ ...formData, investor_id: val || '' })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih role untuk dikembalikan">
-                      {formData.investor_id && data.investors.find((inv: any) => inv.id === formData.investor_id)?.name}
+                    <SelectValue placeholder="Pilih investor/owner yang sudah input modal">
+                      {formData.investor_id && (() => {
+                        const inv = data.investors.find((i: any) => i.id === formData.investor_id);
+                        const cap = data.capitalEntries
+                          .filter((c: any) => c.investor_id === formData.investor_id)
+                          .reduce((sum: number, c: any) => sum + parseFloat(c.amount || 0), 0);
+                        const icon = inv?.source_type === 'owner' ? '👤' : inv?.source_type === 'karyawan' ? '🧑' : '🤝';
+                        return `${icon} ${inv?.name} (Modal: Rp ${cap.toLocaleString('id-ID')})`;
+                      })()}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {data.investors
-                      .filter((inv: any) => {
-                        const invested = data.capitalEntries.filter((c: any) => c.investor_id === inv.id);
-                        return invested.length > 0;
-                      })
-                      .map((inv: any) => {
+                    {(() => {
+                      const investorsWithCapital = data.investors.filter((inv: any) => {
+                        const cap = data.capitalEntries.filter((c: any) => c.investor_id === inv.id);
+                        return cap.length > 0;
+                      });
+
+                      if (investorsWithCapital.length === 0) {
+                        return (
+                          <div className="p-3 text-sm text-gray-500">
+                            Belum ada investor/owner yang input modal. Silahkan input modal di Tab "📥 Modal Masuk" terlebih dahulu.
+                          </div>
+                        );
+                      }
+
+                      return investorsWithCapital.map((inv: any) => {
+                        const cap = data.capitalEntries
+                          .filter((c: any) => c.investor_id === inv.id)
+                          .reduce((sum: number, c: any) => sum + parseFloat(c.amount || 0), 0);
                         const icon = inv.source_type === 'owner' ? '👤' : inv.source_type === 'karyawan' ? '🧑' : '🤝';
                         return (
                           <SelectItem key={inv.id} value={inv.id}>
-                            {icon} {inv.name}
+                            {icon} {inv.name} - Modal: Rp {cap.toLocaleString('id-ID')}
                           </SelectItem>
                         );
-                      })}
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-500 mt-1">💡 Hanya menampilkan yang sudah input modal. Jika kosong, input modal dulu di Tab "Modal Masuk".</p>
               </div>
 
               {selectedInvestor && (
@@ -1083,7 +1184,7 @@ export default function FundingPage() {
                   />
                 </div>
                 <div>
-                  <Label>Jumlah (Rp)</Label>
+                  <Label>Jumlah (Rp) *</Label>
                   <Input
                     type="number"
                     value={formData.amount}
@@ -1093,6 +1194,58 @@ export default function FundingPage() {
                   />
                 </div>
               </div>
+
+              {/* Smart Guidance for Repayment Type */}
+              {repaymentAmount > 0 && remaining > 0 && (
+                <div className={`p-3 rounded text-sm ${isLunasAllowed ? 'bg-green-50 border border-green-200' : isCisilAllowed ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50 border border-gray-200'}`}>
+                  <p className="font-semibold mb-1">💡 Panduan Pembayaran:</p>
+                  {isLunasAllowed && (
+                    <p className="text-green-700">✓ Pembayaran lunasnya terasa sudah cukup atau melebihi sisa modal. Kamu bisa pilih <strong>Lunas</strong> untuk menyelesaikan sekaligus.</p>
+                  )}
+                  {isCisilAllowed && (
+                    <p className="text-yellow-700">⚠️ Pembayaran kurang dari sisa modal. Kamu harus pilih <strong>Cicil</strong> dan catat sisa yang masih pending.</p>
+                  )}
+                  {!isLunasAllowed && !isCisilAllowed && (
+                    <p className="text-gray-600">Masukkan jumlah pembayaran yang valid.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Repayment Type Selection */}
+              <div>
+                <Label>Jenis Pembayaran *</Label>
+                <Select value={formData.repayment_type} onValueChange={(val) => setFormData({ ...formData, repayment_type: val as 'lunas' | 'cicil', remaining_modal: '' })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lunas">
+                      💰 Lunas (Selesai) - Pembayaran penuh modal kembali
+                    </SelectItem>
+                    <SelectItem value="cicil">
+                      📊 Cicil (Bertahap) - Pembayaran sebagian, masih ada cicilan
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Remaining Modal Field (only for cicil) */}
+              {formData.repayment_type === 'cicil' && (
+                <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                  <Label>Sisa Modal yang Masih Cicil (Rp) *</Label>
+                  <Input
+                    type="number"
+                    value={formData.remaining_modal}
+                    onChange={(e) => setFormData({ ...formData, remaining_modal: e.target.value })}
+                    placeholder="Contoh: 500000"
+                    required
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-yellow-700 mt-2">
+                    📝 Catat jumlah sisa modal yang akan dibayar di kemudian hari. Contoh: Pembayaran sekarang Rp 250rb, sisa Rp 250rb → masukkan "250000"
+                  </p>
+                </div>
+              )}
 
               <div>
                 <Label>Metode</Label>
@@ -1138,16 +1291,29 @@ export default function FundingPage() {
                   const inv = data.investors.find((i: any) => i.id === rep.investor_id);
                   const icon = inv?.source_type === 'owner' ? '👤' : inv?.source_type === 'karyawan' ? '🧑' : '🤝';
                   const label = inv?.source_type === 'owner' ? 'Owner' : inv?.source_type === 'karyawan' ? 'Karyawan' : 'Investor';
+                  const typeIcon = rep.repayment_type === 'lunas' ? '💰' : '📊';
+                  const typeLabel = rep.repayment_type === 'lunas' ? 'Lunas' : 'Cicil';
                   return (
-                    <div key={rep.id} className="border rounded-lg p-3 flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold">
-                          <span className="mr-2">{icon}</span>
-                          {inv?.name || 'Unknown'}
-                        </p>
-                        <p className="text-sm text-gray-600">{label} • {formatDate(rep.repayment_date)}</p>
+                    <div key={rep.id} className="border rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <p className="font-semibold">
+                            <span className="mr-2">{icon}</span>
+                            {inv?.name || 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-600">{label} • {formatDate(rep.repayment_date)}</p>
+                        </div>
+                        <p className="font-semibold text-green-600">{formatCurrency(rep.amount)}</p>
                       </div>
-                      <p className="font-semibold text-green-600">{formatCurrency(rep.amount)}</p>
+                      <div className="flex gap-2 items-center text-xs mt-2 pt-2 border-t border-gray-200">
+                        <span className="text-gray-600">{typeIcon} {typeLabel}</span>
+                        {rep.repayment_type === 'cicil' && rep.remaining_modal && (
+                          <span className="text-orange-600">• Sisa: {formatCurrency(rep.remaining_modal)}</span>
+                        )}
+                        {rep.notes && (
+                          <span className="text-gray-600 italic">• {rep.notes}</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

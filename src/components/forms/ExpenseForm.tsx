@@ -11,15 +11,10 @@ import { Alert, AlertDescription } from '@/components/ui/card';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { useOutlet } from '@/lib/context/OutletContext';
 
-interface RawMaterial {
+interface Investor {
   id: string;
   name: string;
-  unit: string;
-}
-
-interface Supplier {
-  id: string;
-  name: string;
+  status: string;
 }
 
 interface ExpenseFormProps {
@@ -37,64 +32,61 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'bank_transfer' | 'pending'>('cash');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
   const [settlementDate, setSettlementDate] = useState('');
-  const [deliveryDate, setDeliveryDate] = useState('');
-  const [rawMaterialId, setRawMaterialId] = useState<string>('');
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [materials, setMaterials] = useState<RawMaterial[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [fundingSource, setFundingSource] = useState<'kas' | 'modal'>('kas');
+  const [fundedByInvestorId, setFundedByInvestorId] = useState<string>('');
+  const [investors, setInvestors] = useState<Investor[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
-  // Fetch materials and suppliers
+  // Fetch investors (for modal funding)
   useEffect(() => {
     if (!outletId) return;
     
-    async function fetchData() {
+    async function fetchInvestors() {
       try {
         setLoadingData(true);
-        const [materialsRes, suppliersRes] = await Promise.all([
-          fetch(`/api/raw-materials?outlet_id=${outletId}`),
-          fetch(`/api/suppliers?outlet_id=${outletId}`),
-        ]);
-        
-        if (materialsRes.ok) {
-          const mats = await materialsRes.json();
-          setMaterials(Array.isArray(mats) ? mats : []);
-        }
-        
-        if (suppliersRes.ok) {
-          const sups = await suppliersRes.json();
-          setSuppliers(Array.isArray(sups) ? sups : []);
+        const res = await fetch(`/api/investors?outlet_id=${outletId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setInvestors(Array.isArray(data) ? data : []);
         }
       } catch (error) {
-        console.error('Error fetching materials/suppliers:', error);
+        console.error('Error fetching investors:', error);
       } finally {
         setLoadingData(false);
       }
     }
     
-    fetchData();
+    fetchInvestors();
   }, [outletId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // VALIDATION: Description required, min 3 chars
+    if (!description || description.trim().length < 3) {
+      alert('Deskripsi harus minimal 3 karakter');
+      return;
+    }
+
+    // VALIDATION: If modal, investor required
+    if (fundingSource === 'modal' && !fundedByInvestorId) {
+      alert('Pilih investor untuk pengeluaran dari modal');
+      return;
+    }
+
     try {
       const formData: any = {
         date,
         category,
-        description,
+        description: description.trim(),
         amount: parseFloat(amount),
         payment_method: paymentMethod,
         payment_status: paymentStatus,
         settlement_date: settlementDate || null,
         notes,
+        funding_source: fundingSource,
+        funded_by_investor_id: fundingSource === 'modal' ? fundedByInvestorId : null,
       };
-
-      // Add material fields if kategori = bahan
-      if (category === 'bahan') {
-        formData.raw_material_id = rawMaterialId || null;
-        formData.supplier_id = supplierId || null;
-        formData.delivery_date = deliveryDate || null;
-      }
 
       await onSubmit(formData);
       
@@ -104,9 +96,9 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
       setDescription('');
       setAmount('0');
       setNotes('');
-      setDeliveryDate('');
-      setRawMaterialId('');
-      setSupplierId('');
+      setSettlementDate('');
+      setFundingSource('kas');
+      setFundedByInvestorId('');
     } catch (error) {
       console.error('Error submitting form:', error);
     }
@@ -134,73 +126,18 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                   <SelectItem value="bahan">Bahan</SelectItem>
                   <SelectItem value="operasional">Operasional</SelectItem>
                   <SelectItem value="peralatan">Peralatan</SelectItem>
-                  <SelectItem value="gabungan">Gabungan (Fleksibel)</SelectItem>
-                  <SelectItem value="lain_lain">Lain-lain</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Conditional: Bahan-specific fields */}
-          {category === 'bahan' && (
-            <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <div>
-                <Label htmlFor="rawMaterialId">Pilih Bahan</Label>
-                <Select value={rawMaterialId} onValueChange={setRawMaterialId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={loadingData ? 'Loading...' : 'Pilih bahan'}>
-                      {rawMaterialId && materials.find((m) => m.id === rawMaterialId)?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {materials.length > 0 ? (
-                      materials.map((mat) => (
-                        <SelectItem key={mat.id} value={mat.id}>{mat.name}</SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="_empty" disabled>Tidak ada bahan - silahkan input terlebih dahulu di Manajemen Bahan</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-600 mt-1">⚠️ Jika belum ada pilihan bahan, silahkan input terlebih dahulu di Manajemen Bahan</p>
-              </div>
-
-              <div>
-                <Label htmlFor="supplierId">Supplier (Opsional)</Label>
-                <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih supplier (opsional)">
-                      {supplierId === '' ? '' : suppliers.find((s) => s.id === supplierId)?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Tidak ada supplier</SelectItem>
-                    {suppliers.map((sup) => (
-                      <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="deliveryDate">Tanggal Pengiriman (Opsional)</Label>
-                <Input
-                  id="deliveryDate"
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e) => setDeliveryDate(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
           <div className="pt-1">
-            <Label htmlFor="description">Deskripsi</Label>
+            <Label htmlFor="description">Deskripsi *</Label>
             <Input
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Deskripsi pengeluaran"
+              placeholder="Deskripsi pengeluaran (minimal 3 karakter)"
               required
             />
           </div>
@@ -253,6 +190,43 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
               value={settlementDate}
               onChange={(e) => setSettlementDate(e.target.value)}
             />
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 items-start">
+            <div>
+              <Label htmlFor="funding_source">Sumber Dana *</Label>
+              <Select value={fundingSource} onValueChange={(value) => setFundingSource(value as 'kas' | 'modal')}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kas">Dari Kas (Penjualan)</SelectItem>
+                  <SelectItem value="modal">Dari Modal (Investor)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {fundingSource === 'modal' && (
+              <div>
+                <Label htmlFor="investor">Investor *</Label>
+                <Select value={fundedByInvestorId} onValueChange={setFundedByInvestorId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={loadingData ? 'Loading...' : 'Pilih investor'}>
+                      {fundedByInvestorId && investors.find((inv) => inv.id === fundedByInvestorId)?.name}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {investors.length > 0 ? (
+                      investors.map((inv) => (
+                        <SelectItem key={inv.id} value={inv.id}>{inv.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="_empty" disabled>Tidak ada investor</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div>

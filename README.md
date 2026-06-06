@@ -23,9 +23,59 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
   - **Alokasi Laba Manual**: Masukkan laba bersih, potong kas operasional, lalu bagikan sisa secara nominal ke stakeholder terpilih.
   - **Hapus Rule-based Allocation**: Menghilangkan kompleksitas otomatis; pembagian sepenuhnya berdasarkan input manual per periode.
 
-## Rencana Ke Depan
+### 📌 REFACTOR FUNDING SOURCE & EXPENSE SIMPLIFICATION (2026-06-07)
 
-- **Migration**: Jalankan `database/migration-session-status.sql` dan `database/migration-outlet-settings.sql` di Supabase.
+Sistem kini memiliki arsitektur keuangan yang lebih jelas dengan tracking per-transaksi:
+
+**Perubahan Utama:**
+- **Funding Source Tracking**: Setiap pengeluaran sekarang terbagi antara "Dari Kas" (penjualan) vs "Dari Modal" (investor injection)
+- **Expense Categories Simplified**: Dari 5 kategori → 3 kategori inti (Bahan, Operasional, Peralatan) untuk menghilangkan ambiguitas
+- **Smart Cicil/Lunas Repayment**: Pengembalian modal bisa full (lunas) atau partial (cicil) dengan tracking sisa yang pending
+- **OPSI A Profit Model**: **Profit = Penjualan - Operasional ONLY** (Bahan & Peralatan = ASSETS di balance sheet, bukan expense)
+
+**Settlement Priority (Fixed Order):**
+1. Operating Expenses (dari kas penjualan)
+2. Modal Repayment (partial/full dengan cicil/lunas)
+3. Reserve Kas (untuk operasional bulan depan)
+4. Profit Sharing (hanya jika modal 100% sudah kembali)
+
+**Detail Implementasi & Migrasi:** Lihat [REFACTOR_FUNDING_EXPENSES_PLAN.md](REFACTOR_FUNDING_EXPENSES_PLAN.md) untuk dokumentasi lengkap tentang database changes, API validation, form updates, dan testing guide.
+
+## ✅ Status Implementasi Saat Ini
+
+### Fitur yang SUDAH Selesai & Teruji
+- ✅ Multi-outlet support dengan selector outlet
+- ✅ Daily session management (buka/tutup sesi)
+- ✅ Sales entry dengan 3 channel (Offline/ShopeeFood/GoFood)
+- ✅ Auto-kalkulasi platform fee per channel
+- ✅ Payment methods: Cash, QRIS, Split
+- ✅ Expense entry dengan 3 kategori (Bahan/Operasional/Peralatan)
+- ✅ Funding source tracking (Dari Kas / Dari Modal)
+- ✅ Investor management dengan source_type (owner/investor/karyawan)
+- ✅ Cicil vs Lunas repayment dengan smart guidance
+- ✅ Product master dengan channel-specific pricing
+- ✅ Dashboard metrics dengan cash flow breakdown
+- ✅ Reports & Excel export
+- ✅ Allocation & profit sharing
+- ✅ Material purchases & supplier tracking
+- ✅ TypeScript interfaces updated dengan funding source fields
+- ✅ API validation untuk category, funding_source, investor_id
+
+### Fitur Pending Testing
+- ⏳ End-to-end testing dengan real business data (akan test saat live)
+- ⏳ Database migrations execution di Supabase (manual run required)
+- ⏳ Cross-tab data correlation verification
+- ⏳ Settlement workflow full validation
+
+### Catatan Penting
+- 📌 **No Data Loss Risk**: Refactor bersifat additive (hanya tambah columns, tidak hapus)
+- 📌 **Demo Data**: Seed data masih ada untuk development, akan di-cleanup sebelum production
+- 📌 **RLS Status**: Masih permissive (demo mode), perlu hardening untuk production
+- 📌 **Auth Status**: Belum implementasi (stub only), bisa ditambah kemudian
+
+---
+
+- **Database Migrations**: Jalankan migration-funding-source-tracking.sql untuk menambah columns `funding_source`, `funded_by_investor_id`, `repayment_type`, dan `remaining_modal` yang diperlukan untuk refactor terbaru
 - **Audit Lanjutan**: Cari sisa mock/dummy yang belum berdampak langsung ke laporan atau transaksi.
 - **Multi-outlet Report**: Tambahkan ringkasan lintas outlet dan filter agregasi yang lebih jelas.
 - **UX Mobile**: Rapikan selector outlet dan navigasi di layar kecil.
@@ -33,12 +83,29 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 
 ## Peta Modul
 
-- **`src/app/(auth)`**: Alur login dan layout autentikasi.
-- **`src/app/(dashboard)`**: Halaman operasional utama seperti dashboard, sesi, sales, expenses, capital, products, reports, dan settings.
-- **`src/app/api`**: Sumber data real untuk semua transaksi, ringkasan, dan aksi CRUD.
-- **`src/components`**: Form, tabel, chart, header, sidebar, dan komponen UI reusable.
-- **`src/lib`**: Kalkulasi bisnis, konteks outlet, helper kas, alokasi laba, ekspor Excel, dan client Supabase.
-- **`database` + `migrations`**: Skema awal, perubahan struktur, dan seed SQL yang harus diselaraskan dengan kode.
+- **`src/app/(auth)`**: Alur login dan layout autentikasi (stub for future auth expansion)
+- **`src/app/dashboard`**: Halaman operasional (dashboard, sessions, sales, expenses, capital, funding/investors, products, materials, sourcing, suppliers, reports, settings)
+- **`src/app/api`**: Backend routes untuk semua operasi CRUD dan kalkulasi bisnis
+- **`src/components`**: Reusable UI components (forms, tables, charts, layout, modals, ui)
+  - **forms/**: ExpenseForm, SaleForm, SessionForm, etc.
+  - **tables/**: SalesTable, ExpensesTable, InvestorsTable, etc.
+  - **charts/**: DailyProfitChart, RevenueByChannelChart, PaymentMethodChart, TopProductsChart
+  - **layout/**: Header, Sidebar, OutletContext Provider
+  - **modals/**: Modal dialogs untuk create/edit/delete
+  - **ui/**: shadcn components (Button, Card, Dialog, Select, etc.)
+- **`src/lib`**: Business logic & utilities
+  - **supabase/**: Server & client Supabase clients dengan RLS context
+  - **calculations/**: Platform fee calculation, profit calculation
+  - **allocation/**: Profit allocation engine & logic
+  - **cash/**: Cash ledger & reconciliation
+  - **context/**: OutletContext untuk outlet selector & session management
+  - **export/**: Excel export utility untuk reports
+  - **utils.ts**: Formatter & helper functions
+- **`database/` & `migrations/`**: SQL schema, migrations, seed data
+  - Initial schema: businesses, outlets, products, etc.
+  - Migration files: funding-source-tracking, session-status, outlet-settings, etc.
+  - Seed files: Demo data untuk development
+- **`types/`**: TypeScript interfaces untuk database models & UI forms
 
 ## Alur Data
 
@@ -129,20 +196,26 @@ flowchart LR
 
 | Tabel | Peran | Relasi penting |
 | --- | --- | --- |
-| `businesses` | Identitas usaha | Induk dari `outlets` |
-| `outlets` | Cabang/gerai aktif | Dipakai semua transaksi melalui `outlet_id` |
+| `businesses` | Identitas usaha (holding) | Induk dari `outlets` |
+| `outlets` | Cabang/gerai aktif | Foreign key di semua transaksi & master data |
 | `daily_sessions` | Wadah transaksi harian | Parent untuk `sales` dan `expenses` |
-| `sales` | Header penjualan | Parent untuk `sale_items`, refer ke `daily_sessions` dan `outlets` |
-| `sale_items` | Detail item penjualan | Refer ke `sales` dan `products` |
-| `expenses` | Pengeluaran operasional | Refer ke `daily_sessions` dan `outlets` |
+| `sales` | Header penjualan | Parent untuk `sale_items`, refer ke `daily_sessions` & `outlets` |
+| `sale_items` | Detail item per penjualan | Refer ke `sales` dan `products` |
+| `expenses` | Pengeluaran operasional & asset | Refer ke `daily_sessions`, `outlets`, dan opsional `investors` (jika funding_source='modal') |
 | `capital_entries` | Catatan modal masuk | Refer ke `outlets` dan opsional `investors` |
-| `capital_repayments` | Riwayat pengembalian modal | Refer ke `investors` |
-| `investors` | Data investor / owner | Refer ke `outlets` |
-| `stakeholders` | Penerima bagian laba | Refer ke `outlets` dan opsional `investors` |
-| `allocation_rules` | Aturan pembagian laba | Refer ke `outlets` |
+| `capital_repayments` | Riwayat pengembalian modal | Refer ke `investors`, track `repayment_type` (lunas/cicil) & `remaining_modal` |
+| `investors` | Data pemberi modal | Refer ke `outlets`, punya `source_type` (owner/investor/karyawan) |
+| `products` | Master produk jualan | Refer ke `outlets`, punya channel-specific pricing (offline/shopeefood/gofood) |
 | `raw_materials` | Master bahan baku | Refer ke `outlets` |
-| `material_purchases` | Pembelian bahan | Refer ke `outlets` dan `raw_materials` |
-| `products` | Master produk jualan | Refer ke `outlets` |
+| `material_purchases` | Pembelian bahan baku | Refer ke `outlets`, `raw_materials`, opsional `suppliers` |
+| `suppliers` | Master supplier bahan | Refer ke `outlets` |
+| `supplier_prices` | Harga per supplier-bahan | Refer ke `suppliers` & `raw_materials` |
+| `stakeholders` | Penerima alokasi laba | Refer ke `outlets` dan opsional `investors` |
+| `allocation_rules` | Aturan pembagian laba | Refer ke `outlets` |
+| `profit_allocations` | Record alokasi laba per periode | Refer ke `outlets` |
+| `allocation_runs` | Eksekusi alokasi (dry/executed) | Refer ke `outlets` dan `allocation_rules` |
+| `allocation_items` | Detail per stakeholder per alokasi | Refer ke `allocation_runs` dan `stakeholders` |
+| `cash_transactions` | Ledger mutasi kas untuk audit trail | Refer ke `outlets` dan source transaksi |
 | `outlet_settings` | Konfigurasi per outlet | Unique per `outlet_id` |
 
 ## Model Funding dan Alokasi Hasil
@@ -259,108 +332,278 @@ erDiagram
 | `/api/settings` | `GET`, `PUT` | Baca/simpan setting outlet | `outlet_settings` |
 | `/api/outlets` | `GET` | Daftar outlet aktif | `outlets`, `businesses` |
 
-## 🎯 Fitur Utama
+## 🎯 Fitur Utama & Dashboard Pages
 
-### Dashboard
-- **Metrik Utama**: Pendapatan kotor, pendapatan bersih, keuntungan, dan pengeluaran
-- **Visualisasi Data**: Grafik pendapatan per channel, metode pembayaran, trend keuntungan harian
-- **Real-time Updates**: Data diperbarui otomatis
+Sistem terbagi menjadi beberapa halaman operasional di `/app/dashboard/`:
 
-### Manajemen Sesi
-- Buka sesi harian dengan modal awal
-- Catat semua transaksi dalam sesi
-- Tutup sesi dengan cash balance verification
-- Riwayat sesi lengkap dengan detail penjualan dan pengeluaran
+### **Dashboard** (`/dashboard/dashboard`)
+- **Metrik Inti**: Pendapatan kotor, pendapatan bersih (setelah platform fee), laba, pengeluaran
+- **Breakdown Kategori**: Pengeluaran terbagi 3 kategori (Bahan, Operasional, Peralatan)
+- **Cash Flow Tracking**: Kas dari modal vs kas dari penjualan
+- **Grafik Visualisasi**:
+  - Pendapatan per channel (Offline/ShopeeFood/GoFood)
+  - Metode pembayaran (Cash/QRIS)
+  - Produk paling terjual
+  - Trend laba harian
+- **Real-time Updates**: Metrik otomatis update dari database real
 
-### Penjualan
-- Input penjualan dengan tiga channel: Offline, ShopeeFood, GoFood
-- Kalkulasi otomatis biaya platform (0% offline, 20% ShopeeFood, 25% GoFood)
-- Support metode pembayaran: Cash & QRIS
-- Pencatatan catatan per transaksi
+### **Manajemen Sesi** (`/dashboard/sessions`)
+- Buka sesi harian dengan modal awal (opening cash)
+- Sesi adalah container untuk semua transaksi hari itu
+- Tutup sesi dengan verifikasi cash balance dan closing cash
+- Riwayat sesi lengkap dengan ringkasan penjualan & pengeluaran per sesi
+- Guard: Tidak bisa buka 2 sesi untuk outlet yang sama di hari yang sama
 
-### Pengeluaran
-- Kategori pengeluaran: Bahan Baku, Operasional, Transport, Peralatan, Lain-lain
-- Pencatatan tanggal, kategori, deskripsi, dan jumlah
-- Analisis pengeluaran per kategori
+### **Penjualan** (`/dashboard/sales`)
+- Input penjualan dengan 3 channel: **Offline** (0% fee), **ShopeeFood** (20% fee), **GoFood** (25% fee)
+- Metode pembayaran: Cash, QRIS, Split (cash + QRIS)
+- Fitur split payment: Pisah pembayaran antara cash dan QRIS
+- Auto-kalkulasi: Gross amount → Platform fee → Net amount
+- Order reference tracking (untuk online channels)
+- Multi-item per transaksi (item + qty + price)
+- Catatan per transaksi
 
-### Modal Usaha
+### **Pengeluaran** (`/dashboard/expenses`)
+- **Kategori (3 only)**:
+  - **Bahan**: Inventory asset (tidak langsung mengurangi profit)
+  - **Operasional**: Biaya rutin harian (langsung mengurangi profit per OPSI A)
+  - **Peralatan**: Inventory asset (tidak langsung mengurangi profit)
+- **Funding Source Tracking**:
+  - "Dari Kas": Bayar dari penjualan revenue
+  - "Dari Modal": Bayar dari investor injection (require select investor)
+- Pencatatan dengan deskripsi, jumlah, tanggal
+- Analisis per kategori & per sumber dana
+- **⚠️ Akuntansi OPSI A**: Hanya Operasional yang mengurangi profit; Bahan & Peralatan = Balance Sheet ASSETS
+
+### **Modal Usaha** (`/dashboard/capital`)
 - Pencatatan entri modal dari berbagai sumber
-- Total modal terakumulasi
-- Riwayat lengkap dengan tanggal dan sumber
+- Link ke investor (optional, jika dari specific investor)
+- Tracking source_type (owner vs investor vs karyawan)
+- Total modal terakumulasi per outlet
+- Riwayat lengkap dengan tanggal, amount, sumber
 
-### Manajemen Investor
-- **Daftar Investor**: Track semua pemberi modal dengan prioritas pengembalian
-- **Sistem Return Modal**: Pencatatan pengembalian modal dengan otomatis update saldo
-- **Progress Tracking**: Progress pengembalian per investor dengan persentase
-- **History**: Riwayat lengkap pengembalian modal untuk setiap investor
-- **Priority-based Repayment**: Investor dengan priority lebih tinggi didahulukan pengembaliannya
+### **Manajemen Investor / Sumber Dana** (`/dashboard/investors`)
+- **Kelola Sumber Dana**: Daftarkan owner, investor, dan karyawan
+- **Source Type**: Distinguish antara owner (pemilik usaha), investor (pemberi modal), karyawan (anggota tim)
+- **Initial Contribution**: Catat berapa banyak modal awal setiap sumber
+- **Tracking Manual**: Remaining balance otomatis update saat ada repayment
+- **Status**: active, partial, settled
+- **Priority Order**: Urutan prioritas pengembalian modal
 
-### Alokasi Laba & Kas Muter
-- Catat laba bulanan setelah operasional berjalan
-- Pisahkan dana yang ditahan sebagai kas muter / cadangan
-- Pisahkan dana yang dibagikan ke founder / partner / bonus tim
-- Simpan skema alokasi yang fleksibel per bulan
-- Cocok untuk fase balik modal, fase normal, dan fase ekspansi
+### **Pembayaran Modal / Alokasi Laba** (`/dashboard/funding`)
+Halaman multi-tab untuk manajemen funding:
 
-### Pembelian Bahan Baku
-- Input pembelian dengan kalkulasi otomatis total (qty × unit price)
-- Pencatatan tanggal, jumlah, dan harga per unit
-- Riwayat pembelian lengkap
+**Tab 1: Kelola Role**
+- Daftar dan edit data owner/investor/karyawan
+- Tambah, edit, hapus funding source
+- View investor contribution amount & remaining balance
 
-### Produk
-- Manajemen daftar produk dengan harga
-- Status aktif/nonaktif produk
-- Deskripsi dan detail produk
+**Tab 2: Modal (Capital)**
+- Entry modal masuk dari investor/owner
+- Link ke specific investor
+- Pencatatan tanggal & amount
+- Riwayat lengkap modal per outlet
 
-### Laporan Keuangan
-- **Laporan P&L**: Pendapatan kotor, biaya platform, pendapatan bersih, pengeluaran, laba
-- **Marjin Keuntungan**: Persentase profit margin
-- **Analisis per Kategori**: Breakdown pengeluaran per kategori
-- **Export Excel**: Multi-sheet dengan summary dan detail
-- **Filter Periode**: Laporan berdasarkan range tanggal
+**Tab 3: Alokasi Laba (Profit Allocation)**
+- **Profit Calculation**: Auto-calculate dari metrics
+  - Formula: **Profit = Penjualan - Operasional ONLY** (OPSI A)
+  - Bahan & Peralatan tidak dihitung sebagai expense
+- **Settlement Priority** (Fixed Order):
+  1. Operating Expenses (bayar dari kas penjualan)
+  2. Modal Repayment (partial/full dengan cicil/lunas)
+  3. Reserve Kas (untuk operasional bulan depan)
+  4. Profit Sharing (hanya setelah modal 100% kembali)
+- Manual input untuk kas cadangan & alokasi nominal per stakeholder
+- Verifikasi: Total alokasi tidak boleh melebihi available profit
 
-## 🔄 Alur Operasional yang Disarankan
+**Tab 4: Pembayaran Balik Modal (Modal Repayment)**
+- Dropdown investor dengan capital amount
+- **Cicil vs Lunas Smart Guidance**:
+  - If available cash ≥ total pending modal: Suggest LUNAS (full repayment)
+  - If available cash < total pending modal: Suggest CICIL (partial repayment)
+- **Lunas** (Full): Repay seluruh sisa modal sekaligus
+- **Cicil** (Partial):
+  - Input jumlah bayar kali ini
+  - System track remaining_modal untuk pembayaran periode berikutnya
+  - Catatan untuk audit trail
+- Repayment history dengan type indicator (✅ Lunas / 📅 Cicil)
+- Auto-update investor remaining_balance
 
-1. **Buka Sesi Harian**
-  - Buat sesi harian dulu sebagai wadah semua transaksi hari itu.
-  - Semua penjualan dan pengeluaran harus menempel ke sesi aktif.
+### **Produk Master** (`/dashboard/products`)
+- Manajemen daftar produk dengan 3 channel-specific pricing:
+  - Price Offline
+  - Price ShopeeFood
+  - Price GoFood
+- Status aktif/nonaktif per produk
+- Deskripsi & kategori produk
+- Delete dan edit functionality
 
-2. **Input Penjualan**
-  - Catat transaksi terjual dari buku manual atau rekap Damim.
-  - Channel menentukan fee platform otomatis.
+### **Bahan & Sourcing** (`/dashboard/materials`, `/dashboard/sourcing`)
+- **Raw Materials Master**: Daftar bahan baku dengan unit (kg, pcs, dll)
+- **Suppliers Master**: Daftarkan supplier dengan contact, rating, reliability
+- **Supplier Prices**: Track harga per supplier per bahan (untuk comparison & negotiation)
+- **Material Purchases**: Catatan pembelian bahan dengan quantity, unit price, total
+  - Link ke session (optional)
+  - Link ke supplier
+  - Invoice number, payment status, delivery date
+  - Quality notes (Baik/Kurang/Rusak)
 
-3. **Input Pengeluaran Operasional**
-  - Gunakan untuk bensin, plastik, tisu, listrik, parkir, dan biaya harian lain.
-  - Ini bukan pembelian stok bahan.
+### **Laporan Keuangan** (`/dashboard/reports`)
+- **Laporan P&L (Profit & Loss)**:
+  - Gross Revenue, Platform Fees, Net Revenue
+  - Operating Expenses, Inventory/Asset Purchases
+  - Profit Margin %
+  - Expense breakdown by category
+- **Export Excel**: Multi-sheet format dengan summary & detail
+- **Filter Periode**: Custom date range
+- **Analisis**: Trend & comparison per channel
 
-4. **Input Pembelian Bahan**
-  - Gunakan fitur sourcing untuk bahan baku, supplier, dan pembelian stok.
-  - Data ini dipisah dari pengeluaran operasional supaya stok dan biaya tidak tercampur.
+### **Pengaturan** (`/dashboard/settings`)
+- Setting per outlet (e.g., default opening cash, reserve percentage)
+- Save & read dari API `/api/settings`
+- Persisten per outlet_id
 
-5. **Input Modal / Investor**
-  - Catat modal awal, tambahan modal, dan pembayaran kembali modal.
-  - Fase awal bisa fokus ke balik modal dulu.
+## 🔄 Alur Operasional yang Disarankan (Daily)
 
-6. **Catat Alokasi Laba Bulanan**
-  - Setelah balik modal atau sesuai keputusan bulanan, tentukan berapa yang ditahan di kas muter dan berapa yang dibagi.
-  - Skema bisa berubah tiap bulan sesuai kebutuhan usaha.
+### **Pagi - Buka Sesi**
+1. Buka halaman `/dashboard/sessions`
+2. Klik "Buat Sesi Baru"
+3. Input opening cash (modal awal hari ini)
+4. Sesi sekarang siap menerima transaksi
 
-7. **Cek Dashboard & Laporan**
-  - Dashboard untuk pantau ringkasan harian.
-  - Laporan untuk lihat profit, biaya, dan posisi usaha.
+### **Siang/Sore - Catat Transaksi**
+
+**Input Penjualan:**
+1. Buka `/dashboard/sales`
+2. Catat setiap transaksi terjual:
+   - Pilih channel (Offline/ShopeeFood/GoFood)
+   - Pilih produk & qty
+   - Sistem auto-hitung platform fee & net amount
+   - Pilih payment method (Cash/QRIS/Split)
+3. Sistem auto-hitung profit per channel
+
+**Input Pengeluaran:**
+1. Buka `/dashboard/expenses`
+2. Catat setiap pengeluaran:
+   - Pilih kategori (Bahan/Operasional/Peralatan)
+   - Input deskripsi (e.g., "Beras 10kg", "Gas", "Panci baru")
+   - Input jumlah & tanggal
+   - Pilih sumber dana:
+     - "Dari Kas": Bayar dari revenue penjualan
+     - "Dari Modal": Bayar dari investor capital (wajib select investor)
+3. Deskripsi mandatory untuk audit trail
+
+**Input Modal (jika ada):**
+1. Buka `/dashboard/funding` → Tab 2 (Modal)
+2. Catat jika ada investor masuk modal
+3. Pilih investor & jumlah modal
+4. Sistem track di investor table
+
+### **Malam - Tutup Sesi & Alokasi**
+
+**Tutup Sesi:**
+1. Buka `/dashboard/sessions`
+2. Cari sesi hari ini → Klik "Tutup Sesi"
+3. Input closing cash (uang tunai yang tersisa)
+4. Sistem verifikasi: closing_cash ≥ (opening_cash + net penjualan - pengeluaran kas)
+5. Sesi closed, transaksi tidak bisa diubah
+
+**Alokasi Laba (jika sudah saatnya / bulanan):**
+1. Buka `/dashboard/funding` → Tab 3 (Alokasi Laba)
+2. Sistem auto-calculate profit:
+   - `Profit = Total Penjualan - Operasional ONLY`
+   - Bahan & Peralatan = Balance Sheet Assets (tidak kurang profit)
+3. Input kas cadangan (untuk operasional bulan depan)
+4. Input alokasi nominal ke setiap owner/investor
+5. Verifikasi total alokasi ≤ available profit
+6. Simpan record alokasi
+
+**Bayar Kembali Modal (jika ada surplus cash):**
+1. Buka `/dashboard/funding` → Tab 4 (Pembayaran)
+2. Pilih investor dengan modal pending
+3. Smart guidance akan suggest:
+   - "Bayar LUNAS" (jika cash cukup untuk semuanya)
+   - "Cicil saja" (jika cash terbatas)
+4. Pilih metode:
+   - **Lunas**: Bayar seluruh sisa modal sekaligus
+   - **Cicil**: Bayar sebagian, sisa untuk periode berikutnya
+5. Input jumlah & catatan
+6. Simpan → Investor remaining_balance auto-update
+
+### **Akhir Bulan - Review & Export**
+
+1. Buka `/dashboard/reports`
+2. Set periode filter (bulan ini)
+3. Review P&L:
+   - Gross revenue vs net revenue (setelah platform fee)
+   - Operasional vs Inventory spending
+   - Profit margin
+4. Export Excel untuk arsip & analisis
+5. Share laporan ke investor/owner
+
+---
+
+## 📊 Akuntansi Model (OPSI A - Final)
+
+```
+PROFIT CALCULATION:
+  Gross Revenue (offline + online)
+  - Platform Fees (20% ShopeeFood, 25% GoFood)
+  = NET REVENUE
+  - Operational Expenses ONLY
+  = PROFIT UNTUK DISTRIBUSI
+  
+TIDAK dikurangi profit:
+  × Bahan (inventory asset)
+  × Peralatan (inventory asset)
+  
+SETTLEMENT ORDER (Fixed):
+  1. Operating Expenses (pay from sales revenue)
+  2. Modal Repayment (lunas atau cicil)
+  3. Reserve Kas (next month operational)
+  4. Profit Sharing (ke owner/investor) - only if modal 100% returned
+```
+
+---
+
+## 💾 Database Structure (Post-Refactor)
+
+### Expense Funding Source Tracking
+```sql
+expenses table additions:
+├─ funding_source: 'kas' | 'modal'
+├─ funded_by_investor_id: UUID (null if kas)
+└─ (Bahan & Peralatan marked as assets, not immediate expenses)
+```
+
+### Capital Repayment Flexibility
+```sql
+capital_repayments table additions:
+├─ repayment_type: 'lunas' | 'cicil'
+├─ remaining_modal: DECIMAL (tracking pending amount)
+└─ (Track partial repayment for multi-period settlement)
+```
+
+### Investor Source Type Distinction
+```sql
+investors table additions:
+├─ source_type: 'owner' | 'investor' | 'karyawan'
+└─ notes: TEXT (for context)
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 16.2.6 (App Router + Turbopack)
+- **Frontend Framework**: Next.js 16.2.6 (App Router + Turbopack)
 - **UI Library**: React 19.2.4
 - **Styling**: Tailwind CSS v4 (@tailwindcss/postcss)
-- **Components**: shadcn/ui
+- **UI Components**: shadcn/ui (Button, Card, Dialog, Select, Tabs, etc.)
 - **Database**: Supabase PostgreSQL
-- **Authentication**: Supabase Auth
-- **Charts**: Recharts
-- **Excel Export**: SheetJS (xlsx)
-- **Icons**: lucide-react
-- **Date Utilities**: date-fns
+- **Database Client**: @supabase/supabase-js 2.106.1 + @supabase/ssr 0.10.3
+- **Data Visualization**: Recharts 3.8.1 (untuk charts & graphs)
+- **Excel Export**: SheetJS (xlsx) 0.18.5
+- **Icons**: lucide-react 1.16.0
+- **Date Utilities**: date-fns 4.2.1
+- **Type Safety**: TypeScript 5
+- **Code Quality**: ESLint 9
 
 ## 📋 Prerequisites
 

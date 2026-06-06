@@ -82,6 +82,8 @@ export interface InvestorRepayment {
   investor_id: string;
   amount: number;
   repayment_date: string;
+  repayment_type?: 'lunas' | 'cicil';
+  remaining_modal?: number | null;
   method?: string;
   notes?: string;
   created_at: string;
@@ -146,9 +148,11 @@ export interface Expense {
   session_id: string;
   outlet_id: string;
   date: string;
-  category: 'bahan_baku' | 'operasional' | 'transport' | 'peralatan' | 'lain_lain';
+  category: 'bahan' | 'operasional' | 'peralatan';
   description: string;
   amount: number;
+  funding_source?: 'kas' | 'modal';
+  funded_by_investor_id?: string | null;
   payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
   payment_status?: 'paid' | 'pending' | 'refunded';
   settlement_date?: string | null;
@@ -300,9 +304,11 @@ export interface SaleFormData {
 
 export interface ExpenseFormData {
   date: string;
-  category: 'bahan_baku' | 'operasional' | 'transport' | 'peralatan' | 'lain_lain';
+  category: 'bahan' | 'operasional' | 'peralatan';
   description: string;
   amount: number;
+  funding_source?: 'kas' | 'modal';
+  funded_by_investor_id?: string | null;
   payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
   payment_status?: 'paid' | 'pending' | 'refunded';
   settlement_date?: string;
@@ -349,6 +355,13 @@ export interface DashboardMetrics {
   today_operational_expenses?: number; // Operational expenses only (excludes inventory)
   revenue_by_channel: RevenueByChannel;
   payment_methods: PaymentMethodBreakdown;
+  // NEW: Separate cash tracking (Modal vs Sales)
+  cash_from_modal?: number; // Cash inflow from investor capital
+  cash_from_sales?: number; // Cash inflow from sales revenue
+  // Separate expense sources
+  expense_from_kas?: number; // Operational expenses from sales revenue
+  expense_from_modal?: number; // Asset/investment expenses from investor capital
+  available_for_distribution?: number; // Operating cash available after modal needs
   // PHASE 2: Additional breakdowns
   cash_inflow_by_channel?: {
     offline: number;
@@ -359,8 +372,6 @@ export interface DashboardMetrics {
     bahan: number;
     operasional: number;
     peralatan: number;
-    gabungan: number;
-    lain_lain: number;
   };
   top_products: Array<{
     product_id: string;

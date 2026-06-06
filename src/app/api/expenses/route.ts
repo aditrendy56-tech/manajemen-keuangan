@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
       delivery_date,
       quality,
       invoice_number,
+      funding_source,
+      funded_by_investor_id,
     } = body;
 
     console.log('[POST /api/expenses] Received:', { 
@@ -89,6 +91,49 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: outlet_id, date, category, description, amount' },
         { status: 400 }
       );
+    }
+
+    // VALIDATION: Category must be one of 3 types
+    const validCategories = ['bahan', 'operasional', 'peralatan'];
+    if (!validCategories.includes(category)) {
+      return NextResponse.json(
+        { error: `Invalid category. Only allowed: ${validCategories.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // VALIDATION: Funding source
+    const validFundingSources = ['kas', 'modal'];
+    const finalFundingSource = funding_source || 'kas';
+    if (!validFundingSources.includes(finalFundingSource)) {
+      return NextResponse.json(
+        { error: `Invalid funding_source. Must be kas or modal` },
+        { status: 400 }
+      );
+    }
+
+    // VALIDATION: If funding_source = modal, require investor_id
+    if (finalFundingSource === 'modal' && !funded_by_investor_id) {
+      return NextResponse.json(
+        { error: 'funded_by_investor_id required when funding_source=modal' },
+        { status: 400 }
+      );
+    }
+
+    // VALIDATION: If funding_source = modal, verify investor exists
+    if (finalFundingSource === 'modal' && funded_by_investor_id) {
+      const { data: investor } = await getSupabaseServer()
+        .from('investors')
+        .select('id')
+        .eq('id', funded_by_investor_id)
+        .single();
+
+      if (!investor) {
+        return NextResponse.json(
+          { error: 'Investor not found' },
+          { status: 404 }
+        );
+      }
     }
 
     const session = await resolveSessionForTransaction({
@@ -133,6 +178,8 @@ export async function POST(request: NextRequest) {
       category,
       description,
       amount,
+      funding_source: finalFundingSource,
+      funded_by_investor_id: finalFundingSource === 'modal' ? funded_by_investor_id : null,
       notes,
       payment_method: payment_method || 'cash',
       payment_status: payment_status || 'paid',

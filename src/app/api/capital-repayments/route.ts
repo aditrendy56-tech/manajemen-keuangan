@@ -46,11 +46,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { investor_id, amount, repayment_date, method, notes } = body;
+    const { investor_id, amount, repayment_date, method, notes, repayment_type, remaining_modal } = body;
 
     if (!investor_id || !amount || !repayment_date) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // VALIDATION: repayment_type must be lunas or cicil
+    const validRepaymentTypes = ['lunas', 'cicil'];
+    const finalRepaymentType = repayment_type || 'lunas';
+    if (!validRepaymentTypes.includes(finalRepaymentType)) {
+      return NextResponse.json(
+        { error: 'Invalid repayment_type. Must be lunas or cicil' },
         { status: 400 }
       );
     }
@@ -61,6 +71,8 @@ export async function POST(request: NextRequest) {
         investor_id,
         amount,
         repayment_date,
+        repayment_type: finalRepaymentType,
+        remaining_modal: finalRepaymentType === 'cicil' ? remaining_modal : null,
         method,
         notes
       }])
@@ -95,7 +107,7 @@ export async function POST(request: NextRequest) {
       source_type: 'repayment',
       source_id: repaymentData[0]?.id,
       amount: Number(amount),
-      description: 'Pembayaran kembali modal investor',
+      description: `Pembayaran kembali modal investor (${finalRepaymentType})`,
       notes: notes || null,
     });
 

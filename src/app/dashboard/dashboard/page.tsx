@@ -40,10 +40,15 @@ export default function DashboardPage() {
         today_profit: 0,
         today_inventory_purchases: 0,
         today_operational_expenses: 0,
+        cash_from_modal: 0,
+        cash_from_sales: 0,
+        expense_from_kas: 0,
+        expense_from_modal: 0,
+        available_for_distribution: 0,
         revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
         payment_methods: { cash: 0, qris: 0 },
         cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
-        expense_by_category: { bahan: 0, operasional: 0, peralatan: 0, gabungan: 0, lain_lain: 0 },
+        expense_by_category: { bahan: 0, operasional: 0, peralatan: 0 },
         top_products: [],
         weekly_profit: [],
         today_cash_inflow: 0,
@@ -243,10 +248,10 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* PHASE 2: Expense Breakdown by Category */}
+      {/* PHASE 2: Expense Breakdown by Category (3 only: bahan, operasional, peralatan) */}
       <div>
         <h2 className="text-lg font-semibold mb-4">💸 Pengeluaran per Kategori</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Bahan */}
           <Card
             className="border-blue-200 cursor-pointer hover:shadow-md transition-shadow"
@@ -306,48 +311,6 @@ export default function DashboardPage() {
                   Rp {(metrics.expense_by_category?.peralatan || 0).toLocaleString('id-ID')}
                 </span>
                 <ChevronRight className="w-4 h-4 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Gabungan */}
-          <Card
-            className="border-purple-200 cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => {
-              setSelectedCategory('gabungan');
-              setIsModalOpen(true);
-            }}
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-purple-700">Gabungan</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <span className="text-xl font-bold text-purple-700">
-                  Rp {(metrics.expense_by_category?.gabungan || 0).toLocaleString('id-ID')}
-                </span>
-                <ChevronRight className="w-4 h-4 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Lain-lain */}
-          <Card
-            className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => {
-              setSelectedCategory('lain_lain');
-              setIsModalOpen(true);
-            }}
-          >
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-700">Lain-lain</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <span className="text-xl font-bold text-gray-700">
-                  Rp {(metrics.expense_by_category?.lain_lain || 0).toLocaleString('id-ID')}
-                </span>
-                <ChevronRight className="w-4 h-4 text-gray-600" />
               </div>
             </CardContent>
           </Card>

@@ -136,17 +136,15 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // PHASE 2: Expense breakdown by category
+    // PHASE 2: Expense breakdown by category (3 only: bahan, operasional, peralatan)
     const expense_by_category = {
       bahan: 0,
       operasional: 0,
       peralatan: 0,
-      gabungan: 0,
-      lain_lain: 0,
     };
 
     (expenses || []).forEach((expense: any) => {
-      const cat = (expense.category || 'lain_lain').toLowerCase();
+      const cat = (expense.category || '').toLowerCase();
       if (expense_by_category.hasOwnProperty(cat)) {
         expense_by_category[cat as keyof typeof expense_by_category] += getRecognizedExpenseAmount(expense);
       }
@@ -224,12 +222,40 @@ export async function GET(request: NextRequest) {
       profit: totals.revenue - totals.expense,
     }));
 
+    // NEW: Separate cash sources (Modal vs Sales)
+    const { data: capitalEntries } = await getSupabaseServer().from('capital_entries')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .eq('date', date);
+
+    const cash_from_modal = (capitalEntries || []).reduce((sum: number, entry: any) => sum + (entry.amount || 0), 0) || 0;
+    const cash_from_sales = net_revenue; // Sales revenue = cash from sales
+
+    // NEW: Separate expense sources (Kas vs Modal)
+    const expense_from_kas = (expenses || [])
+      .filter(e => (e.funding_source || 'kas') === 'kas')
+      .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    const expense_from_modal = (expenses || [])
+      .filter(e => (e.funding_source || 'kas') === 'modal')
+      .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    // NEW: Available for distribution = Operating cash - Modal needs
+    // Operating cash = Sales - Operating expenses (only)
+    const operating_cash = net_revenue - operational_expenses;
+    const available_for_distribution = operating_cash - expense_from_modal;
+
     const metrics: DashboardMetrics = {
       today_gross_revenue: gross_revenue,
       today_net_revenue: net_revenue,
       today_profit: profit,
       today_inventory_purchases: inventory_purchases,
       today_operational_expenses: operational_expenses,
+      cash_from_modal,
+      cash_from_sales,
+      expense_from_kas,
+      expense_from_modal,
+      available_for_distribution,
       revenue_by_channel,
       payment_methods,
       cash_inflow_by_channel,
