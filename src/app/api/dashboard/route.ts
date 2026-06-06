@@ -71,12 +71,27 @@ export async function GET(request: NextRequest) {
       .gte('date', weekStartDate)
       .lte('date', date);
 
-    // Calculate metrics
+    // Calculate metrics - PROPER ACCOUNTING
     const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
     const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
-    const total_expenses = (expenses || []).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    
+    // PROPER ACCOUNTING: Separate inventory from operational expenses
+    const inventory_purchases = (expenses || []).filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      return cat === 'bahan' || cat === 'peralatan' || cat === 'gabungan';
+    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    
+    const operational_expenses = (expenses || []).filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      return cat === 'operasional' || cat === 'lain_lain';
+    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    
+    const total_expenses = inventory_purchases + operational_expenses;
     const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
-    const profit = net_revenue - total_expenses;
+    
+    // Profit = Net Revenue - Operational Expenses only (inventory is asset, not expense until sold)
+    // NOTE: Inventory purchases reduce cash but increase assets (not recognized as expense immediately)
+    const profit = net_revenue - operational_expenses;
 
     const today_cash_inflow = cashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
@@ -118,6 +133,36 @@ export async function GET(request: NextRequest) {
     (sales || []).forEach((sale: any) => {
       if (payment_methods.hasOwnProperty(sale.payment_method)) {
         payment_methods[sale.payment_method as keyof typeof payment_methods] += getRecognizedSaleAmount(sale);
+      }
+    });
+
+    // PHASE 2: Expense breakdown by category
+    const expense_by_category = {
+      bahan: 0,
+      operasional: 0,
+      peralatan: 0,
+      gabungan: 0,
+      lain_lain: 0,
+    };
+
+    (expenses || []).forEach((expense: any) => {
+      const cat = (expense.category || 'lain_lain').toLowerCase();
+      if (expense_by_category.hasOwnProperty(cat)) {
+        expense_by_category[cat as keyof typeof expense_by_category] += getRecognizedExpenseAmount(expense);
+      }
+    });
+
+    // Cash inflow breakdown by channel (from sales only, not capital)
+    const cash_inflow_by_channel = {
+      offline: 0,
+      shopeefood: 0,
+      gofood: 0,
+    };
+
+    (sales || []).forEach((sale: any) => {
+      const channel = normalizeChannel(sale);
+      if (cash_inflow_by_channel.hasOwnProperty(channel)) {
+        cash_inflow_by_channel[channel as keyof typeof cash_inflow_by_channel] += getRecognizedSaleAmount(sale);
       }
     });
 
@@ -183,8 +228,12 @@ export async function GET(request: NextRequest) {
       today_gross_revenue: gross_revenue,
       today_net_revenue: net_revenue,
       today_profit: profit,
+      today_inventory_purchases: inventory_purchases,
+      today_operational_expenses: operational_expenses,
       revenue_by_channel,
       payment_methods,
+      cash_inflow_by_channel,
+      expense_by_category,
       top_products: topProducts,
       weekly_profit,
       today_cash_inflow,

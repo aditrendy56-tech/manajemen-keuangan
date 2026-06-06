@@ -200,7 +200,9 @@ export function SaleForm({
               <Label htmlFor="platform">Platform Online</Label>
               <Select value={platform} onValueChange={(value) => setPlatform(value as 'shopeefood' | 'gofood' | '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih platform" />
+                  <SelectValue placeholder="Pilih platform">
+                    {platform === 'shopeefood' ? 'ShopeeFood' : platform === 'gofood' ? 'GoFood' : ''}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="shopeefood">ShopeeFood</SelectItem>

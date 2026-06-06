@@ -345,8 +345,23 @@ export interface DashboardMetrics {
   today_gross_revenue: number;
   today_net_revenue: number;
   today_profit: number;
+  today_inventory_purchases?: number; // Inventory purchases (asset, not expense)
+  today_operational_expenses?: number; // Operational expenses only (excludes inventory)
   revenue_by_channel: RevenueByChannel;
   payment_methods: PaymentMethodBreakdown;
+  // PHASE 2: Additional breakdowns
+  cash_inflow_by_channel?: {
+    offline: number;
+    shopeefood: number;
+    gofood: number;
+  };
+  expense_by_category?: {
+    bahan: number;
+    operasional: number;
+    peralatan: number;
+    gabungan: number;
+    lain_lain: number;
+  };
   top_products: Array<{
     product_id: string;
     name: string;

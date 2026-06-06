@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, TrendingUp, ShoppingCart, Zap } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DollarSign, TrendingUp, ShoppingCart, Zap, ChevronRight } from 'lucide-react';
 import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart';
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
 import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
+import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
 
@@ -15,6 +16,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [cashRefreshTrigger, setCashRefreshTrigger] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { outletId } = useOutlet();
 
   useEffect(() => {
@@ -35,8 +38,12 @@ export default function DashboardPage() {
         today_gross_revenue: 0,
         today_net_revenue: 0,
         today_profit: 0,
+        today_inventory_purchases: 0,
+        today_operational_expenses: 0,
         revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
         payment_methods: { cash: 0, qris: 0 },
+        cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+        expense_by_category: { bahan: 0, operasional: 0, peralatan: 0, gabungan: 0, lain_lain: 0 },
         top_products: [],
         weekly_profit: [],
         today_cash_inflow: 0,
@@ -170,10 +177,41 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* PHASE 2: Cash Inflow Breakdown by Channel */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">📊 Penjualan per Channel</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-green-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-green-700">Offline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <span className="text-2xl font-bold text-green-700">Rp {(metrics.cash_inflow_by_channel?.offline || 0).toLocaleString('id-ID')}</span>
+            </CardContent>
+          </Card>
+          <Card className="border-orange-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-orange-700">ShopeeFood</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <span className="text-2xl font-bold text-orange-700">Rp {(metrics.cash_inflow_by_channel?.shopeefood || 0).toLocaleString('id-ID')}</span>
+            </CardContent>
+          </Card>
+          <Card className="border-red-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-red-700">GoFood</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <span className="text-2xl font-bold text-red-700">Rp {(metrics.cash_inflow_by_channel?.gofood || 0).toLocaleString('id-ID')}</span>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Cash Masuk</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Cash Masuk Total</CardTitle>
           </CardHeader>
           <CardContent>
             <span className="text-2xl font-bold text-green-700">Rp {(metrics.today_cash_inflow || 0).toLocaleString('id-ID')}</span>
@@ -181,7 +219,7 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Cash Keluar</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Cash Keluar Total</CardTitle>
           </CardHeader>
           <CardContent>
             <span className="text-2xl font-bold text-red-700">Rp {(metrics.today_cash_outflow || 0).toLocaleString('id-ID')}</span>
@@ -205,6 +243,154 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* PHASE 2: Expense Breakdown by Category */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">💸 Pengeluaran per Kategori</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {/* Bahan */}
+          <Card
+            className="border-blue-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedCategory('bahan');
+              setIsModalOpen(true);
+            }}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-blue-700">Bahan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-blue-700">
+                  Rp {(metrics.expense_by_category?.bahan || 0).toLocaleString('id-ID')}
+                </span>
+                <ChevronRight className="w-4 h-4 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Operasional */}
+          <Card
+            className="border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedCategory('operasional');
+              setIsModalOpen(true);
+            }}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-orange-700">Operasional</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-orange-700">
+                  Rp {(metrics.expense_by_category?.operasional || 0).toLocaleString('id-ID')}
+                </span>
+                <ChevronRight className="w-4 h-4 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Peralatan */}
+          <Card
+            className="border-yellow-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedCategory('peralatan');
+              setIsModalOpen(true);
+            }}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-yellow-700">Peralatan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-yellow-700">
+                  Rp {(metrics.expense_by_category?.peralatan || 0).toLocaleString('id-ID')}
+                </span>
+                <ChevronRight className="w-4 h-4 text-yellow-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Gabungan */}
+          <Card
+            className="border-purple-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedCategory('gabungan');
+              setIsModalOpen(true);
+            }}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-purple-700">Gabungan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-purple-700">
+                  Rp {(metrics.expense_by_category?.gabungan || 0).toLocaleString('id-ID')}
+                </span>
+                <ChevronRight className="w-4 h-4 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lain-lain */}
+          <Card
+            className="border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedCategory('lain_lain');
+              setIsModalOpen(true);
+            }}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-gray-700">Lain-lain</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-gray-700">
+                  Rp {(metrics.expense_by_category?.lain_lain || 0).toLocaleString('id-ID')}
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Cash Masuk (Modal + Penjualan)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <span className="text-2xl font-bold text-green-700">Rp {(metrics.today_cash_inflow || 0).toLocaleString('id-ID')}</span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Cash Keluar (Pengeluaran)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <span className="text-2xl font-bold text-red-700">Rp {(metrics.today_cash_outflow || 0).toLocaleString('id-ID')}</span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Pending Penjualan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <span className="text-2xl font-bold text-amber-700">Rp {(metrics.today_pending_sales || 0).toLocaleString('id-ID')}</span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600">Pending Pengeluaran</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <span className="text-2xl font-bold text-amber-700">Rp {(metrics.today_pending_expenses || 0).toLocaleString('id-ID')}</span>
+          </CardContent>
+        </Card>
+      </div>
+
+
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RevenueByChannelChart data={metrics.revenue_by_channel} />
@@ -213,6 +399,20 @@ export default function DashboardPage() {
 
       {/* Daily Profit Chart */}
       <DailyProfitChart data={metrics.weekly_profit} />
+
+      {/* Expense Details Modal */}
+      {selectedCategory && outletId && (
+        <ExpenseDetailsModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedCategory(null);
+          }}
+          category={selectedCategory}
+          outletId={outletId}
+          date={new Date().toISOString().split('T')[0]}
+        />
+      )}
     </div>
   );
 }

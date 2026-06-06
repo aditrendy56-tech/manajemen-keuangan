@@ -135,6 +135,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                   <SelectItem value="operasional">Operasional</SelectItem>
                   <SelectItem value="peralatan">Peralatan</SelectItem>
                   <SelectItem value="gabungan">Gabungan (Fleksibel)</SelectItem>
+                  <SelectItem value="lain_lain">Lain-lain</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -147,7 +148,9 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                 <Label htmlFor="rawMaterialId">Pilih Bahan</Label>
                 <Select value={rawMaterialId} onValueChange={setRawMaterialId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={loadingData ? 'Loading...' : 'Pilih bahan'} />
+                    <SelectValue placeholder={loadingData ? 'Loading...' : 'Pilih bahan'}>
+                      {rawMaterialId && materials.find((m) => m.id === rawMaterialId)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {materials.length > 0 ? (
@@ -166,7 +169,9 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
                 <Label htmlFor="supplierId">Supplier (Opsional)</Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih supplier (opsional)" />
+                    <SelectValue placeholder="Pilih supplier (opsional)">
+                      {supplierId === '' ? '' : suppliers.find((s) => s.id === supplierId)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Tidak ada supplier</SelectItem>

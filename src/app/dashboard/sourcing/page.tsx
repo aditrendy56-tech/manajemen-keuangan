@@ -489,7 +489,9 @@ export default function SourcingPage() {
           <CardContent>
             <Select value={selectedMaterial} onValueChange={(val: any) => setSelectedMaterial(val)}>
               <SelectTrigger>
-                <SelectValue placeholder="Pilih material untuk analisis" />
+                <SelectValue placeholder="Pilih material untuk analisis">
+                  {selectedMaterial && data.materials.find((m: any) => m.id === selectedMaterial)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {data.materials.map((m: any) => (

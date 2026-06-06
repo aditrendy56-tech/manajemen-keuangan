@@ -209,7 +209,9 @@ export function BatchSaleForm({
                 <Label>Platform Online</Label>
                 <Select value={platform} onValueChange={(v) => setPlatform(v as 'shopeefood' | 'gofood' | '')}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih platform" />
+                    <SelectValue placeholder="Pilih platform">
+                      {platform === 'shopeefood' ? 'ShopeeFood' : platform === 'gofood' ? 'GoFood' : ''}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="shopeefood">ShopeeFood</SelectItem>

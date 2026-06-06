@@ -507,7 +507,9 @@ export default function FundingPage() {
                 <Label>Pilih Role (Owner/Investor/Karyawan)*</Label>
                 <Select value={formData.source_id || ''} onValueChange={(val) => setFormData({ ...formData, source_id: val || '' })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih role" />
+                    <SelectValue placeholder="Pilih role">
+                      {formData.source_id && data.investors.find((inv: any) => inv.id === formData.source_id)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {data.investors.length === 0 ? (
@@ -884,7 +886,9 @@ export default function FundingPage() {
                 <Label>Pilih Role</Label>
                 <Select value={selectedRole || ''} onValueChange={(val) => setSelectedRole(val || '')}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih role" />
+                    <SelectValue placeholder="Pilih role">
+                      {selectedRole && data.investors.find((inv: any) => inv.id === selectedRole)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {data.investors.length === 0 ? (
@@ -1029,7 +1033,9 @@ export default function FundingPage() {
                 <Label>Pilih Role</Label>
                 <Select value={formData.investor_id || ''} onValueChange={(val) => setFormData({ ...formData, investor_id: val || '' })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih role untuk dikembalikan" />
+                    <SelectValue placeholder="Pilih role untuk dikembalikan">
+                      {formData.investor_id && data.investors.find((inv: any) => inv.id === formData.investor_id)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {data.investors
