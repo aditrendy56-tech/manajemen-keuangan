@@ -32,11 +32,15 @@ Penjualan Bulan 1: Rp 4juta
 ├─ Beli Bahan (dari modal Damim): Rp 400rb
 ├─ NET: Rp 4juta - Rp 300rb - Rp 400rb = Rp 3.3juta
 │
-├─ Balik Modal Damim: Rp 400rb (tracked via funding_source)
-├─ Balik Modal Owner1: Rp 1juta
-├─ Balik Modal Owner2: Rp 1juta
+├─ Balik Modal: PILIHAN FLEKSIBEL
+│  ├─ OPSI 1 LUNAS: Balik Rp 1.5juta penuh (jika cash memenuhi)
+│  │  └─ Semua modal clear, profit sharing mulai bulan 2
+│  │
+│  └─ OPSI 2 CICIL: Balik sebagian (jika cash tidak cukup)
+│     └─ Sisa modal pending untuk bulan depan
+│
 ├─ Kas Reserve Bulan 2: Rp 300rb
-└─ PROFIT Bulan 1: Rp 0 (modal prioritas dulu)
+└─ PROFIT Bulan 1: Fleksibel tergantung modal repayment
 
 SKENARIO PENJUALAN KECIL (Bulan 1 alternatif):
 
@@ -46,9 +50,9 @@ Penjualan: Rp 2.5juta
 ├─ NET: Rp 2.1juta
 │
 ├─ Kas Reserve: Rp 100rb
-├─ Tersisa untuk balik modal: Rp 2juta
-├─ Balik Modal Per Owner: Rp 2juta ÷ 3 = Rp 667rb each (partial)
-└─ Sisa Modal Belum Balik: Rp 333rb each (cicil bulan depan)
+├─ OPSI: Hanya bisa cicil (cash tidak cukup untuk balik penuh)
+├─ Balik Modal Per Owner: Rp 2juta ÷ 3 = Rp 667rb each
+└─ Sisa Modal Belum Balik: Rp 333rb each (pending ke bulan 2-3)
 ```
 
 ---
@@ -317,6 +321,200 @@ Pengeluaran Per Kategori:
     <p className="text-xs text-gray-500 mt-1">modal + penjualan</p>
   </CardContent>
 </Card>
+```
+
+---
+
+### 4. Tab 3: Pembayaran Balik Modal - NEW FEATURE (Cicil vs Lunas)
+
+**Location:** `src/app/dashboard/funding/page.tsx` (Tab 3 - already exists, needs enhancement)
+
+**NEW FEATURES TO ADD:**
+
+#### A. Smart Suggestion System
+
+```tsx
+// Calculate available cash for repayment
+const availableCashForRepayment = operatingCash - reserveKas;
+const totalModalOutstanding = getTotalModalOutstanding(); // sum of all pending modal
+
+// Smart guidance note
+function renderRepaymentGuidance() {
+  if (availableCashForRepayment >= totalModalOutstanding) {
+    return (
+      <Alert className="bg-green-50 border-green-200">
+        <AlertCircle className="h-4 w-4 text-green-600" />
+        <AlertTitle>✅ Uang Cukup untuk Balik Modal PENUH!</AlertTitle>
+        <AlertDescription>
+          Available: Rp {formatCurrency(availableCashForRepayment)}
+          {' | '} 
+          Total Modal Pending: Rp {formatCurrency(totalModalOutstanding)}
+          {' | '}
+          Saran: Balik PENUH sekarang agar modal clear! ✅
+        </AlertDescription>
+      </Alert>
+    );
+  } else {
+    return (
+      <Alert className="bg-yellow-50 border-yellow-200">
+        <AlertCircle className="h-4 w-4 text-yellow-600" />
+        <AlertTitle>⚠️ Uang Tidak Cukup untuk Balik Modal PENUH</AlertTitle>
+        <AlertDescription>
+          Available: Rp {formatCurrency(availableCashForRepayment)}
+          {' | '} 
+          Total Modal Pending: Rp {formatCurrency(totalModalOutstanding)}
+          {' | '}
+          Saran: Cicil sebagian saja, lanjut bulan depan 📅
+        </AlertDescription>
+      </Alert>
+    );
+  }
+}
+```
+
+#### B. Repayment Selection - Cicil vs Lunas
+
+```tsx
+// For each investor
+function RepaymentItemForm({ investor }) {
+  const totalInvested = investor.initial_contribution;
+  const alreadyRepaid = investor.total_repaid_so_far;
+  const pendingModal = totalInvested - alreadyRepaid;
+
+  return (
+    <div className="border rounded-lg p-4">
+      <h4 className="font-semibold mb-2">{investor.name}</h4>
+      
+      {/* Summary Info */}
+      <div className="grid grid-cols-3 gap-2 text-sm mb-4 p-3 bg-gray-50 rounded">
+        <div>
+          <p className="text-gray-500">Total Invest</p>
+          <p className="font-bold">{formatCurrency(totalInvested)}</p>
+        </div>
+        <div>
+          <p className="text-gray-500">Sudah Balik</p>
+          <p className="font-bold text-green-600">{formatCurrency(alreadyRepaid)}</p>
+        </div>
+        <div>
+          <p className="text-gray-500">Sisa Pending</p>
+          <p className="font-bold text-orange-600">{formatCurrency(pendingModal)}</p>
+        </div>
+      </div>
+
+      {/* Repayment Options */}
+      <div className="space-y-3">
+        <Label>Pilih Metode Pembayaran</Label>
+        
+        {/* Option 1: Lunas (Full) */}
+        <div className="flex items-center space-x-2">
+          <Radio 
+            id={`lunas_${investor.id}`}
+            value="lunas"
+            checked={repaymentMethod === 'lunas'}
+            onChange={() => setRepaymentMethod('lunas')}
+          />
+          <Label htmlFor={`lunas_${investor.id}`} className="cursor-pointer">
+            ✅ Bayar LUNAS (Penuh)
+          </Label>
+        </div>
+
+        {repaymentMethod === 'lunas' && (
+          <div className="ml-6 p-3 bg-green-50 rounded border border-green-200">
+            <p className="text-sm font-semibold text-green-700">
+              Balik Modal: {formatCurrency(pendingModal)}
+            </p>
+            <p className="text-xs text-green-600 mt-1">
+              Modal akan clear 100% ✅
+            </p>
+            <Textarea
+              placeholder="Note: Pembayaran full modal (opsional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="mt-2"
+            />
+          </div>
+        )}
+
+        {/* Option 2: Cicil (Partial) */}
+        <div className="flex items-center space-x-2 mt-3">
+          <Radio 
+            id={`cicil_${investor.id}`}
+            value="cicil"
+            checked={repaymentMethod === 'cicil'}
+            onChange={() => setRepaymentMethod('cicil')}
+          />
+          <Label htmlFor={`cicil_${investor.id}`} className="cursor-pointer">
+            📅 Cicil (Sebagian)
+          </Label>
+        </div>
+
+        {repaymentMethod === 'cicil' && (
+          <div className="ml-6 p-3 bg-yellow-50 rounded border border-yellow-200">
+            <p className="text-sm font-semibold text-yellow-700 mb-2">
+              Bayar Sebagian (Cicilan)
+            </p>
+            
+            {/* Input custom amount */}
+            <div>
+              <Label className="text-xs">Jumlah Bayar Kali Ini (Rp)</Label>
+              <Input
+                type="number"
+                value={repaymentAmount}
+                onChange={(e) => setRepaymentAmount(parseFloat(e.target.value))}
+                placeholder="0"
+                max={pendingModal}
+              />
+            </div>
+
+            {/* Show remaining after this payment */}
+            <div className="mt-2 p-2 bg-white rounded text-sm">
+              <p>Sisa Modal Setelah Ini: 
+                <span className="font-bold text-orange-600 ml-2">
+                  {formatCurrency(pendingModal - repaymentAmount)}
+                </span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                (Akan dibayar di bulan-bulan berikutnya)
+              </p>
+            </div>
+
+            <Textarea
+              placeholder="Note: Pembayaran cicil, sisa untuk bulan depan (opsional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="mt-2"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Submit Button */}
+      <Button 
+        onClick={() => handleRepaymentSubmit(investor.id)}
+        className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
+      >
+        Simpan Pembayaran
+      </Button>
+    </div>
+  );
+}
+```
+
+#### C. Database Record
+
+```ts
+// Both cicil & lunas create capital_repayments record:
+
+capital_repayments:
+├─ investor_id: investor.id
+├─ amount: (full or partial amount)
+├─ repayment_date: today
+├─ repayment_type: 'lunas' | 'cicil'  // NEW field to track
+├─ notes: "Pembayaran lunas modal" / "Cicil tahap 1, sisa Rp XXX"
+├─ remaining_modal: (amount masih pending)  // NEW field
+└─ created_at: today
 ```
 
 ---
