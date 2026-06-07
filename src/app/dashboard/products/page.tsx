@@ -91,35 +91,24 @@ export default function ProductsPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        setProducts(products.filter((p) => p.id !== id));
-      }
-    } catch (error) {
-      console.error('Error deleting product:', error);
-    }
+    if (!confirm('Hapus produk ini?')) return;
+    alert('Fitur delete belum tersedia');
   }
 
   async function handleToggle(id: string, is_active: boolean) {
-    try {
-      const response = await fetch(`/api/products/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !is_active }),
-      });
-      if (response.ok) {
-        setProducts(products.map((p) => (p.id === id ? { ...p, is_active: !is_active } : p)));
-      }
-    } catch (error) {
-      console.error('Error toggling product:', error);
-    }
+    alert('Fitur toggle belum tersedia');
   }
 
-  const formatPrice = (value?: number | null) => `Rp ${(Number(value || 0)).toLocaleString('id-ID')}`;
+  function formatPrice(price: number): string {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(price);
+  }
 
   return (
-    <div className="space-y-6">
+    <div>
       <div>
         <h1 className="text-3xl font-bold">Produk</h1>
         <p className="text-gray-600">Kelola daftar produk yang dijual</p>

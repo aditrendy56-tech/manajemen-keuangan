@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        sale_items (product_id, product_name)
+        sale_items (product_id)
       `
       )
       .eq('outlet_id', outletId);

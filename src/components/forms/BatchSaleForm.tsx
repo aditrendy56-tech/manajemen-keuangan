@@ -189,7 +189,7 @@ export function BatchSaleForm({
         gross_amount: normalizedGrossAmount,
         payment_status: paymentMode === 'split' ? (paymentEntries.every((entry) => entry.payment_status === 'settled') ? 'settled' : 'pending') : paymentStatus,
         settlement_date: paymentMode === 'split' ? null : settlementDate || null,
-        items: items.map((it) => ({ product_name: it.product_name, quantity: it.quantity, unit_price: it.unit_price })),
+        items: items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, unit_price: it.unit_price })),
         payment_entries:
           paymentMode === 'split'
             ? paymentEntries.map((entry) => ({
