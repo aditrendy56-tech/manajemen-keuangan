@@ -96,8 +96,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
       return (
         <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
           <div className="flex-1">
-            Item ×{sale.quantity || 1} = Rp {sale.gross_amount.toLocaleString('id-ID')} (App) → Rp{' '}
-            {sale.net_amount.toLocaleString('id-ID')} (Net)
+            <div>Rp {sale.gross_amount.toLocaleString('id-ID')} ×{sale.quantity || 1} → Rp {sale.net_amount.toLocaleString('id-ID')}</div>
             {sale.notes && (
               <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
             )}
@@ -132,7 +131,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     return (
       <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
         <div className="flex-1">
-          Item ×{sale.quantity || 1} = Rp {sale.net_amount.toLocaleString('id-ID')}
+          <div>Rp {sale.net_amount.toLocaleString('id-ID')} ×{sale.quantity || 1}</div>
           {sale.type === 'custom' && sale.custom_description && (
             <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
           )}
@@ -174,7 +173,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
       <div key={sectionKey} className="mb-4 pt-3">
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2"
+          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2 border-b"
         >
           <div className="flex items-center gap-2">
             {isExpanded ? (
