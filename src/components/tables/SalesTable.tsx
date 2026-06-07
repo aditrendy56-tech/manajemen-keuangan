@@ -94,7 +94,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     if (showNetFormat && sale.platform_fee > 0) {
       // Online format: "Produk ×Qty = Rp 30.000 (App) → Rp 22.500 (Net)"
       return (
-        <div key={sale.id} className="py-1 px-0 flex justify-between items-start gap-3 text-sm border-b">
+        <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
           <div className="flex-1">
             Item ×{sale.quantity || 1} = Rp {sale.gross_amount.toLocaleString('id-ID')} (App) → Rp{' '}
             {sale.net_amount.toLocaleString('id-ID')} (Net)
@@ -130,7 +130,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
     // Offline format: "Produk ×Qty = Rp XXX"
     return (
-      <div key={sale.id} className="py-1 px-0 flex justify-between items-start gap-3 text-sm border-b">
+      <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
         <div className="flex-1">
           Item ×{sale.quantity || 1} = Rp {sale.net_amount.toLocaleString('id-ID')}
           {sale.type === 'custom' && sale.custom_description && (
@@ -171,10 +171,10 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     const sectionTotal = calcTotal(items);
 
     return (
-      <div key={sectionKey} className="mb-4 pt-2">
+      <div key={sectionKey} className="mb-4 pt-3">
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2 border-b-2"
+          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2"
         >
           <div className="flex items-center gap-2">
             {isExpanded ? (
@@ -188,13 +188,15 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
         </button>
 
         {isExpanded && (
-          <div className="divide-y">
+          <div>
             {items.length === 0 ? (
               <div className="py-2 text-center text-gray-400 text-sm">—</div>
             ) : (
               <>
-                {items.map((item) => renderItem(item, showNetFormat))}
-                <div className="py-2 text-sm font-semibold text-right border-t-2">
+                <div className="mt-1 space-y-1">
+                  {items.map((item) => renderItem(item, showNetFormat))}
+                </div>
+                <div className="py-2 text-sm font-semibold text-right mt-2">
                   Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
                 </div>
               </>
@@ -281,10 +283,10 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
           {/* REFUND SECTION */}
           {(refunded.length > 0 || selectedRefunds.size > 0) && (
-            <div className="border rounded-lg bg-white overflow-hidden mt-4">
+            <div className="border rounded-lg bg-white overflow-hidden mt-6">
               <button
                 onClick={() => toggleSection('refund')}
-                className="w-full px-4 py-2 flex items-center justify-between bg-red-50 hover:bg-red-100 border-b text-sm"
+                className="w-full px-4 py-3 flex items-center justify-between bg-red-50 hover:bg-red-100 text-sm"
               >
                 <div className="flex items-center gap-2">
                   {expandedSections.refund ? (
@@ -302,13 +304,13 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
               </button>
 
               {expandedSections.refund && (
-                <div className="divide-y">
+                <div className="px-4 py-3 space-y-2">
                   {sales
                     .filter((s) => s.payment_status !== 'refunded')
                     .map((sale) => (
                       <label
                         key={sale.id}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                        className="flex items-center gap-3 cursor-pointer text-sm hover:text-red-600"
                       >
                         <input
                           type="checkbox"
@@ -317,13 +319,13 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                           className="w-4 h-4"
                         />
                         <div className="flex-1">
-                          <div>Rp {sale.net_amount.toLocaleString('id-ID')}</div>
+                          Rp {sale.net_amount.toLocaleString('id-ID')}
                         </div>
                       </label>
                     ))}
 
                   {selectedRefunds.size > 0 && (
-                    <div className="px-4 py-2 bg-red-50 border-t">
+                    <div className="mt-4 pt-3 border-t">
                       <Button
                         onClick={() => {
                           const selectedSales = Array.from(selectedRefunds)
@@ -343,13 +345,13 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
                   {refunded.length > 0 && (
                     <>
-                      <div className="px-4 py-1 bg-gray-50 text-xs font-semibold text-gray-600">
+                      <div className="pt-3 border-t mt-3 text-xs font-semibold text-gray-600">
                         Sudah Direfund ({refunded.length})
                       </div>
                       {refunded.map((sale) => (
                         <div
                           key={sale.id}
-                          className="px-4 py-1 text-xs text-gray-400 line-through"
+                          className="text-xs text-gray-400 line-through"
                         >
                           Rp{' '}
                           {sale.refund_amount?.toLocaleString('id-ID') || sale.net_amount.toLocaleString('id-ID')}
