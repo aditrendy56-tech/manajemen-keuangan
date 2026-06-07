@@ -16,7 +16,8 @@ interface SalesTableProps {
 
 export function SalesTable({ sales, onDelete, onRefund, withCard = true }: SalesTableProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    offline: true,
+    offlineCash: true,
+    offlineQRIS: true,
     gofood: true,
     shopeefood: true,
     custom: true,
@@ -42,13 +43,15 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     setSelectedRefunds(newSelected);
   };
 
-  // Group sales by type and channel
+  // Group sales by channel/method (non-refunded)
   const offlineCash = sales.filter(
-    (s) => s.channel_type === 'offline' && s.payment_method !== 'split' && s.type !== 'custom' && s.payment_status !== 'refunded'
+    (s) => s.channel_type === 'offline' && s.payment_method === 'cash' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
-  const offlineQRIS = offlineCash.filter((s) => s.payment_method === 'qris');
-  const offlineCashOnly = offlineCash.filter((s) => s.payment_method === 'cash');
-  
+
+  const offlineQRIS = sales.filter(
+    (s) => s.channel_type === 'offline' && s.payment_method === 'qris' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  );
+
   const offlineSplit = sales.filter(
     (s) => s.channel_type === 'offline' && s.payment_method === 'split' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
@@ -56,9 +59,11 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const gofood = sales.filter(
     (s) => s.platform === 'gofood' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
+
   const shopeefood = sales.filter(
     (s) => s.platform === 'shopeefood' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
+
   const custom = sales.filter((s) => s.type === 'custom' && s.payment_status !== 'refunded');
   const refunded = sales.filter((s) => s.payment_status === 'refunded');
 
@@ -67,59 +72,38 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const calcGross = (items: Sale[]) => items.reduce((sum, s) => sum + (s.gross_amount || 0), 0);
   const calcFee = (items: Sale[]) => items.reduce((sum, s) => sum + (s.platform_fee || 0), 0);
 
-  const offlineTotal = calcTotal(offlineCash) + calcTotal(offlineSplit);
+  const offlineCashTotal = calcTotal(offlineCash);
+  const offlineQRISTotal = calcTotal(offlineQRIS);
+  const offlineSplitTotal = calcTotal(offlineSplit);
+  const offlineTotal = offlineCashTotal + offlineQRISTotal + offlineSplitTotal;
+
   const gofoodGross = calcGross(gofood);
   const gofoodFee = calcFee(gofood);
   const gofoodNet = gofoodGross - gofoodFee;
+
   const shopeefoodGross = calcGross(shopeefood);
   const shopeefoodFee = calcFee(shopeefood);
   const shopeefoodNet = shopeefoodGross - shopeefoodFee;
+
   const customTotal = calcTotal(custom);
   const grandTotal = offlineTotal + gofoodNet + shopeefoodNet + customTotal;
 
-  function renderTransaction(sale: Sale) {
+  function renderItem(sale: Sale, showNetFormat: boolean = false) {
     const isRefundable = sale.payment_status !== 'refunded';
 
-    return (
-      <div key={sale.id} className="py-2 px-3 bg-white border-l-4 border-transparent hover:bg-gray-50">
-        <div className="flex justify-between items-start gap-3">
-          <div className="flex-1">
-            <div className="text-sm font-medium">
-              [{sale.id.substring(0, 8)}]
-              {sale.type === 'custom' && sale.product_id && (
-                <span className="ml-2 text-gray-700">
-                  {/* Product name would be fetched from product_id */}
-                  {sale.quantity}× item
-                </span>
-              )}
-              {sale.type !== 'custom' && (
-                <span className="ml-2 text-gray-700">Rp {sale.gross_amount.toLocaleString('id-ID')}</span>
-              )}
-            </div>
-            {sale.type === 'custom' && sale.custom_description && (
-              <div className="text-xs text-blue-600 mt-1">
-                Alasan: {sale.custom_description}
-              </div>
-            )}
+    if (showNetFormat && sale.platform_fee > 0) {
+      // Online format: "Produk ×Qty = Rp 30.000 (App) → Rp 22.500 (Net)"
+      return (
+        <div key={sale.id} className="py-2 px-4 flex justify-between items-start gap-3">
+          <div className="flex-1 text-sm">
+            Item ×{sale.quantity || 1} = Rp {sale.gross_amount.toLocaleString('id-ID')} (App) → Rp{' '}
+            {sale.net_amount.toLocaleString('id-ID')} (Net)
             {sale.notes && (
               <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
             )}
           </div>
-
-          <div className="text-right min-w-max">
-            {sale.platform_fee > 0 && (
-              <div className="text-xs text-gray-600 mb-1">
-                Kotor: Rp {sale.gross_amount.toLocaleString('id-ID')} | Fee: -Rp{' '}
-                {sale.platform_fee.toLocaleString('id-ID')}
-              </div>
-            )}
-            <div className="text-sm font-semibold">
-              Rp {sale.net_amount.toLocaleString('id-ID')}
-            </div>
-          </div>
-
           {isRefundable && (
-            <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-2">
               {onRefund && (
                 <input
                   type="checkbox"
@@ -133,71 +117,87 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                   size="sm"
                   variant="ghost"
                   onClick={() => onDelete(sale.id)}
-                  className="text-red-600 hover:bg-red-50"
+                  className="text-red-600 hover:bg-red-50 p-1 h-auto"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3 h-3" />
                 </Button>
               )}
             </div>
           )}
         </div>
+      );
+    }
+
+    // Offline format: "Produk ×Qty = Rp XXX"
+    return (
+      <div key={sale.id} className="py-2 px-4 flex justify-between items-start gap-3">
+        <div className="flex-1 text-sm">
+          Item ×{sale.quantity || 1} = Rp {sale.net_amount.toLocaleString('id-ID')}
+          {sale.type === 'custom' && sale.custom_description && (
+            <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
+          )}
+          {sale.notes && (
+            <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
+          )}
+        </div>
+        {isRefundable && (
+          <div className="flex items-center gap-2">
+            {onRefund && (
+              <input
+                type="checkbox"
+                checked={selectedRefunds.has(sale.id)}
+                onChange={() => toggleRefundSelection(sale.id)}
+                className="w-4 h-4 cursor-pointer"
+              />
+            )}
+            {onDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onDelete(sale.id)}
+                className="text-red-600 hover:bg-red-50 p-1 h-auto"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
-  function renderSection(
-    title: string,
-    sectionKey: string,
-    items: Sale[],
-    showFeeBreakdown: boolean = false
-  ) {
+  function renderSection(title: string, sectionKey: string, items: Sale[], showNetFormat: boolean = false) {
     const isExpanded = expandedSections[sectionKey];
-    const sectionGross = calcGross(items);
-    const sectionFee = calcFee(items);
-    const sectionNet = calcTotal(items);
+    const sectionTotal = calcTotal(items);
 
     return (
-      <div key={sectionKey} className="border rounded-lg overflow-hidden mb-4 bg-white">
+      <div key={sectionKey} className="border rounded-lg overflow-hidden mb-3 bg-white">
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 border-b"
+          className="w-full px-4 py-2 flex items-center justify-between bg-gray-50 hover:bg-gray-100 border-b text-sm"
         >
           <div className="flex items-center gap-2">
             {isExpanded ? (
-              <ChevronDown className="w-5 h-5 text-gray-600" />
+              <ChevronDown className="w-4 h-4 text-gray-600" />
             ) : (
-              <ChevronRight className="w-5 h-5 text-gray-600" />
+              <ChevronRight className="w-4 h-4 text-gray-600" />
             )}
             <span className="font-semibold text-gray-800">{title}</span>
           </div>
-          <div className="text-sm font-semibold text-gray-700">
-            {showFeeBreakdown
-              ? `Bersih: Rp ${sectionNet.toLocaleString('id-ID')}`
-              : `Total: Rp ${sectionNet.toLocaleString('id-ID')}`}
-          </div>
+          <span className="text-xs font-semibold text-gray-700">
+            Rp {sectionTotal.toLocaleString('id-ID')}
+          </span>
         </button>
 
         {isExpanded && (
           <div className="divide-y">
             {items.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 text-sm">Tidak ada transaksi</div>
+              <div className="p-4 text-center text-gray-400 text-xs">—</div>
             ) : (
               <>
-                {items.map(renderTransaction)}
-                <div className="px-4 py-3 bg-gray-50 border-t-2 font-semibold text-sm">
-                  {showFeeBreakdown ? (
-                    <div className="flex justify-between">
-                      <span>
-                        Kotor: Rp {sectionGross.toLocaleString('id-ID')} | Fee: -Rp{' '}
-                        {sectionFee.toLocaleString('id-ID')}
-                      </span>
-                      <span>Bersih: Rp {sectionNet.toLocaleString('id-ID')}</span>
-                    </div>
-                  ) : (
-                    <div className="text-right">
-                      Total: Rp {sectionNet.toLocaleString('id-ID')}
-                    </div>
-                  )}
+                {items.map((item) => renderItem(item, showNetFormat))}
+                <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-right border-t">
+                  Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
                 </div>
               </>
             )}
@@ -208,109 +208,109 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   }
 
   const content = (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {sales.length === 0 ? (
-        <div className="py-12 text-center text-gray-500">Tidak ada data penjualan</div>
+        <div className="py-8 text-center text-gray-500 text-sm">Tidak ada data penjualan</div>
       ) : (
         <>
-          {/* Offline Section */}
-          {(offlineCashOnly.length > 0 || offlineQRIS.length > 0 || offlineSplit.length > 0) &&
-            renderSection(
-              '📦 OFFLINE (Cash + QRIS)',
-              'offline',
-              [...offlineCashOnly, ...offlineQRIS, ...offlineSplit]
-            )}
+          {/* OFFLINE - CASH */}
+          {renderSection('OFFLINE - CASH', 'offlineCash', offlineCash)}
 
-          {/* GoFood Section */}
-          {gofood.length > 0 && renderSection('🚚 GOFOOD', 'gofood', gofood, true)}
+          {/* OFFLINE - QRIS */}
+          {renderSection('OFFLINE - QRIS', 'offlineQRIS', offlineQRIS)}
 
-          {/* ShopeeFood Section */}
-          {shopeefood.length > 0 && renderSection('🛍️ SHOPEEFOOD', 'shopeefood', shopeefood, true)}
+          {/* GOFOOD */}
+          {renderSection('GOFOOD', 'gofood', gofood, true)}
 
-          {/* Custom Pricing Section */}
-          {custom.length > 0 &&
-            renderSection(
-              '🎯 CUSTOM PRICING',
-              'custom',
-              custom
-            )}
+          {/* SHOPEEFOOD */}
+          {renderSection('SHOPEEFOOD', 'shopeefood', shopeefood, true)}
 
-          {/* Grand Total */}
+          {/* CUSTOM PRICING */}
+          {renderSection('CUSTOM PRICING', 'custom', custom)}
+
+          {/* TOTAL SECTION */}
           {sales.some((s) => s.payment_status !== 'refunded') && (
-            <div className="border rounded-lg bg-white overflow-hidden">
-              <div className="px-4 py-4 bg-orange-50 border-b-2">
-                <h3 className="font-bold text-lg mb-3">💰 RINGKASAN TOTAL</h3>
-                <div className="space-y-2 text-sm font-semibold">
-                  {offlineTotal > 0 && (
-                    <div className="flex justify-between">
-                      <span>├─ Offline (Cash + QRIS):</span>
-                      <span>Rp {offlineTotal.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  {customTotal > 0 && (
-                    <div className="flex justify-between">
-                      <span>├─ Custom Pricing:</span>
-                      <span>Rp {customTotal.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  {gofoodNet > 0 && (
-                    <div className="flex justify-between">
-                      <span>├─ GoFood (Net):</span>
-                      <span>Rp {gofoodNet.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  {shopeefoodNet > 0 && (
-                    <div className="flex justify-between">
-                      <span>├─ ShopeeFood (Net):</span>
-                      <span>Rp {shopeefoodNet.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t-2 pt-2 text-lg">
-                    <span>└─ TOTAL PENJUALAN:</span>
-                    <span className="text-orange-700">Rp {grandTotal.toLocaleString('id-ID')}</span>
+            <div className="border rounded-lg bg-amber-50 overflow-hidden mt-4">
+              <div className="px-4 py-3 border-b font-bold text-sm">TOTAL</div>
+              <div className="px-4 py-2 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Offline - Cash:</span>
+                  <span>Rp {offlineCashTotal.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Offline - QRIS:</span>
+                  <span>Rp {offlineQRISTotal.toLocaleString('id-ID')}</span>
+                </div>
+                {offlineSplitTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Offline - Split:</span>
+                    <span>Rp {offlineSplitTotal.toLocaleString('id-ID')}</span>
                   </div>
+                )}
+                <div className="flex justify-between font-semibold border-t pt-1">
+                  <span>Total Offline:</span>
+                  <span>Rp {offlineTotal.toLocaleString('id-ID')}</span>
+                </div>
+
+                {gofoodNet > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span>GoFood (Net):</span>
+                    <span>Rp {gofoodNet.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+
+                {shopeefoodNet > 0 && (
+                  <div className="flex justify-between">
+                    <span>ShopeeFood (Net):</span>
+                    <span>Rp {shopeefoodNet.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+
+                {customTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Custom Pricing:</span>
+                    <span>Rp {customTotal.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between font-bold border-t pt-1 text-base">
+                  <span>TOTAL PENJUALAN:</span>
+                  <span className="text-orange-700">Rp {grandTotal.toLocaleString('id-ID')}</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Refund Section */}
+          {/* REFUND SECTION */}
           {(refunded.length > 0 || selectedRefunds.size > 0) && (
-            <div className="border rounded-lg bg-white overflow-hidden">
+            <div className="border rounded-lg bg-white overflow-hidden mt-4">
               <button
                 onClick={() => toggleSection('refund')}
-                className="w-full px-4 py-3 flex items-center justify-between bg-red-50 hover:bg-red-100 border-b"
+                className="w-full px-4 py-2 flex items-center justify-between bg-red-50 hover:bg-red-100 border-b text-sm"
               >
                 <div className="flex items-center gap-2">
                   {expandedSections.refund ? (
-                    <ChevronDown className="w-5 h-5 text-red-600" />
+                    <ChevronDown className="w-4 h-4 text-red-600" />
                   ) : (
-                    <ChevronRight className="w-5 h-5 text-red-600" />
+                    <ChevronRight className="w-4 h-4 text-red-600" />
                   )}
-                  <span className="font-semibold text-red-800">🔄 REFUND</span>
+                  <span className="font-semibold text-red-800">REFUND</span>
                 </div>
                 {selectedRefunds.size > 0 && (
-                  <Badge className="bg-red-600">
-                    {selectedRefunds.size} dipilih - Rp{' '}
-                    {Array.from(selectedRefunds)
-                      .reduce(
-                        (sum, id) => sum + (sales.find((s) => s.id === id)?.net_amount || 0),
-                        0
-                      )
-                      .toLocaleString('id-ID')}
+                  <Badge className="bg-red-600 text-xs">
+                    {selectedRefunds.size} dipilih
                   </Badge>
                 )}
               </button>
 
               {expandedSections.refund && (
                 <div className="divide-y">
-                  {/* Refund Selection Checkboxes */}
                   {sales
                     .filter((s) => s.payment_status !== 'refunded')
                     .map((sale) => (
                       <label
                         key={sale.id}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm"
                       >
                         <input
                           type="checkbox"
@@ -319,20 +319,13 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                           className="w-4 h-4"
                         />
                         <div className="flex-1">
-                          <div className="text-sm">
-                            [{sale.id.substring(0, 8)}] - Rp{' '}
-                            {sale.net_amount.toLocaleString('id-ID')}
-                          </div>
-                          <div className="text-xs text-gray-500 capitalize">
-                            {sale.channel} ({sale.payment_method})
-                          </div>
+                          <div>Rp {sale.net_amount.toLocaleString('id-ID')}</div>
                         </div>
                       </label>
                     ))}
 
-                  {/* Batch Refund Button */}
                   {selectedRefunds.size > 0 && (
-                    <div className="px-4 py-3 bg-red-50 border-t-2">
+                    <div className="px-4 py-2 bg-red-50 border-t">
                       <Button
                         onClick={() => {
                           const selectedSales = Array.from(selectedRefunds)
@@ -343,25 +336,24 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                             setSelectedRefunds(new Set());
                           }
                         }}
-                        className="w-full bg-red-600 hover:bg-red-700"
+                        className="w-full bg-red-600 hover:bg-red-700 text-xs h-auto py-2"
                       >
                         Proses Refund {selectedRefunds.size} Item
                       </Button>
                     </div>
                   )}
 
-                  {/* Already Refunded Transactions */}
                   {refunded.length > 0 && (
                     <>
-                      <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-600">
+                      <div className="px-4 py-1 bg-gray-50 text-xs font-semibold text-gray-600">
                         Sudah Direfund ({refunded.length})
                       </div>
                       {refunded.map((sale) => (
                         <div
                           key={sale.id}
-                          className="px-4 py-2 text-xs text-gray-500 line-through"
+                          className="px-4 py-1 text-xs text-gray-400 line-through"
                         >
-                          [{sale.id.substring(0, 8)}] - Rp{' '}
+                          Rp{' '}
                           {sale.refund_amount?.toLocaleString('id-ID') || sale.net_amount.toLocaleString('id-ID')}
                         </div>
                       ))}
@@ -383,7 +375,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   return (
     <Card>
       <CardHeader>
-        <CardTitle>📊 Laporan Penjualan Terstruktur</CardTitle>
+        <CardTitle>Daftar Penjualan</CardTitle>
       </CardHeader>
       <CardContent>{content}</CardContent>
     </Card>
