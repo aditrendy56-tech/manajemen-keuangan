@@ -134,6 +134,7 @@ export interface Sale {
   // Custom Pricing Fields (NEW)
   type?: 'regular' | 'custom';
   product_id?: string | null;
+  product_name?: string | null;
   quantity?: number | null;
   is_custom_price?: boolean;
   custom_original_price?: number | null;

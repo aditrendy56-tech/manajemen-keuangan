@@ -92,10 +92,11 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     const isRefundable = sale.payment_status !== 'refunded';
 
     if (showNetFormat && sale.platform_fee > 0) {
-      // Online format: "Produk ×Qty = Rp 30.000 (App) → Rp 22.500 (Net)"
+      // Online format: "Rp GROSS ×Qty → Rp NET"
       return (
         <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
           <div className="flex-1">
+            <div className="font-medium">{sale.product_name || 'Item'}</div>
             <div>Rp {sale.gross_amount.toLocaleString('id-ID')} ×{sale.quantity || 1} → Rp {sale.net_amount.toLocaleString('id-ID')}</div>
             {sale.notes && (
               <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
@@ -127,10 +128,11 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
       );
     }
 
-    // Offline format: "Produk ×Qty = Rp XXX"
+    // Offline format: "Produk - Rp XXX ×Qty"
     return (
       <div key={sale.id} className="py-2 px-0 flex justify-between items-start gap-3 text-sm">
         <div className="flex-1">
+          <div className="font-medium">{sale.product_name || 'Item'}</div>
           <div>Rp {sale.net_amount.toLocaleString('id-ID')} ×{sale.quantity || 1}</div>
           {sale.type === 'custom' && sale.custom_description && (
             <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>

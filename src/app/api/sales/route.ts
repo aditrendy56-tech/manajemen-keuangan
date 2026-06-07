@@ -29,6 +29,31 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
+    // Fetch product names for all sales
+    if (data && data.length > 0) {
+      const supabase = getSupabaseServer();
+      
+      // Get unique product IDs from sales
+      const productIds = [...new Set(data.filter((s: any) => s.product_id).map((s: any) => s.product_id))];
+      
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, name')
+          .in('id', productIds);
+
+        const productMap = new Map(products?.map((p: any) => [p.id, p.name]) || []);
+
+        // Enrich sales data with product names
+        return NextResponse.json(
+          data.map((sale: any) => ({
+            ...sale,
+            product_name: sale.product_id ? productMap.get(sale.product_id) : null,
+          }))
+        );
+      }
+    }
+
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
