@@ -17,45 +17,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
     }
 
-    let query = getSupabaseServer().from('sales').select('*').eq('outlet_id', outletId);
+    const supabase = getSupabaseServer();
+
+    // Get sales with joined product info from sale_items
+    let query = supabase
+      .from('sales')
+      .select(
+        `
+        *,
+        sale_items (product_id, product_name)
+      `
+      )
+      .eq('outlet_id', outletId);
 
     if (sessionId) {
       query = query.eq('session_id', sessionId);
     }
 
-    const { data, error } = await query
+    const { data: salesWithItems, error } = await query
       .order('created_at', { ascending: false })
       .limit(parseInt(limit));
 
     if (error) throw error;
 
-    // Fetch product names for all sales
-    if (data && data.length > 0) {
-      const supabase = getSupabaseServer();
-      
-      // Get unique product IDs from sales
-      const productIds = [...new Set(data.filter((s: any) => s.product_id).map((s: any) => s.product_id))];
-      
-      if (productIds.length > 0) {
-        const { data: products } = await supabase
-          .from('products')
-          .select('id, name')
-          .in('id', productIds);
-
-        const productMap = new Map(products?.map((p: any) => [p.id, p.name]) || []);
-
-        // Enrich sales data with product names
-        return NextResponse.json(
-          data.map((sale: any) => ({
-            ...sale,
-            product_name: sale.product_id ? productMap.get(sale.product_id) : null,
-          }))
-        );
-      }
+    if (!salesWithItems || salesWithItems.length === 0) {
+      return NextResponse.json([]);
     }
 
-    return NextResponse.json(data);
+    // Collect all product IDs (from sale_items or custom pricing product_id)
+    const productIds = new Set<string>();
+    salesWithItems.forEach((sale: any) => {
+      // From sale_items
+      if (Array.isArray(sale.sale_items)) {
+        sale.sale_items.forEach((item: any) => {
+          if (item.product_id) productIds.add(item.product_id);
+        });
+      }
+      // From custom pricing
+      if (sale.product_id) productIds.add(sale.product_id);
+    });
+
+    // Fetch product names
+    const productMap = new Map<string, string>();
+    if (productIds.size > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', Array.from(productIds));
+
+      products?.forEach((p: any) => {
+        productMap.set(p.id, p.name);
+      });
+    }
+
+    // Enrich sales data with product names
+    const enrichedData = salesWithItems.map((sale: any) => {
+      let product_name: string | null = null;
+
+      // Priority 1: Custom pricing product_id
+      if (sale.product_id) {
+        product_name = productMap.get(sale.product_id) || null;
+      }
+      // Priority 2: First item from sale_items
+      else if (Array.isArray(sale.sale_items) && sale.sale_items.length > 0) {
+        const firstItem = sale.sale_items[0];
+        if (firstItem.product_id) {
+          product_name = productMap.get(firstItem.product_id) || null;
+        }
+      }
+
+      // Remove sale_items from response (internal data)
+      const { sale_items, ...saleData } = sale;
+
+      return {
+        ...saleData,
+        product_name,
+      };
+    });
+
+    return NextResponse.json(enrichedData);
   } catch (error: any) {
+    console.error('[GET /api/sales] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
