@@ -272,67 +272,160 @@ erDiagram
   daily_sessions ||--o{ cash_transactions : reconciles
 ```
 
-## Daftar Endpoint Lengkap
+## 📋 Daftar Endpoint Lengkap
 
 ### Operasional Inti
 
-| Endpoint | Metode | Fungsi | Tabel utama |
-| --- | --- | --- | --- |
-| `/api/sessions` | `GET`, `POST` | Daftar dan buat sesi | `daily_sessions` |
-| `/api/sessions/[id]` | `PATCH`, `DELETE` | Tutup atau hapus sesi | `daily_sessions` |
-| `/api/sales` | `GET`, `POST` | Daftar dan buat penjualan | `sales`, `sale_items` |
-| `/api/sales/[id]` | `PATCH`, `DELETE` | Edit atau hapus penjualan | `sales`, `sale_items` |
-| `/api/expenses` | `GET`, `POST` | Daftar dan buat pengeluaran | `expenses` |
-| `/api/expenses/[id]` | `PATCH`, `DELETE` | Edit atau hapus pengeluaran | `expenses` |
-| `/api/capital` | `GET`, `POST` | Daftar dan buat modal | `capital_entries` |
-| `/api/capital/[id]` | `PATCH`, `DELETE` | Edit atau hapus modal | `capital_entries` |
-| `/api/dashboard` | `GET` | Ringkasan metrik utama | `sales`, `expenses`, `sale_items`, `daily_sessions` |
-| `/api/reports/summary` | `GET` | Laporan P&L dan ringkasan | `sales`, `expenses`, `sale_items`, `daily_sessions` |
-| `/api/reports/export` | `GET` | Export Excel laporan | gabungan query laporan |
+| Endpoint | Metode | Fungsi | Tabel utama | Catatan |
+| --- | --- | --- | --- | --- |
+| `/api/sessions` | `GET`, `POST` | Daftar dan buat sesi | `daily_sessions` | ✅ Sesuai |
+| `/api/sessions/[id]` | `PATCH`, `DELETE` | Tutup atau hapus sesi | `daily_sessions` | ✅ Sesuai |
+| `/api/sales` | `GET`, `POST` | Daftar dan buat penjualan | `sales`, `sale_items` | ✅ Sesuai |
+| `/api/sales/[id]` | `PATCH`, `DELETE` | Edit atau hapus penjualan | `sales`, `sale_items` | ✅ Sesuai (+ cash_transactions) |
+| `/api/expenses` | `GET`, `POST` | Daftar dan buat pengeluaran | `expenses` | ✅ Sesuai (+ cash_transactions) |
+| `/api/expenses/[id]` | `PATCH`, `DELETE` | Edit atau hapus pengeluaran | `expenses` | ✅ Sesuai (+ cash_transactions) |
+| `/api/capital` | `GET`, `POST` | Daftar dan buat modal | `capital_entries` | ✅ Sesuai (+ cash_transactions) |
+| `/api/capital/[id]` | `PATCH` | Edit modal dengan audit trail | `capital_entries` | ⚠️ HANYA PATCH (bukan DELETE) |
+| `/api/dashboard` | `GET` | Ringkasan metrik utama | `sales`, `expenses`, `sale_items`, `daily_sessions` | ✅ Sesuai |
+| `/api/dashboard/expenses-details` | `GET` | Detail pengeluaran per kategori | `expenses` | ✨ NEW (tambahan detail endpoint) |
+| `/api/reports/summary` | `GET` | Laporan P&L dan ringkasan | `sales`, `expenses`, `sale_items`, `daily_sessions` | ✅ Sesuai |
+| `/api/reports/export` | `GET` | Export Excel laporan | gabungan query laporan | ✅ Sesuai |
+| `/api/cash/balance` | `GET` | Hitung cash balance & validasi | `cash_transactions` | ✨ NEW (utility endpoint) |
 
 ### Produk, Bahan, dan Sourcing
 
-| Endpoint | Metode | Fungsi | Tabel utama |
-| --- | --- | --- | --- |
-| `/api/products` | `GET`, `POST` | Master produk | `products` |
-| `/api/products/[id]` | `PATCH`, `DELETE` | Edit atau hapus produk | `products` |
-| `/api/raw-materials` | `GET`, `POST` | Master bahan baku | `raw_materials` |
-| `/api/raw-materials/[id]` | `PATCH`, `DELETE` | Edit atau hapus bahan baku | `raw_materials` |
-| `/api/material-purchases` | `GET`, `POST` | Catatan pembelian bahan | `material_purchases` |
-| `/api/material-purchases/[id]` | `PATCH`, `DELETE` | Edit atau hapus pembelian bahan | `material_purchases` |
-| `/api/materials/purchases` | `GET` | Alias riwayat pembelian bahan | `material_purchases` |
-| `/api/suppliers` | `GET`, `POST` | Master supplier | `suppliers` |
-| `/api/suppliers/[id]` | `PATCH`, `DELETE` | Edit atau hapus supplier | `suppliers` |
-| `/api/supplier-prices` | `GET`, `POST` | Harga supplier / perbandingan | `supplier_prices` |
+| Endpoint | Metode | Fungsi | Tabel utama | Catatan |
+| --- | --- | --- | --- | --- |
+| `/api/products` | `GET`, `POST` | Master produk | `products` | ✅ Sesuai |
+| `/api/products/[id]` | ~~`PATCH`~~, `DELETE` | Edit atau hapus produk | `products` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/raw-materials` | `GET`, `POST` | Master bahan baku | `raw_materials` | ✅ Sesuai |
+| `/api/raw-materials/[id]` | ~~`PATCH`~~, `DELETE` | Edit atau hapus bahan baku | `raw_materials` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/material-purchases` | `GET`, `POST` | Catatan pembelian bahan | `material_purchases` | ✅ Sesuai (merged into expenses) |
+| `/api/material-purchases/[id]` | `DELETE` | Hapus pembelian bahan | `material_purchases` | ⚠️ DELETE only |
+| `/api/materials/purchases` | `GET`, `POST` | Alias riwayat pembelian bahan | `material_purchases` | ✅ Sesuai (alternative endpoint) |
+| `/api/suppliers` | `GET`, `POST` | Master supplier | `suppliers` | ✅ Sesuai |
+| `/api/suppliers/[id]` | `DELETE` | Hapus supplier | `suppliers` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/supplier-prices` | `GET`, `POST` | Harga supplier / perbandingan | `supplier_prices` | ✅ Sesuai |
 
 ### Investor, Alokasi, dan Administrasi
 
-| Endpoint | Metode | Fungsi | Tabel utama |
-| --- | --- | --- | --- |
-| `/api/investors` | `GET`, `POST` | Master investor | `investors` |
-| `/api/investors/[id]` | `PATCH`, `DELETE` | Edit atau hapus investor | `investors` |
-| `/api/capital-repayments` | `GET`, `POST` | Riwayat pengembalian modal | `capital_repayments` |
-| `/api/capital-repayments/[id]` | `PATCH`, `DELETE` | Edit atau hapus repayment | `capital_repayments` |
-| `/api/allocations` | `GET`, `POST` | Rekap alokasi laba | `profit_allocations` |
-| `/api/allocations/[id]` | `PATCH`, `DELETE` | Edit atau hapus alokasi | `profit_allocations` |
-| `/api/allocation-rules` | `GET`, `POST` | Aturan pembagian laba | `allocation_rules` |
-| `/api/allocation-rules/[id]` | `PATCH`, `DELETE` | Edit atau hapus aturan | `allocation_rules` |
-| `/api/profit-allocations` | `GET`, `POST` | Detail alokasi laba | `profit_allocations` |
-| `/api/profit-allocations/[id]` | `PATCH`, `DELETE` | Edit atau hapus detail alokasi | `profit_allocations` |
-| `/api/stakeholders` | `GET`, `POST` | Data stakeholder | `stakeholders` |
-| `/api/stakeholders/[id]` | `PATCH`, `DELETE` | Edit atau hapus stakeholder | `stakeholders` |
-| `/api/cash-transactions` | `GET`, `POST` | Mutasi kas | `cash_transactions` |
-| `/api/cash-transactions/[id]` | `PATCH`, `DELETE` | Edit atau hapus mutasi kas | `cash_transactions` |
-| `/api/admin/clear-data` | `POST` | Hapus data outlet terpilih | banyak tabel transaksi |
+| Endpoint | Metode | Fungsi | Tabel utama | Catatan |
+| --- | --- | --- | --- | --- |
+| `/api/investors` | `GET`, `POST` | Master investor | `investors` | ✅ Sesuai |
+| `/api/investors/[id]` | `DELETE` | Hapus investor | `investors` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/capital-repayments` | `GET`, `POST` | Riwayat pengembalian modal | `capital_repayments` | ✅ Sesuai (+ cash_transactions, investors) |
+| `/api/capital-repayments/[id]` | `DELETE` | Hapus repayment | `capital_repayments` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/allocations` | `GET`, `POST` | Rekap alokasi laba | `allocation_runs` | ✅ Sesuai (executes/previews allocations) |
+| `/api/allocations/[id]` | `GET`, `DELETE` | Lihat atau hapus alokasi | `allocation_runs`, `allocation_items` | ⚠️ GET + DELETE (bukan PATCH) |
+| `/api/allocation-rules` | `GET`, `POST` | Aturan pembagian laba | `allocation_rules` | ✅ Sesuai |
+| `/api/allocation-rules/[id]` | `PUT`, `DELETE` | Update atau hapus aturan | `allocation_rules` | ⚠️ PUT instead of PATCH |
+| `/api/profit-allocations` | `GET`, `POST` | Detail alokasi laba | `profit_allocations` | ✅ Sesuai |
+| `/api/profit-allocations/[id]` | `DELETE` | Hapus detail alokasi | `profit_allocations` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/stakeholders` | `GET`, `POST` | Data stakeholder | `stakeholders` | ✅ Sesuai |
+| `/api/stakeholders/[id]` | `PUT`, `DELETE` | Update atau hapus stakeholder | `stakeholders` | ⚠️ PUT instead of PATCH |
+| `/api/cash-transactions` | `GET`, `POST` | Mutasi kas | `cash_transactions` | ✅ Sesuai (ledger audit trail) |
+| `/api/cash-transactions/[id]` | `DELETE` | Hapus transaksi kas | `cash_transactions` | ⚠️ DELETE only (bukan PATCH) |
+| `/api/admin/clear-data` | `POST` | Hapus data outlet (QA mode) | banyak tabel | ✅ Sesuai (safe mode - hanya hari ini) |
 
 ### Konfigurasi dan Referensi
 
-| Endpoint | Metode | Fungsi | Tabel utama |
-| --- | --- | --- | --- |
-| `/api/settings` | `GET`, `PUT` | Baca/simpan setting outlet | `outlet_settings` |
-| `/api/outlets` | `GET` | Daftar outlet aktif | `outlets`, `businesses` |
+| Endpoint | Metode | Fungsi | Tabel utama | Catatan |
+| --- | --- | --- | --- | --- |
+| `/api/settings` | `GET`, `PUT` | Baca/simpan setting outlet | `outlet_settings` | ✅ Sesuai |
+| `/api/outlets` | `GET` | Daftar outlet aktif | `outlets`, `businesses` | ✅ Sesuai |
 
-## 🎯 Fitur Utama & Dashboard Pages
+---
+
+## 📋 API Audit & Corrections (2026-06-07)
+
+Komprehensif audit endpoint API dilakukan untuk memastikan akurasi dokumentasi. Berikut adalah temuan perubahan dan klarifikasi:
+
+### Summary Audit
+- **Total Endpoints**: 39 routes aktif
+- **Endpoint yang Sesuai**: 22 ✅
+- **Endpoint dengan Perbedaan Metode**: 7 ⚠️
+- **Endpoint Baru (tidak di-list)**: 2 ✨
+
+### Perubahan yang Ditemukan
+
+#### A. Method Changes (Perubahan Metode HTTP)
+
+**Dari README → Actual API:**
+
+| Endpoint | Dokumentasi | Aktual | Perubahan |
+| --- | --- | --- | --- |
+| `/api/products/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/raw-materials/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/suppliers/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/investors/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/capital-repayments/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/profit-allocations/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/cash-transactions/[id]` | PATCH, DELETE | DELETE | ❌ PATCH dihapus |
+| `/api/allocations/[id]` | PATCH, DELETE | GET, DELETE | ⚠️ GET bukan PATCH |
+| `/api/allocation-rules/[id]` | PATCH, DELETE | PUT, DELETE | ⚠️ PUT bukan PATCH |
+| `/api/stakeholders/[id]` | PATCH, DELETE | PUT, DELETE | ⚠️ PUT bukan PATCH |
+
+**Analisis:** Banyak endpoint yang hanya support DELETE (tidak ada update via PATCH/PUT), kecuali untuk allocation-rules dan stakeholders yang menggunakan PUT.
+
+#### B. New Endpoints (Endpoint Baru/Tambahan)
+
+**Endpoints yang tidak di-list di README:**
+
+1. **`/api/cash/balance`** (GET)
+   - **Fungsi**: Calculate current cash balance dari cash_transactions
+   - **Tabel**: `cash_transactions`
+   - **Use Case**: Validate expense amounts against available cash
+
+2. **`/api/dashboard/expenses-details`** (GET)
+   - **Fungsi**: Get expense details for specific category and date
+   - **Tabel**: `expenses`
+   - **Use Case**: Detailed breakdown untuk specific kategori
+
+#### C. Tabel Tambahan pada Endpoint
+
+Beberapa endpoint berinteraksi dengan lebih banyak tabel dari yang didokumentasikan:
+
+| Endpoint | Documented | Actual Additional Tables |
+| --- | --- | --- |
+| `/api/sales/[id]` | sales, sale_items | + cash_transactions |
+| `/api/expenses/[id]` | expenses | + cash_transactions |
+| `/api/capital/[id]` | capital_entries | + cash_transactions |
+| `/api/capital` | capital_entries | + cash_transactions |
+| `/api/capital-repayments` | capital_repayments | + cash_transactions, investors |
+| `/api/allocations` | allocation_runs | + allocation_rules |
+
+**Reason**: Semua transaksi finansial auto-record ke cash_transactions untuk audit trail.
+
+---
+
+### Rekomendasi Implementasi
+
+✅ **Current Approach (Recommended)**:
+- Dokumentasi di README tetap sebagai high-level reference
+- Actual method specifics bisa berbeda per endpoint
+- Details check langsung di source code route handlers
+- Audit ini capture discrepancies untuk future reference
+
+⚠️ **Future Improvements**:
+- Buat OpenAPI/Swagger spec untuk automated documentation
+- Add TypeScript route type definitions untuk consistency
+- Implement PATCH handlers untuk endpoints yang hanya DELETE
+
+---
+
+### Catatan Penting untuk Development
+
+1. **DELETE-Only Endpoints**: Banyak endpoints master (products, suppliers, investors, dll) hanya support DELETE, tidak ada PATCH/PUT. Jika perlu update, gunakan POST/update logic atau akses langsung ke database.
+
+2. **PUT vs PATCH**: 
+   - `allocation-rules/[id]` & `stakeholders/[id]` menggunakan **PUT** (bukan PATCH)
+   - Pastikan client send full object saat update
+
+3. **Cash Transactions**: Semua financial endpoints auto-create cash_transactions entries untuk ledger audit trail. Jangan manual create `cash_transactions` records.
+
+4. **Table Relationships**: Beberapa endpoint (allocations, capital-repayments) berinteraksi dengan multiple tables. Check return types untuk full data structure.
+
+---
 
 Sistem terbagi menjadi beberapa halaman operasional di `/app/dashboard/`:
 
