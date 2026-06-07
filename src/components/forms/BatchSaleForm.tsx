@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
 interface ItemRow {
   id: string;
@@ -39,6 +40,25 @@ export function BatchSaleForm({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
   const [settlementDate, setSettlementDate] = useState('');
+  const [paymentEntries, setPaymentEntries] = useState<Array<{
+    id: string;
+    payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+    amount: string;
+    payment_status: 'settled' | 'pending';
+    settlement_date: string;
+    payment_reference: string;
+    notes: string;
+  }>>([
+    {
+      id: String(Date.now()),
+      payment_method: 'cash',
+      amount: '0',
+      payment_status: 'settled',
+      settlement_date: '',
+      payment_reference: '',
+      notes: '',
+    },
+  ]);
   const [items, setItems] = useState<ItemRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,7 +130,31 @@ export function BatchSaleForm({
     setItems((s) => s.filter((r) => r.id !== id));
   }
 
+  function addPaymentEntry() {
+    setPaymentEntries((prev) => [
+      ...prev,
+      {
+        id: String(Date.now() + Math.random()),
+        payment_method: 'cash',
+        amount: '0',
+        payment_status: 'settled',
+        settlement_date: '',
+        payment_reference: '',
+        notes: '',
+      },
+    ]);
+  }
+
+  function updatePaymentEntry(id: string, patch: Partial<(typeof paymentEntries)[number]>) {
+    setPaymentEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
+  }
+
+  function removePaymentEntry(id: string) {
+    setPaymentEntries((prev) => prev.filter((entry) => entry.id !== id));
+  }
+
   const grossAmount = items.reduce((sum, it) => sum + it.quantity * Number(it.unit_price || 0), 0);
+  const splitPaymentTotal = paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,6 +166,19 @@ export function BatchSaleForm({
       }
 
       const normalizedGrossAmount = grossAmount;
+
+      // Validasi split payment
+      if (paymentMode === 'split') {
+        if (paymentEntries.length < 2) {
+          alert('Split payment butuh minimal 2 baris pembayaran');
+          return;
+        }
+        if (Math.abs(splitPaymentTotal - normalizedGrossAmount) > 0.01) {
+          alert(`Total split payment (Rp ${splitPaymentTotal.toLocaleString('id-ID')}) harus sama dengan gross amount (Rp ${normalizedGrossAmount.toLocaleString('id-ID')})`);
+          return;
+        }
+      }
+
       const payload = {
         session_id: sessionId || null,
         outlet_id: outletId || null,
@@ -130,18 +187,18 @@ export function BatchSaleForm({
         channel: channelType === 'offline' ? 'offline' : platform || 'offline',
         payment_method: paymentMode === 'split' ? 'split' : paymentMethod,
         gross_amount: normalizedGrossAmount,
-        payment_status: paymentMode === 'split' ? 'settled' : paymentStatus,
+        payment_status: paymentMode === 'split' ? (paymentEntries.every((entry) => entry.payment_status === 'settled') ? 'settled' : 'pending') : paymentStatus,
         settlement_date: paymentMode === 'split' ? null : settlementDate || null,
         items: items.map((it) => ({ product_name: it.product_name, quantity: it.quantity, unit_price: it.unit_price })),
         payment_entries:
           paymentMode === 'split'
-            ? items.map((it, index) => ({
-                payment_method: index === 0 ? paymentMethod : 'qris',
-                amount: it.quantity * Number(it.unit_price || 0),
-                payment_status: 'settled',
-                settlement_date: settlementDate || null,
-                payment_reference: null,
-                notes: null,
+            ? paymentEntries.map((entry) => ({
+                payment_method: entry.payment_method,
+                amount: Number(entry.amount || 0),
+                payment_status: entry.payment_status,
+                settlement_date: entry.settlement_date || null,
+                payment_reference: entry.payment_reference || null,
+                notes: entry.notes || null,
               }))
             : [
                 {
@@ -157,6 +214,17 @@ export function BatchSaleForm({
       await onSubmit(payload);
       // reset
       setItems([]);
+      setPaymentEntries([
+        {
+          id: String(Date.now()),
+          payment_method: 'cash',
+          amount: '0',
+          payment_status: 'settled',
+          settlement_date: '',
+          payment_reference: '',
+          notes: '',
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -190,22 +258,10 @@ export function BatchSaleForm({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Metode Pembayaran</Label>
-                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="qris">QRIS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             {channelType === 'online' && (
-              <div className="space-y-2 md:col-span-2 xl:col-span-1">
+              <div className="space-y-2">
                 <Label>Platform Online</Label>
                 <Select value={platform} onValueChange={(v) => setPlatform(v as 'shopeefood' | 'gofood' | '')}>
                   <SelectTrigger className="w-full">
@@ -221,21 +277,137 @@ export function BatchSaleForm({
               </div>
             )}
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
-              <div className="space-y-2">
-                <Label>Status Pembayaran</Label>
-                <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="settled">Settled</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label>Mode Pembayaran</Label>
+              <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Satu Metode</SelectItem>
+                  <SelectItem value="split">Split Payment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentMode === 'single' ? (
+              <div className="grid grid-cols-2 gap-6 items-start">
+                <div>
+                  <Label>Metode Pembayaran</Label>
+                  <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="qris">QRIS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status Pembayaran</Label>
+                  <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="settled">Settled</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2 xl:col-span-2">
-                <Label>Tanggal Settlement</Label>
+            ) : (
+              <div className="space-y-3 rounded-lg border p-4 bg-white dark:bg-slate-700">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">Split Payment</p>
+                    <p className="text-sm text-gray-500">Total pembayaran harus sama dengan jumlah kotor (Rp {grossAmount.toLocaleString('id-ID')})</p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={addPaymentEntry} disabled={splitPaymentTotal >= grossAmount}>
+                    Tambah Baris
+                  </Button>
+                </div>
+
+                {paymentEntries.map((entry, index) => (
+                  <div key={entry.id} className="grid grid-cols-12 gap-2 items-start rounded border bg-white p-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs">Metode</Label>
+                      <Select
+                        value={entry.payment_method}
+                        onValueChange={(v) => updatePaymentEntry(entry.id, { payment_method: v as any })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="qris">QRIS</SelectItem>
+                          <SelectItem value="bank_transfer">Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Jumlah</Label>
+                      <CurrencyInput
+                        value={entry.amount}
+                        onChange={(e) => updatePaymentEntry(entry.id, { amount: e.target.value })}
+                        placeholder="0"
+                        showVisual={false}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Status</Label>
+                      <Select
+                        value={entry.payment_status}
+                        onValueChange={(v) => updatePaymentEntry(entry.id, { payment_status: v as 'settled' | 'pending' })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="settled">Settled</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Settlement</Label>
+                      <Input
+                        type="date"
+                        value={entry.settlement_date}
+                        onChange={(e) => updatePaymentEntry(entry.id, { settlement_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <Label className="text-xs">Ref</Label>
+                      <Input
+                        value={entry.payment_reference}
+                        onChange={(e) => updatePaymentEntry(entry.id, { payment_reference: e.target.value })}
+                        placeholder="Opsional"
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-end pt-6">
+                      <Button type="button" variant="ghost" onClick={() => removePaymentEntry(entry.id)} disabled={paymentEntries.length <= 1} className="px-2">
+                        Hapus
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
+                  Subtotal: Rp {splitPaymentTotal.toLocaleString('id-ID')} / Rp {grossAmount.toLocaleString('id-ID')} {Math.abs(splitPaymentTotal - grossAmount) < 0.01 ? '✓' : '⚠️'}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-6 rounded-lg border bg-white p-4 dark:bg-slate-700 items-start">
+              <div>
+                <p className="text-xs text-gray-600">Jumlah Kotor</p>
+                <p className="font-semibold">Rp {grossAmount.toLocaleString('id-ID')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600">Tanggal Settlement</p>
                 <Input type="date" value={settlementDate} onChange={(e) => setSettlementDate(e.target.value)} />
               </div>
             </div>

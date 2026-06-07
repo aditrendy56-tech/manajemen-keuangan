@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Calendar,
-  ShoppingCart,
   DollarSign,
   Package,
   Zap,
@@ -21,7 +20,6 @@ import { getSupabase } from '@/lib/supabase/client';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Sesi Harian', href: '/dashboard/sessions', icon: Calendar },
-  { name: 'Penjualan', href: '/dashboard/sales', icon: ShoppingCart },
   { name: 'Pengeluaran', href: '/dashboard/expenses', icon: DollarSign },
   { name: 'Manajemen Pendanaan', href: '/dashboard/funding', icon: Zap, group: 'Admin' },
   { name: 'Manajemen Bahan', href: '/dashboard/sourcing', icon: Package, group: 'Admin' },

@@ -526,7 +526,6 @@ export default function SessionDetailPage() {
             initialChannelType={salePreset.channelType}
             initialPlatform={salePreset.platform}
             initialPaymentMethod={salePreset.paymentMethod}
-            inline
           />
         )}
         <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
