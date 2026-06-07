@@ -94,8 +94,8 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     if (showNetFormat && sale.platform_fee > 0) {
       // Online format: "Produk ×Qty = Rp 30.000 (App) → Rp 22.500 (Net)"
       return (
-        <div key={sale.id} className="py-2 px-4 flex justify-between items-start gap-3">
-          <div className="flex-1 text-sm">
+        <div key={sale.id} className="py-1 px-0 flex justify-between items-start gap-3 text-sm border-b">
+          <div className="flex-1">
             Item ×{sale.quantity || 1} = Rp {sale.gross_amount.toLocaleString('id-ID')} (App) → Rp{' '}
             {sale.net_amount.toLocaleString('id-ID')} (Net)
             {sale.notes && (
@@ -130,8 +130,8 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
     // Offline format: "Produk ×Qty = Rp XXX"
     return (
-      <div key={sale.id} className="py-2 px-4 flex justify-between items-start gap-3">
-        <div className="flex-1 text-sm">
+      <div key={sale.id} className="py-1 px-0 flex justify-between items-start gap-3 text-sm border-b">
+        <div className="flex-1">
           Item ×{sale.quantity || 1} = Rp {sale.net_amount.toLocaleString('id-ID')}
           {sale.type === 'custom' && sale.custom_description && (
             <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
@@ -171,10 +171,10 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     const sectionTotal = calcTotal(items);
 
     return (
-      <div key={sectionKey} className="border rounded-lg overflow-hidden mb-3 bg-white">
+      <div key={sectionKey} className="mb-4 pt-2">
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full px-4 py-2 flex items-center justify-between bg-gray-50 hover:bg-gray-100 border-b text-sm"
+          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2 border-b-2"
         >
           <div className="flex items-center gap-2">
             {isExpanded ? (
@@ -182,21 +182,19 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             ) : (
               <ChevronRight className="w-4 h-4 text-gray-600" />
             )}
-            <span className="font-semibold text-gray-800">{title}</span>
+            <span>{title}</span>
           </div>
-          <span className="text-xs font-semibold text-gray-700">
-            Rp {sectionTotal.toLocaleString('id-ID')}
-          </span>
+          <span className="text-gray-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
         </button>
 
         {isExpanded && (
           <div className="divide-y">
             {items.length === 0 ? (
-              <div className="p-4 text-center text-gray-400 text-xs">—</div>
+              <div className="py-2 text-center text-gray-400 text-sm">—</div>
             ) : (
               <>
                 {items.map((item) => renderItem(item, showNetFormat))}
-                <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-right border-t">
+                <div className="py-2 text-sm font-semibold text-right border-t-2">
                   Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
                 </div>
               </>
@@ -208,7 +206,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   }
 
   const content = (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {sales.length === 0 ? (
         <div className="py-8 text-center text-gray-500 text-sm">Tidak ada data penjualan</div>
       ) : (
@@ -230,7 +228,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
           {/* TOTAL SECTION */}
           {sales.some((s) => s.payment_status !== 'refunded') && (
-            <div className="border rounded-lg bg-amber-50 overflow-hidden mt-4">
+            <div className="border rounded-lg bg-amber-50 overflow-hidden mt-6 pt-4">
               <div className="px-4 py-3 border-b font-bold text-sm">TOTAL</div>
               <div className="px-4 py-2 space-y-1 text-sm">
                 <div className="flex justify-between">
