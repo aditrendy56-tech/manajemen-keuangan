@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { SalesTable } from '@/components/tables/SalesTable';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
+import { CustomPricingTab } from '@/components/forms/CustomPricingTab';
 import { Sale, Expense, DailySession, MaterialPurchase, CashTransaction } from '@/types';
 import { useParams } from 'next/navigation';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -40,7 +41,7 @@ export default function SessionDetailPage() {
   const [refundNotes, setRefundNotes] = useState('');
   const [expenseFormKey, setExpenseFormKey] = useState(0);
   const [salePreset, setSalePreset] = useState<{
-    channelType: 'offline' | 'online';
+    channelType: 'offline' | 'online' | 'custom';
     platform: 'shopeefood' | 'gofood' | '';
     paymentMethod: 'cash' | 'qris' | 'split';
   }>({ channelType: 'offline', platform: '', paymentMethod: 'cash' });
@@ -183,67 +184,134 @@ export default function SessionDetailPage() {
     setExpenseDialogOpen(false);
   }
 
-  function openRefundDialog(target: Sale | Expense, kind: 'sale' | 'expense') {
-    const defaultAmount = kind === 'sale' ? Number((target as Sale).net_amount || 0) : Number((target as Expense).amount || 0);
-    setRefundKind(kind);
-    setRefundTarget(target);
-    setRefundAmount(String(defaultAmount));
-    setRefundReason('');
-    setRefundReference(`${target.id}-refund`);
-    setRefundDate(new Date().toISOString().split('T')[0]);
-    setRefundNotes('');
-    setRefundDialogOpen(true);
+  function openRefundDialog(target: Sale | Sale[] | Expense, kind: 'sale' | 'expense') {
+    // Check if it's batch refund (array of sales)
+    if (Array.isArray(target)) {
+      const totalAmount = target.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+      setRefundKind('sale');
+      setRefundTarget(null); // Will handle batch separately
+      setRefundAmount(String(totalAmount));
+      setRefundReason('');
+      setRefundReference(`batch-refund-${Date.now()}`);
+      setRefundDate(new Date().toISOString().split('T')[0]);
+      setRefundNotes(`Batch refund untuk ${target.length} transaksi`);
+      
+      // Store selected sales temporarily
+      (window as any).__batchRefundSales = target;
+      setRefundDialogOpen(true);
+    } else {
+      // Single refund
+      const defaultAmount = kind === 'sale' ? Number((target as Sale).net_amount || 0) : Number((target as Expense).amount || 0);
+      setRefundKind(kind);
+      setRefundTarget(target);
+      setRefundAmount(String(defaultAmount));
+      setRefundReason('');
+      setRefundReference(`${target.id}-refund`);
+      setRefundDate(new Date().toISOString().split('T')[0]);
+      setRefundNotes('');
+      (window as any).__batchRefundSales = null;
+      setRefundDialogOpen(true);
+    }
   }
 
   async function submitRefund() {
-    if (!refundTarget) return;
-
-    const endpoint = refundKind === 'sale' ? `/api/sales/${refundTarget.id}` : `/api/expenses/${refundTarget.id}`;
-    const originalAmount = refundKind === 'sale' ? Number((refundTarget as Sale).net_amount || 0) : Number((refundTarget as Expense).amount || 0);
-    const amountToRefund = Number(refundAmount || 0);
+    const batchRefundSales = (window as any).__batchRefundSales;
 
     if (!refundReason.trim()) {
       alert('Alasan refund wajib diisi');
       return;
     }
 
-    if (!amountToRefund || amountToRefund <= 0) {
+    if (!refundAmount || Number(refundAmount) <= 0) {
       alert('Nominal refund harus lebih dari 0');
       return;
     }
 
-    if (amountToRefund > originalAmount) {
-      alert('Nominal refund tidak boleh melebihi nominal asli');
-      return;
+    // Handle batch refund
+    if (batchRefundSales && Array.isArray(batchRefundSales)) {
+      const totalAmount = batchRefundSales.reduce((sum: number, s: Sale) => sum + (s.net_amount || 0), 0);
+      const amountToRefund = Number(refundAmount || 0);
+
+      if (amountToRefund > totalAmount) {
+        alert('Nominal refund tidak boleh melebihi nominal total');
+        return;
+      }
+
+      try {
+        for (const sale of batchRefundSales) {
+          const response = await fetch(`/api/sales/${sale.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              payment_status: 'refunded',
+              refund_amount: sale.net_amount,
+              refund_reason: refundReason,
+              refunded_at: refundDate,
+              refund_reference: refundReference || `batch-refund-${Date.now()}`,
+              notes: refundNotes || `Batch refund - ${refundReason}`,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Gagal refund untuk ${sale.id}`);
+          }
+
+          const updated = await response.json();
+          setSales((prev) => prev.map((item) => (item.id === sale.id ? updated : item)));
+        }
+
+        setRefundDialogOpen(false);
+        setRefundTarget(null);
+        (window as any).__batchRefundSales = null;
+        alert(`${batchRefundSales.length} transaksi berhasil direfund`);
+      } catch (error: any) {
+        alert('Gagal refund: ' + (error.message || error));
+      }
+    } else if (refundTarget) {
+      // Single refund
+      const endpoint = refundKind === 'sale' ? `/api/sales/${refundTarget.id}` : `/api/expenses/${refundTarget.id}`;
+      const originalAmount = refundKind === 'sale' ? Number((refundTarget as Sale).net_amount || 0) : Number((refundTarget as Expense).amount || 0);
+      const amountToRefund = Number(refundAmount || 0);
+
+      if (amountToRefund > originalAmount) {
+        alert('Nominal refund tidak boleh melebihi nominal asli');
+        return;
+      }
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payment_status: 'refunded',
+            refund_amount: amountToRefund,
+            refund_reason: refundReason,
+            refunded_at: refundDate,
+            refund_reference: refundReference || `${refundTarget.id}-refund`,
+            notes: refundNotes || (refundKind === 'sale' ? (refundTarget as Sale).notes : (refundTarget as Expense).notes) || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Gagal refund');
+        }
+
+        const updated = await response.json();
+        if (refundKind === 'sale') {
+          setSales((prev) => prev.map((item) => (item.id === refundTarget.id ? updated : item)));
+        } else {
+          setExpenses((prev) => prev.map((item) => (item.id === refundTarget.id ? updated : item)));
+        }
+
+        setRefundDialogOpen(false);
+        setRefundTarget(null);
+        alert('Refund berhasil diproses');
+      } catch (error: any) {
+        alert('Gagal refund: ' + (error.message || error));
+      }
     }
-
-    const response = await fetch(endpoint, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payment_status: 'refunded',
-        refund_amount: amountToRefund,
-        refund_reason: refundReason,
-        refunded_at: refundDate,
-        refund_reference: refundReference || `${refundTarget.id}-refund`,
-        notes: refundNotes || (refundKind === 'sale' ? (refundTarget as Sale).notes : (refundTarget as Expense).notes) || null,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Gagal refund');
-    }
-
-    const updated = await response.json();
-    if (refundKind === 'sale') {
-      setSales((prev) => prev.map((item) => (item.id === refundTarget.id ? updated : item)));
-    } else {
-      setExpenses((prev) => prev.map((item) => (item.id === refundTarget.id ? updated : item)));
-    }
-
-    setRefundDialogOpen(false);
-    setRefundTarget(null);
   }
 
   async function handleDeleteExpense(expenseId: string) {
@@ -515,10 +583,31 @@ export default function SessionDetailPage() {
               >
                 Split
               </Button>
+              <Button
+                type="button"
+                variant={salePreset.channelType === 'custom' ? 'default' : 'outline'}
+                className={salePreset.channelType === 'custom' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                onClick={() => setSalePreset({ channelType: 'custom', platform: '', paymentMethod: 'cash' })}
+              >
+                💳 Custom
+              </Button>
             </div>
           )}
         </div>
-        {session?.status === 'open' && (
+        
+        {/* Custom Pricing Tab */}
+        {session?.status === 'open' && salePreset.channelType === 'custom' && (
+          <CustomPricingTab
+            sessionId={sessionId}
+            outletId={outletId}
+            onSubmit={() => {
+              loadData();
+            }}
+          />
+        )}
+
+        {/* Regular Sales Form - Show only if not custom */}
+        {session?.status === 'open' && salePreset.channelType !== 'custom' && (
           <BatchSaleForm
             onSubmit={handleBatchSaleSubmit}
             sessionId={sessionId}

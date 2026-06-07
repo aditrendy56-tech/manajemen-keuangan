@@ -131,6 +131,14 @@ export interface Sale {
   }>;
   order_ref?: string | null;
   notes?: string | null;
+  // Custom Pricing Fields (NEW)
+  type?: 'regular' | 'custom';
+  product_id?: string | null;
+  quantity?: number | null;
+  is_custom_price?: boolean;
+  custom_original_price?: number | null;
+  custom_final_price?: number | null;
+  custom_description?: string | null;
   created_at: string;
 }
 

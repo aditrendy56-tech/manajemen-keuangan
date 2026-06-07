@@ -394,16 +394,36 @@ This refactor does NOT change split payment logic - only improves display.
 - [ ] Batch refund processes correctly
 - [ ] No tanggal (date) column in new display
 - [ ] Mobile responsive (if applicable)
+- [ ] **[NEW] Custom pricing tab loads correctly**
+- [ ] **[NEW] Can select product from dropdown**
+- [ ] **[NEW] Original price calculated correctly (qty × product price)**
+- [ ] **[NEW] Custom price input accepts custom amount**
+- [ ] **[NEW] Description field accepts free text**
+- [ ] **[NEW] Add Custom Pricing button saves to session**
+- [ ] **[NEW] Edit custom pricing item**
+- [ ] **[NEW] Delete custom pricing item**
+- [ ] **[NEW] Custom pricing section appears in sales report**
+- [ ] **[NEW] Custom section shows original → custom price**
+- [ ] **[NEW] Discount amount calculated (original - custom)**
+- [ ] **[NEW] Discount percentage shown**
+- [ ] **[NEW] Custom section total in grand summary**
+- [ ] **[NEW] Batch custom pricing submission works**
 
 ---
 
 ## **9. MIGRATION NOTES**
 
 - SalesTable component replaced (breaking change)
-- No database schema changes needed
-- No API changes needed
+- No database schema changes needed **[UPDATED]** - CUSTOM PRICING REQUIRES schema change
+- No API changes needed **[UPDATED]** - CUSTOM PRICING needs new endpoint
 - Only frontend display restructured
 - Existing refund logic can be reused (adapt for batch)
+
+### **Custom Pricing Migration:**
+- **Schema:** Add 4 new columns to `sales` table (is_custom_price, custom_original_price, custom_final_price, custom_description)
+- **API:** New POST endpoint `/api/sales/custom`
+- **Component:** New CustomPricingTab component for session page
+- **Types:** Update `Sale` type to include custom pricing fields
 
 ---
 
@@ -620,9 +640,31 @@ Custom Sales Summary:
 ## **EXECUTION PHASE**
 
 Ready to execute when user confirms. Implementation will:
-1. Modify `SalesTable.tsx` completely
-2. Update session detail page if needed
-3. Test with sample data
-4. Verify all calculations
-5. Commit to git
+1. ✅ Modify `SalesTable.tsx` with hierarchical grouping & refund section
+2. ✅ Create CustomPricingTab component for session page
+3. ✅ Update session detail page layout (add custom tab)
+4. ✅ Add database schema migration (custom pricing columns)
+5. ✅ Create API endpoint `/api/sales/custom`
+6. ✅ Update Sales type definitions
+7. ✅ Test with sample data (all types: offline, online, custom)
+8. ✅ Verify all calculations (fees, subtotals, grand total)
+9. ✅ Test refund workflow (single & batch)
+10. ✅ Commit to git with clear messages
+
+**Scope:**
+- SalesTable display refactor
+- Refund batch processing
+- Custom pricing feature (input, storage, display)
+- All supporting API endpoints
+- Database migrations
+
+**Affected Files:**
+- `src/components/tables/SalesTable.tsx` (major refactor)
+- `src/components/forms/CustomPricingTab.tsx` (new)
+- `src/app/dashboard/sessions/[id]/page.tsx` (add tab)
+- `src/types/index.ts` (update Sale type)
+- `src/lib/calculations/` (update for custom pricing)
+- `src/app/api/sales/custom.ts` (new endpoint)
+- `database/migrations/` (add custom pricing columns)
+
 
