@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Product } from '@/types';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Edit2, X } from 'lucide-react';
 import { useOutlet } from '@/lib/context/OutletContext';
 
 export default function ProductsPage() {
@@ -18,9 +18,20 @@ export default function ProductsPage() {
   const [priceOffline, setPriceOffline] = useState('');
   const [priceShopeefood, setPriceShopeefood] = useState('');
   const [priceGofood, setPriceGofood] = useState('');
+  const [costPrice, setCostPrice] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editPriceOffline, setEditPriceOffline] = useState('');
+  const [editPriceShopeefood, setEditPriceShopeefood] = useState('');
+  const [editPriceGofood, setEditPriceGofood] = useState('');
+  const [editCostPrice, setEditCostPrice] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -37,7 +48,24 @@ export default function ProductsPage() {
       const response = await fetch(`/api/products?outlet_id=${outletId}`);
       if (response.ok) {
         const data = await response.json();
-        setProducts(Array.isArray(data) ? data : []);
+        console.log('fetchProducts received data:', data);
+        console.log('First product:', data?.[0]);
+        if (Array.isArray(data)) {
+          // Ensure all products have IDs
+          const validatedData = data.map((p: any) => {
+            if (!p.id) {
+              console.warn('Product without ID:', p);
+            }
+            return p;
+          });
+          setProducts(validatedData);
+        } else {
+          console.error('Expected array, got:', typeof data);
+          setProducts([]);
+        }
+      } else {
+        console.error('Fetch failed with status:', response.status);
+        setProducts([]);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -45,6 +73,11 @@ export default function ProductsPage() {
     } finally {
       setFetching(false);
     }
+  }
+
+  function calculateMargin(sellPrice: number, cost: number): number {
+    if (sellPrice <= 0) return 0;
+    return ((sellPrice - cost) / sellPrice) * 100;
   }
 
   async function handleAddProduct() {
@@ -56,6 +89,9 @@ export default function ProductsPage() {
 
     setLoading(true);
     try {
+      const finalPrice = priceOffline ? parseFloat(priceOffline) : price ? parseFloat(price) : 0;
+      const finalCostPrice = costPrice ? parseFloat(costPrice) : finalPrice * 0.4; // Default 40% cost
+      
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,6 +101,7 @@ export default function ProductsPage() {
           price_offline: priceOffline ? parseFloat(priceOffline) : price ? parseFloat(price) : null,
           price_shopeefood: priceShopeefood ? parseFloat(priceShopeefood) : price ? parseFloat(price) : null,
           price_gofood: priceGofood ? parseFloat(priceGofood) : price ? parseFloat(price) : null,
+          cost_price: finalCostPrice,
           description,
           is_active: true,
         }),
@@ -78,6 +115,7 @@ export default function ProductsPage() {
         setPriceOffline('');
         setPriceShopeefood('');
         setPriceGofood('');
+        setCostPrice('');
         setDescription('');
       } else {
         const data = await response.json().catch(() => ({}));
@@ -97,6 +135,100 @@ export default function ProductsPage() {
 
   async function handleToggle(id: string, is_active: boolean) {
     alert('Fitur toggle belum tersedia');
+  }
+
+  function startEdit(product: Product) {
+    if (!product) {
+      alert('Product object tidak ada');
+      return;
+    }
+    console.log('startEdit called with product:', product);
+    console.log('product.id value:', product.id);
+    
+    if (!product.id) {
+      alert('Product ID tidak ditemukan. Product: ' + JSON.stringify(product));
+      return;
+    }
+    setEditingId(product.id);
+    setEditName(product.name);
+    setEditPrice(product.price?.toString() || '');
+    setEditPriceOffline(product.price_offline?.toString() || '');
+    setEditPriceShopeefood(product.price_shopeefood?.toString() || '');
+    setEditPriceGofood(product.price_gofood?.toString() || '');
+    setEditCostPrice(product.cost_price?.toString() || '');
+    setEditDescription(product.description || '');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditName('');
+    setEditPrice('');
+    setEditPriceOffline('');
+    setEditPriceShopeefood('');
+    setEditPriceGofood('');
+    setEditCostPrice('');
+    setEditDescription('');
+  }
+
+  async function handleUpdateProduct() {
+    if (!editingId) {
+      alert('ID produk tidak valid');
+      return;
+    }
+    console.log('handleUpdateProduct called, using editingId:', editingId);
+
+    if (!editName.trim()) {
+      alert('Nama produk harus diisi');
+      return;
+    }
+
+    const anyPrice = editPrice || editPriceOffline || editPriceShopeefood || editPriceGofood;
+    if (!anyPrice) {
+      alert('Minimal satu harga harus diisi');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const finalPrice = editPriceOffline ? parseFloat(editPriceOffline) : editPrice ? parseFloat(editPrice) : 0;
+      const finalCostPrice = editCostPrice ? parseFloat(editCostPrice) : finalPrice * 0.4;
+
+      const requestBody = {
+        name: editName,
+        price_offline: editPriceOffline ? parseFloat(editPriceOffline) : editPrice ? parseFloat(editPrice) : null,
+        price_shopeefood: editPriceShopeefood ? parseFloat(editPriceShopeefood) : editPrice ? parseFloat(editPrice) : null,
+        price_gofood: editPriceGofood ? parseFloat(editPriceGofood) : editPrice ? parseFloat(editPrice) : null,
+        cost_price: finalCostPrice,
+        description: editDescription,
+      };
+      
+      console.log('Sending PUT request to /api/products/' + editingId);
+      console.log('Request body:', requestBody);
+
+      const response = await fetch(`/api/products/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response status:', response.status);
+      
+      if (response.ok) {
+        const updatedProduct = await response.json();
+        console.log('Update successful:', updatedProduct);
+        setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+        cancelEdit();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        console.error('Update failed:', data);
+        alert(data.error || 'Gagal update produk');
+      }
+    } catch (error) {
+      console.error('Error updating product:', error);
+      alert('Error updating product: ' + (error as any).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function formatPrice(price: number): string {
@@ -139,9 +271,22 @@ export default function ProductsPage() {
                           <span>ShopeeFood: {formatPrice(product.price_shopeefood ?? product.price ?? 0)}</span>
                           <span>GoFood: {formatPrice(product.price_gofood ?? product.price ?? 0)}</span>
                         </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-blue-600">
+                          <span>💵 HPP: {formatPrice(product.cost_price ?? 0)}</span>
+                          {product.price_offline && (
+                            <span>📊 Margin: {(((product.price_offline - (product.cost_price ?? 0)) / product.price_offline) * 100).toFixed(1)}%</span>
+                          )}
+                        </div>
                         {product.description && <p className="mt-1 text-xs text-gray-400">{product.description}</p>}
                       </div>
                       <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEdit(product)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
                         <Button
                           size="sm"
                           variant={product.is_active ? 'default' : 'outline'}
@@ -164,85 +309,179 @@ export default function ProductsPage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Produk</CardTitle>
+              <CardTitle>{editingId ? 'Edit Produk' : 'Tambah Produk'}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {editingId && (
+                  <Button
+                    onClick={cancelEdit}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mb-4"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Batal Edit
+                  </Button>
+                )}
+
                 <p className="text-xs text-gray-500">
                   Harga dasar adalah fallback kalau harga channel belum diisi. Kalau hanya isi harga dasar, sistem akan memakainya untuk semua channel.
                 </p>
 
                 <div>
-                  <Label htmlFor="name">Nama Produk</Label>
+                  <Label htmlFor="product_name">Nama Produk</Label>
                   <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    id="product_name"
+                    value={editingId ? editName : name}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditName(e.target.value);
+                      } else {
+                        setName(e.target.value);
+                      }
+                    }}
                     placeholder="Contoh: Roti Bakar Standar"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="price">Harga Dasar / Fallback (Rp)</Label>
+                  <Label htmlFor="product_price">Harga Dasar / Fallback (Rp)</Label>
                   <Input
-                    id="price"
+                    id="product_price"
                     type="number"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    value={editingId ? editPrice : price}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditPrice(e.target.value);
+                      } else {
+                        setPrice(e.target.value);
+                      }
+                    }}
                     placeholder="0"
                   />
                   <p className="mt-1 text-xs text-gray-500">Dipakai jika harga offline, ShopeeFood, atau GoFood belum diisi.</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="price_offline">Harga Offline (Rp)</Label>
+                  <Label htmlFor="product_price_offline">Harga Offline (Rp)</Label>
                   <Input
-                    id="price_offline"
+                    id="product_price_offline"
                     type="number"
-                    value={priceOffline}
-                    onChange={(e) => setPriceOffline(e.target.value)}
+                    value={editingId ? editPriceOffline : priceOffline}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditPriceOffline(e.target.value);
+                      } else {
+                        setPriceOffline(e.target.value);
+                      }
+                    }}
                     placeholder="Opsional: harga khusus offline"
                   />
                   <p className="mt-1 text-xs text-gray-500">Dipakai untuk penjualan langsung di toko.</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="price_shopeefood">Harga ShopeeFood (Rp)</Label>
+                  <Label htmlFor="product_price_shopeefood">Harga ShopeeFood (Rp)</Label>
                   <Input
-                    id="price_shopeefood"
+                    id="product_price_shopeefood"
                     type="number"
-                    value={priceShopeefood}
-                    onChange={(e) => setPriceShopeefood(e.target.value)}
+                    value={editingId ? editPriceShopeefood : priceShopeefood}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditPriceShopeefood(e.target.value);
+                      } else {
+                        setPriceShopeefood(e.target.value);
+                      }
+                    }}
                     placeholder="Opsional: harga di ShopeeFood"
                   />
                   <p className="mt-1 text-xs text-gray-500">Dipakai untuk transaksi yang dijual di aplikasi ShopeeFood.</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="price_gofood">Harga GoFood (Rp)</Label>
+                  <Label htmlFor="product_price_gofood">Harga GoFood (Rp)</Label>
                   <Input
-                    id="price_gofood"
+                    id="product_price_gofood"
                     type="number"
-                    value={priceGofood}
-                    onChange={(e) => setPriceGofood(e.target.value)}
+                    value={editingId ? editPriceGofood : priceGofood}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditPriceGofood(e.target.value);
+                      } else {
+                        setPriceGofood(e.target.value);
+                      }
+                    }}
                     placeholder="Opsional: harga di GoFood"
                   />
                   <p className="mt-1 text-xs text-gray-500">Dipakai untuk transaksi yang dijual di aplikasi GoFood.</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="description">Deskripsi</Label>
+                  <Label htmlFor="product_cost_price">Harga Pokok (HPP) - Rp</Label>
+                  <Input
+                    id="product_cost_price"
+                    type="number"
+                    value={editingId ? editCostPrice : costPrice}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditCostPrice(e.target.value);
+                      } else {
+                        setCostPrice(e.target.value);
+                      }
+                    }}
+                    placeholder="Otomatis: 40% dari harga jual jika kosong"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {(editingId ? editPrice || editPriceOffline : price || priceOffline) ? (
+                      <>
+                        Default 40%: {formatPrice(((editingId ? editPrice || editPriceOffline : price || priceOffline) as any) * 0.4)}
+                        {(editingId ? editCostPrice : costPrice) && (
+                          <>
+                            <br />
+                            Margin: {calculateMargin(parseFloat((editingId ? editPrice || editPriceOffline : price || priceOffline) || '0'), parseFloat(editingId ? editCostPrice : costPrice)).toFixed(1)}%
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      'Input harga jual dulu untuk lihat default HPP'
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="product_description">Deskripsi</Label>
                   <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    id="product_description"
+                    value={editingId ? editDescription : description}
+                    onChange={(e) => {
+                      if (editingId) {
+                        setEditDescription(e.target.value);
+                      } else {
+                        setDescription(e.target.value);
+                      }
+                    }}
                     placeholder="Deskripsi produk"
                   />
                 </div>
 
-                <Button onClick={handleAddProduct} disabled={loading} className="w-full bg-orange-600 hover:bg-orange-700">
-                  {loading ? 'Menambah...' : 'Tambah Produk'}
-                </Button>
+                {editingId ? (
+                  <Button
+                    onClick={handleUpdateProduct}
+                    disabled={loading}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                  >
+                    {loading ? 'Mengupdate...' : 'Update Produk'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleAddProduct}
+                    disabled={loading}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                  >
+                    {loading ? 'Menambah...' : 'Tambah Produk'}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -756,11 +756,13 @@ export default function FundingPage() {
     const [itemAmount, setItemAmount] = useState('');
     const [saving, setSaving] = useState(false);
 
-    // AUTO-CALCULATE PROFIT from metrics: Profit = Net Revenue - Operational Expenses ONLY
+    // AUTO-CALCULATE PROFIT from metrics (PHASE 5): Profit = Gross Profit - Operational Expenses
+    // New formula uses HPP tracking for accurate gross profit calculation
     useEffect(() => {
       if (data.metrics) {
-        // Profit = Net Revenue - Operational Expenses (from dashboard metrics)
-        const calculatedProfit = (data.metrics.today_net_revenue || 0) - (data.metrics.today_operational_expenses || 0);
+        // Use pre-calculated profit from dashboard (Gross Profit - Operational Expenses)
+        // This uses HPP from sale_items for accurate cost of goods sold
+        const calculatedProfit = data.metrics.today_profit || 0;
         setNetProfit(Math.max(0, calculatedProfit));
       }
     }, [data.metrics]);
@@ -848,8 +850,8 @@ export default function FundingPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
               <div className="p-3 bg-white rounded border border-blue-200">
-                <p className="text-xs text-gray-600">Penjualan Bersih</p>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(data.metrics?.today_net_revenue || 0)}</p>
+                <p className="text-xs text-gray-600">Laba Kotor (HPP)</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(data.metrics?.today_gross_profit || 0)}</p>
               </div>
               <div className="flex items-center justify-center">
                 <span className="text-2xl font-bold text-gray-400">−</span>
@@ -862,12 +864,12 @@ export default function FundingPage() {
                 <span className="text-2xl font-bold text-gray-400">=</span>
               </div>
               <div className="p-3 bg-white rounded border border-blue-300">
-                <p className="text-xs text-gray-600 font-semibold">🎯 Profit</p>
+                <p className="text-xs text-gray-600 font-semibold">🎯 Laba Bersih</p>
                 <p className="text-lg font-bold text-blue-600">{formatCurrency(netProfit)}</p>
               </div>
             </div>
             <p className="text-xs text-gray-600 mt-3 italic">
-              📌 Catatan: Bahan & Peralatan dihitung sebagai ASSETS (tidak mengurangi profit). Hanya Operasional yang mengurangi profit.
+              📌 Catatan: Laba Kotor dihitung dari Penjualan − HPP (Harga Pokok Penjualan per item). Peralatan dihitung sebagai ASSETS (tidak mengurangi profit). Hanya Operasional yang mengurangi profit.
             </p>
           </CardContent>
         </Card>

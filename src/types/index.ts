@@ -28,6 +28,8 @@ export interface Product {
   price_offline?: number;
   price_shopeefood?: number;
   price_gofood?: number;
+  // HPP Tracking (PHASE 2)
+  cost_price?: number;
   description?: string;
   is_active: boolean;
   created_at?: string;
@@ -115,6 +117,8 @@ export interface Sale {
   gross_amount: number;
   platform_fee: number;
   net_amount: number;
+  // HPP Tracking (PHASE 3)
+  gross_profit?: number;
   payment_status?: 'settled' | 'pending' | 'refunded';
   settlement_date?: string | null;
   refund_amount?: number | null;
@@ -150,6 +154,11 @@ export interface SaleItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  // HPP Tracking (PHASE 3)
+  cost_price?: number;
+  hpp_amount?: number;
+  gross_profit?: number;
+  profit_margin_percent?: number;
 }
 
 export interface Expense {
@@ -359,6 +368,7 @@ export interface PaymentMethodBreakdown {
 export interface DashboardMetrics {
   today_gross_revenue: number;
   today_net_revenue: number;
+  today_gross_profit?: number;
   today_profit: number;
   today_inventory_purchases?: number; // Inventory purchases (asset, not expense)
   today_operational_expenses?: number; // Operational expenses only (excludes inventory)

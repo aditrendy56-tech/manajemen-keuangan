@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await resolveSessionForTransaction({
+      autoCreate: false, // Require explicit session creation
       sessionId: session_id,
       outletId: outlet_id,
       date,

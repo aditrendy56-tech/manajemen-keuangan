@@ -71,27 +71,40 @@ export async function GET(request: NextRequest) {
       .gte('date', weekStartDate)
       .lte('date', date);
 
-    // Calculate metrics - PROPER ACCOUNTING
+    // Calculate metrics - PROPER ACCOUNTING with HPP
     const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
     const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
     
-    // PROPER ACCOUNTING: Separate inventory from operational expenses
-    const inventory_purchases = (expenses || []).filter(e => {
-      const cat = (e.category || '').toLowerCase();
-      return cat === 'bahan' || cat === 'peralatan' || cat === 'gabungan';
-    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    // PHASE 4: Calculate Gross Profit from sale_items HPP
+    const saleIds = (sales || []).map((sale: any) => sale.id) || [];
+    let total_gross_profit = 0;
+    if (saleIds.length > 0) {
+      const { data: saleItems } = await supabase.from('sale_items')
+        .select('gross_profit')
+        .in('sale_id', saleIds);
+      
+      total_gross_profit = (saleItems || []).reduce((sum: number, item: any) => sum + (item.gross_profit || 0), 0) || 0;
+    }
     
+    // PHASE 4: Operational expenses include ONLY operasional category (daily operating costs)
+    // Bahan is now tracked via HPP in gross profit calculation, not as a separate expense
     const operational_expenses = (expenses || []).filter(e => {
       const cat = (e.category || '').toLowerCase();
-      return cat === 'operasional' || cat === 'lain_lain';
+      return cat === 'operasional'; // ONLY operasional, not bahan (bahan is via HPP now)
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
     
-    const total_expenses = inventory_purchases + operational_expenses;
+    // For backward compat: inventory_purchases still tracked (peralatan, bahan dari expenses)
+    const inventory_purchases = (expenses || []).filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      return cat === 'bahan' || cat === 'peralatan';
+    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+    
+    const total_expenses = operational_expenses + inventory_purchases;
     const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
     
-    // Profit = Net Revenue - Operational Expenses only (inventory is asset, not expense until sold)
-    // NOTE: Inventory purchases reduce cash but increase assets (not recognized as expense immediately)
-    const profit = net_revenue - operational_expenses;
+    // PHASE 4: Net Profit = Gross Profit - Operational Expenses (PROPER FORMULA)
+    // Gross Profit already deducted HPP, so we only subtract operasional expenses
+    const profit = total_gross_profit - operational_expenses;
 
     const today_cash_inflow = cashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
@@ -165,7 +178,7 @@ export async function GET(request: NextRequest) {
     });
 
     const topProducts = [] as DashboardMetrics['top_products'];
-    const saleIds = (sales || []).map((sale: any) => sale.id) || [];
+    // saleIds already defined above in gross profit calculation
     if (saleIds.length > 0) {
       const { data: saleItems } = await getSupabaseServer().from('sale_items')
         .select('sale_id, product_id, quantity, subtotal, products(name)')
@@ -248,6 +261,7 @@ export async function GET(request: NextRequest) {
     const metrics: DashboardMetrics = {
       today_gross_revenue: gross_revenue,
       today_net_revenue: net_revenue,
+      today_gross_profit: total_gross_profit,
       today_profit: profit,
       today_inventory_purchases: inventory_purchases,
       today_operational_expenses: operational_expenses,

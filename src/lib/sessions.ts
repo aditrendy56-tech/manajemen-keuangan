@@ -8,7 +8,7 @@ type ResolveOpts = {
 };
 
 export async function resolveSessionForTransaction(opts: ResolveOpts) {
-  const { sessionId, outletId, date, autoCreate = true } = opts || {};
+  const { sessionId, outletId, date, autoCreate = false } = opts || {};
   const supabase = await getSupabaseServer();
 
   try {
@@ -24,13 +24,14 @@ export async function resolveSessionForTransaction(opts: ResolveOpts) {
       ? new Date(date).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
 
-    // try find session for outlet+date
+    // try find FIRST open session for outlet+date (prevent duplicates)
     let { data: found, error: findErr } = await supabase
       .from('daily_sessions')
       .select('*')
       .eq('outlet_id', outletId)
       .eq('date', targetDate)
-      .order('created_at', { ascending: false })
+      .eq('status', 'open')
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -44,6 +45,7 @@ export async function resolveSessionForTransaction(opts: ResolveOpts) {
     if (!autoCreate) return null;
 
     // create a new open session for that outlet/date with 0 opening cash
+    // use insert with onConflict to prevent race conditions
     const insertPayload = {
       outlet_id: outletId,
       date: targetDate,
@@ -58,6 +60,19 @@ export async function resolveSessionForTransaction(opts: ResolveOpts) {
       .maybeSingle();
 
     if (insertErr) {
+      // If we get conflict/duplicate error, try to find and return the existing one
+      if (insertErr.code === '23505') {
+        // Unique constraint violation - try to fetch the existing session
+        const { data: existing } = await supabase
+          .from('daily_sessions')
+          .select('*')
+          .eq('outlet_id', outletId)
+          .eq('date', targetDate)
+          .eq('status', 'open')
+          .limit(1)
+          .maybeSingle();
+        return existing || null;
+      }
       throw insertErr;
     }
 

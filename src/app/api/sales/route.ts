@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     const session = await resolveSessionForTransaction({
       sessionId: session_id,
       outletId: outlet_id,
+      autoCreate: false, // Require explicit session creation
     });
 
     if (!session?.id) {
@@ -234,19 +235,55 @@ export async function POST(request: NextRequest) {
 
     const saleId = saleData.id;
 
-    // Insert sale items
+    // Insert sale items with HPP calculation
+    let totalGrossProfit = 0;
     if (items && items.length > 0) {
-      const saleItems = items.map((item: any) => ({
-        sale_id: saleId,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.quantity * item.unit_price,
-      }));
+      // Fetch cost_price for all products
+      const productIds = items.map((item: any) => item.product_id).filter(Boolean);
+      const costPriceMap = new Map<string, number>();
+      
+      if (productIds.length > 0) {
+        const { data: products } = await getSupabaseServer()
+          .from('products')
+          .select('id, cost_price')
+          .in('id', productIds);
+        
+        products?.forEach((p: any) => {
+          costPriceMap.set(p.id, p.cost_price || 0);
+        });
+      }
+
+      const saleItems = items.map((item: any) => {
+        const costPrice = costPriceMap.get(item.product_id) || 0;
+        const hppAmount = item.quantity * costPrice;
+        const lineProfit = (item.quantity * item.unit_price) - hppAmount;
+        totalGrossProfit += lineProfit;
+
+        return {
+          sale_id: saleId,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: item.quantity * item.unit_price,
+          cost_price: costPrice,
+          hpp_amount: hppAmount,
+          gross_profit: lineProfit,
+          profit_margin_percent: item.quantity * item.unit_price > 0 
+            ? (lineProfit / (item.quantity * item.unit_price)) * 100 
+            : 0,
+        };
+      });
 
       const { error: itemsError } = await (getSupabaseServer().from('sale_items') as any).insert(saleItems);
-
       if (itemsError) throw itemsError;
+
+      // Update sale with gross_profit
+      const { error: updateError } = await getSupabaseServer()
+        .from('sales')
+        .update({ gross_profit: totalGrossProfit })
+        .eq('id', saleId);
+      
+      if (updateError) throw updateError;
     }
 
     const settledEntries = normalizedPaymentEntries.filter((entry) => String(entry.payment_status || '').toLowerCase() === 'settled');

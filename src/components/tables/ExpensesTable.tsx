@@ -7,19 +7,15 @@ import { Trash2 } from 'lucide-react';
 import { Expense } from '@/types';
 
 const categoryLabels: Record<string, string> = {
-  bahan_baku: 'Bahan Baku',
+  bahan: 'Bahan',
   operasional: 'Operasional',
-  transport: 'Transport',
   peralatan: 'Peralatan',
-  lain_lain: 'Lain-lain',
 };
 
 const categoryColors: Record<string, string> = {
-  bahan_baku: 'bg-blue-100 text-blue-800',
+  bahan: 'bg-blue-100 text-blue-800',
   operasional: 'bg-green-100 text-green-800',
-  transport: 'bg-yellow-100 text-yellow-800',
   peralatan: 'bg-purple-100 text-purple-800',
-  lain_lain: 'bg-gray-100 text-gray-800',
 };
 
 interface ExpensesTableProps {

@@ -17,10 +17,19 @@ export async function GET(request: NextRequest) {
       .eq('outlet_id', outletId)
       .order('name');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Products GET error:', error);
+      throw error;
+    }
+
+    console.log('Products GET returning:', data?.length, 'products');
+    if (data && data.length > 0) {
+      console.log('First product from DB:', JSON.stringify(data[0]));
+    }
 
     return NextResponse.json(data);
   } catch (error: any) {
+    console.error('Products GET exception:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -38,16 +47,26 @@ export async function POST(request: NextRequest) {
     }
 
     // prefer explicit channel prices, fallback to legacy `price` if provided
-    const fallbackPrice = price_offline ?? price_shopeefood ?? price_gofood ?? price ?? null;
+    const fallbackPrice = price_offline ?? price_shopeefood ?? price_gofood ?? price ?? 0;
+    
+    // Validate at least one price exists and is not zero
+    if (!fallbackPrice || fallbackPrice <= 0) {
+      return NextResponse.json(
+        { error: 'At least one price must be provided and greater than 0' },
+        { status: 400 }
+      );
+    }
+    
     const insertData: any = {
       outlet_id,
       name,
       description,
       is_active: is_active !== undefined ? is_active : true,
       price: fallbackPrice,
-      price_offline: price_offline ?? price ?? null,
-      price_shopeefood: price_shopeefood ?? price ?? null,
-      price_gofood: price_gofood ?? price ?? null,
+      price_offline: price_offline ?? price ?? fallbackPrice,
+      price_shopeefood: price_shopeefood ?? price ?? fallbackPrice,
+      price_gofood: price_gofood ?? price ?? fallbackPrice,
+      cost_price: body.cost_price || 0,
     };
     const { data, error } = await (getSupabaseServer().from('products') as any)
       .insert([insertData])
@@ -57,28 +76,6 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json(data, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id, ...updates } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID required' }, { status: 400 });
-    }
-
-    const { data, error } = await (getSupabaseServer().from('products') as any)
-      .update(updates)
-      .eq('id', id)
-      .select();
-
-    if (error) throw error;
-
-    return NextResponse.json(data[0]);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

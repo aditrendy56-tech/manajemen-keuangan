@@ -117,7 +117,20 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div className="md:col-span-2">
-              <Label htmlFor="category">Kategori</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="category">Kategori</Label>
+                <div className="group relative">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold cursor-help">?</span>
+                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-md p-3 w-64 z-50">
+                    <div className="font-semibold mb-2">Panduan Kategori:</div>
+                    <ul className="space-y-1 text-left">
+                      <li><strong>Operasional:</strong> ✅ Dikurangi dari profit (gaji, listrik, air, gas)</li>
+                      <li><strong>Bahan:</strong> ⚠️ Tracked saja, HPP sudah termasuk</li>
+                      <li><strong>Peralatan:</strong> 📊 Asset, tracking ROI investor</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
