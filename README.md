@@ -10,20 +10,42 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - **State Aplikasi**: Outlet aktif dipilih lewat `OutletContext` dan selector di header.
 - **Prinsip Data**: Halaman sesi, dashboard, settings, investor, dan admin memakai data real dari API/DB.
 
-## Perubahan Terbaru
+## 📋 CHANGELOG - Perubahan Terbaru (2026-06-09)
 
-- **Sesi Harian**: Detail sesi sekarang ambil data real, bukan mock; tombol tutup sesi memanggil `PATCH /api/sessions/{id}`.
-- **Duplicate Guard**: `POST /api/sessions` menolak sesi open ganda untuk outlet yang sama.
-- **Dashboard**: Perhitungan `net revenue`, `top products`, dan `weekly profit` sudah dibenarkan.
-- **Outlet Context**: Hardcoded demo outlet dihapus dan diganti selector outlet dari API.
-- **Settings**: Halaman pengaturan sekarang simpan dan baca data dari API/DB lewat `outlet_settings`.
-- **Cleanup**: Beberapa fallback demo dan nilai dummy yang bisa mengubah data sudah dibersihkan.
-- **Sistem Alokasi Dana (Refactor)**: Alur baru untuk pembagian laba yang lebih manual dan transparan:
-  - **Kelola Role**: Halaman terpisah untuk mendaftar owner, investor, dan karyawan (tanpa share %).
-  - **Alokasi Laba Manual**: Masukkan laba bersih, potong kas operasional, lalu bagikan sisa secara nominal ke stakeholder terpilih.
-  - **Hapus Rule-based Allocation**: Menghilangkan kompleksitas otomatis; pembagian sepenuhnya berdasarkan input manual per periode.
+### 🔄 PERUBAHAN SISTEM TERBARU (2026-06-09)
 
-### 📌 REFACTOR FUNDING SOURCE & EXPENSE SIMPLIFICATION (2026-06-07)
+**1. Profit Calculation Model Clarification & Simplification**
+- ✅ **Model Profit DIPERJELAS**: Profit = Penjualan - Operasional SAJA
+- ✅ **Bahan (Materials)**: TIDAK deducted karena sudah included dalam HPP product
+- ✅ **Peralatan (Equipment)**: TIDAK deducted karena merupakan ASSET, tracked terpisah untuk ROI investor
+- ✅ **Operasional (Operational)**: HANYA kategori yang deducted dari profit (gaji, listrik, air, gas, misc)
+- 📊 **Impact**: Backend profit calculation sudah correct (`src/app/api/dashboard/route.ts` line 90-93)
+
+**2. Expense Category UX Improvement**
+- ✅ **Kategori Tooltip**: Ditambahkan hover tooltip di ExpenseForm dengan penjelasan 3 kategori
+- ✅ **Tooltip Format**: Icon "?" dengan hover popup yang menunjukkan:
+  - `Operasional: ✅ Dikurangi dari profit (gaji, listrik, air, gas)`
+  - `Bahan: ⚠️ Tracked saja, HPP sudah termasuk`
+  - `Peralatan: 📊 Asset, tracking ROI investor`
+- 📁 **File Updated**: `src/components/forms/ExpenseForm.tsx` (added tooltip UI)
+
+**3. Expense Table Category Labels Fixed (CRITICAL BUG FIX)**
+- ✅ **Bug Fixed**: Category labels mismatch yang menyebabkan kategori tidak display di tabel
+- ❌ **Sebelum**: Form send "bahan" tapi tabel cari "bahan_baku" → blank display
+- ✅ **Sesudah**: Standardized ke: `bahan`, `operasional`, `peralatan`
+- 📁 **File Updated**: `src/components/tables/ExpensesTable.tsx` (fixed categoryLabels & categoryColors)
+
+**4. Database Schema & API Validation (Sudah Correct)**
+- ✅ **Types**: `category: 'bahan' | 'operasional' | 'peralatan'` (src/types/index.ts line 169)
+- ✅ **API Validation**: 3 kategori saja yang diizinkan (src/app/api/expenses/route.ts line 97)
+- ✅ **Dashboard Breakdown**: `expense_by_category` dengan 3 keys: bahan, operasional, peralatan
+- ✅ **Tidak ada duplikasi**: Gas terpakai = dalam HPP (tidak perlu input lagi), Gas dibeli = operasional
+
+---
+
+### 📌 PERUBAHAN SEBELUMNYA (2026-06-07)
+
+**REFACTOR FUNDING SOURCE & EXPENSE SIMPLIFICATION**
 
 Sistem kini memiliki arsitektur keuangan yang lebih jelas dengan tracking per-transaksi:
 
@@ -39,47 +61,112 @@ Sistem kini memiliki arsitektur keuangan yang lebih jelas dengan tracking per-tr
 3. Reserve Kas (untuk operasional bulan depan)
 4. Profit Sharing (hanya jika modal 100% sudah kembali)
 
-**Detail Implementasi & Migrasi:** Lihat [REFACTOR_FUNDING_EXPENSES_PLAN.md](REFACTOR_FUNDING_EXPENSES_PLAN.md) untuk dokumentasi lengkap tentang database changes, API validation, form updates, dan testing guide.
+**Detail Implementasi & Migrasi:** Lihat [REFACTOR_FUNDING_EXPENSES_PLAN.md](REFACTOR_FUNDING_EXPENSES_PLAN.md) & [WORKFLOW_CALCULATIONS.md](WORKFLOW_CALCULATIONS.md) untuk dokumentasi lengkap tentang database changes, API validation, form updates, dan calculation examples.
+
+---
+
+### 📌 PERUBAHAN SEBELUMNYA (2026-06-06)
+
+- **Sesi Harian**: Detail sesi sekarang ambil data real, bukan mock; tombol tutup sesi memanggil `PATCH /api/sessions/{id}`.
+- **Duplicate Guard**: `POST /api/sessions` menolak sesi open ganda untuk outlet yang sama.
+- **Dashboard**: Perhitungan `net revenue`, `top products`, dan `weekly profit` sudah dibenarkan.
+- **Outlet Context**: Hardcoded demo outlet dihapus dan diganti selector outlet dari API.
+- **Settings**: Halaman pengaturan sekarang simpan dan baca data dari API/DB lewat `outlet_settings`.
+- **Cleanup**: Beberapa fallback demo dan nilai dummy yang bisa mengubah data sudah dibersihkan.
+- **Sistem Alokasi Dana (Refactor)**: Alur baru untuk pembagian laba yang lebih manual dan transparan:
+  - **Kelola Role**: Halaman terpisah untuk mendaftar owner, investor, dan karyawan (tanpa share %).
+  - **Alokasi Laba Manual**: Masukkan laba bersih, potong kas operasional, lalu bagikan sisa secara nominal ke stakeholder terpilih.
+  - **Hapus Rule-based Allocation**: Menghilangkan kompleksitas otomatis; pembagian sepenuhnya berdasarkan input manual per periode.
 
 ## ✅ Status Implementasi Saat Ini
 
-### Fitur yang SUDAH Selesai & Teruji
+### 📊 Kategori Pengeluaran & Profit Calculation (Current Model)
+
+| Kategori | Tipe | Deducted dari Profit? | Include di HPP? | Contoh | Catatan |
+|----------|------|:-------------------:|:---------------:|--------|---------|
+| **Operasional** | Operating Expense | ✅ YES | ❌ NO | Gaji, Listrik, Air, Gas, Marketing | Biaya harian/bulanan, direct impact ke profit |
+| **Bahan** | Asset/Inventory | ❌ NO | ✅ YES | Raw materials, Supplies | Sudah included dalam cost price (HPP) product. Tracked untuk future inventory enhancement |
+| **Peralatan** | Capital Asset | ❌ NO | ❌ NO | Oven, Mixer, Furniture | Asset jangka panjang, tracked terpisah untuk investor ROI calculation. Depreciation future feature |
+
+**Profit Calculation Formula:**
+```
+Profit = Net Revenue - Operasional Expenses
+       = (Gross - Platform Fee) - (Gaji + Listrik + Air + Gas + Misc)
+
+TIDAK termasuk:
+- Bahan (sudah dalam HPP per product)
+- Peralatan (asset, bukan operating expense)
+```
+
+**Dashboard Visualization:**
+- Dashboard menampilkan `expense_by_category` breakdown: Bahan, Operasional, Peralatan
+- Hanya **Operasional** yang mempengaruhi profit calculation di dashboard
+- Bahan & Peralatan tracked terpisah untuk informasi & audit trail
+
+**Contoh Perhitungan Hari:**
+```
+Penjualan: Rp 1,000,000
+- Platform Fee: Rp 100,000 (10% online channels)
+= Net Revenue: Rp 900,000
+
+Operasional Expenses (kategori='operasional'):
+- Gaji: Rp 200,000
+- Listrik/Air/Gas: Rp 100,000
+- Misc: Rp 50,000
+= Total Operasional: Rp 350,000
+
+PROFIT HARI INI: Rp 900,000 - Rp 350,000 = Rp 550,000 ✅
+
+Material Purchases (kategori='bahan'):
+- Telur, Roti, Mentega, dll: Rp 300,000
+STATUS: Tracked tapi TIDAK dikurangi dari profit (sudah dalam HPP)
+
+Equipment (kategori='peralatan'):
+- Oven baru: Rp 5,000,000
+STATUS: Tracked sebagai asset, TIDAK dikurangi dari profit hari ini
+```
+
+### ✅ Fitur yang SUDAH Selesai & Teruji
 - ✅ Multi-outlet support dengan selector outlet
 - ✅ Daily session management (buka/tutup sesi)
 - ✅ Sales entry dengan 3 channel (Offline/ShopeeFood/GoFood)
 - ✅ Auto-kalkulasi platform fee per channel
 - ✅ Payment methods: Cash, QRIS, Split
 - ✅ Expense entry dengan 3 kategori (Bahan/Operasional/Peralatan)
+- ✅ Expense kategori tooltip dengan penjelasan impact
 - ✅ Funding source tracking (Dari Kas / Dari Modal)
 - ✅ Investor management dengan source_type (owner/investor/karyawan)
 - ✅ Cicil vs Lunas repayment dengan smart guidance
 - ✅ Product master dengan channel-specific pricing
-- ✅ Dashboard metrics dengan cash flow breakdown
+- ✅ Dashboard metrics dengan cash flow breakdown & expense breakdown
 - ✅ Reports & Excel export
-- ✅ Allocation & profit sharing
+- ✅ Allocation & profit sharing (manual & transparan)
 - ✅ Material purchases & supplier tracking
-- ✅ TypeScript interfaces updated dengan funding source fields
+- ✅ TypeScript interfaces updated dengan funding source fields & 3 kategori
 - ✅ API validation untuk category, funding_source, investor_id
+- ✅ Profit calculation backend validation (ONLY operasional expenses)
 
-### Fitur Pending Testing
+### ⏳ Fitur Pending Testing
 - ⏳ End-to-end testing dengan real business data (akan test saat live)
 - ⏳ Database migrations execution di Supabase (manual run required)
 - ⏳ Cross-tab data correlation verification
 - ⏳ Settlement workflow full validation
 
-### Catatan Penting
+### 📌 Catatan Penting
 - 📌 **No Data Loss Risk**: Refactor bersifat additive (hanya tambah columns, tidak hapus)
 - 📌 **Demo Data**: Seed data masih ada untuk development, akan di-cleanup sebelum production
 - 📌 **RLS Status**: Masih permissive (demo mode), perlu hardening untuk production
 - 📌 **Auth Status**: Belum implementasi (stub only), bisa ditambah kemudian
+- 📌 **Gas Tracking**: Gas terpakai saat produksi = dalam HPP (per unit). Gas dibeli/refill = kategori operasional
+- 📌 **HPP Model**: Fixed per product, sudah include bahan + utilities produksi. Tidak perlu re-cost ulang
 
----
-
+### 🛠️ Pekerjaan Selanjutnya
 - **Database Migrations**: Jalankan migration-funding-source-tracking.sql untuk menambah columns `funding_source`, `funded_by_investor_id`, `repayment_type`, dan `remaining_modal` yang diperlukan untuk refactor terbaru
 - **Audit Lanjutan**: Cari sisa mock/dummy yang belum berdampak langsung ke laporan atau transaksi.
 - **Multi-outlet Report**: Tambahkan ringkasan lintas outlet dan filter agregasi yang lebih jelas.
 - **UX Mobile**: Rapikan selector outlet dan navigasi di layar kecil.
 - **Security**: Ganti setup demo permissive ke RLS berbasis user/outlet untuk production.
+- **HPP Re-costing**: Implementasi fitur untuk update cost price jika ada perubahan supplier prices (future)
 
 ## Peta Modul
 
@@ -123,25 +210,352 @@ flowchart LR
   C --> O[OutletContext + localStorage]
 ```
 
-## Mapping Endpoint ke DB
+## API Endpoints & Validation
+
+### Expense Endpoints - Detail
+
+| Endpoint | Method | Tujuan | Kategori Allowed | Validation |
+| --- | --- | --- | --- | --- |
+| `/api/expenses` | GET | List semua expenses | N/A | Filter by outlet_id, date range |
+| `/api/expenses` | POST | Create pengeluaran baru | bahan, operasional, peralatan | Strict validation: category required, amount > 0, funding_source + investor_id jika modal |
+| `/api/expenses/[id]` | PUT | Update full expense | bahan, operasional, peralatan | Validasi sama seperti POST |
+| `/api/expenses/[id]` | DELETE | Delete expense | N/A | Soft/hard delete based on payment_status |
+
+### Expense POST/PUT Validation Rules
+
+```typescript
+// src/app/api/expenses/route.ts
+validCategories: ['bahan', 'operasional', 'peralatan']
+
+// Required fields
+- outlet_id: UUID
+- date: DATE
+- category: 'bahan' | 'operasional' | 'peralatan' (required)
+- description: STRING (min 3 chars)
+- amount: DECIMAL (> 0)
+
+// Optional but important
+- funding_source: 'kas' | 'modal' (default: 'kas')
+- funded_by_investor_id: UUID (required if funding_source='modal')
+- payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending'
+- payment_status: 'paid' | 'pending' | 'refunded'
+
+// Additional fields jika kategori='bahan'
+- raw_material_id: UUID
+- supplier_id: UUID
+- delivery_date: DATE
+- quality: STRING
+- invoice_number: STRING
+```
+
+### Dashboard Expense Breakdown Calculation
+
+```typescript
+// src/app/api/dashboard/route.ts - Line 153-164
+
+const expense_by_category = {
+  bahan: 0,
+  operasional: 0,
+  peralatan: 0,
+};
+
+expenses.forEach((expense) => {
+  const cat = expense.category.toLowerCase();
+  if (expense_by_category.hasOwnProperty(cat)) {
+    expense_by_category[cat] += expense.amount;
+  }
+});
+
+// Response includes:
+// - expense_by_category breakdown
+// - operational_expenses (hanya kategori='operasional')
+// - inventory_purchases (kategori='bahan' + 'peralatan')
+// - total_expenses (operational + inventory)
+```
+
+### Other Key Endpoints
 
 | Endpoint | Tujuan | Tabel utama |
 | --- | --- | --- |
 | `/api/sessions` | List / create sesi | `daily_sessions` |
 | `/api/sessions/[id]` | Close / delete sesi | `daily_sessions` |
 | `/api/sales` | List / create penjualan | `sales`, `sale_items`, `products` |
-| `/api/expenses` | List / create pengeluaran | `expenses` |
 | `/api/capital` | List / create modal | `capital_entries` |
 | `/api/investors` | CRUD investor | `investors`, `capital_repayments` |
 | `/api/materials` | Master bahan baku | `raw_materials` |
-| `/api/material-purchases` | Pembelian bahan | `material_purchases` |
+| `/api/material-purchases` | Pembelian bahan (virtual dari expenses where category='bahan') | `expenses` |
 | `/api/products` | Master produk | `products` |
-| `/api/dashboard` | Ringkasan metrik | `sales`, `expenses`, `sale_items`, `daily_sessions` |
+| `/api/dashboard` | Ringkasan metrik harian | `sales`, `expenses`, `sale_items`, `daily_sessions` |
 | `/api/reports/summary` | Laporan P&L | `sales`, `expenses`, `sale_items`, `daily_sessions` |
 | `/api/settings` | Simpan pengaturan outlet | `outlet_settings` |
 | `/api/outlets` | Daftar outlet aktif | `outlets`, `businesses` |
 
-## Alur Fitur Utama
+### Profit & Operational Expense Calculation
+
+**Dashboard API** (`/api/dashboard`):
+```typescript
+// Formula profit HANYA dengan operasional expenses
+const profit = total_gross_profit - operational_expenses;
+
+// Dimana:
+// - total_gross_profit = SUM(sale_items.gross_profit)
+// - operational_expenses = SUM(expenses.amount WHERE category='operasional')
+
+// Bahan & Peralatan tracked terpisah:
+// - inventory_purchases = SUM(expenses.amount WHERE category IN ('bahan', 'peralatan'))
+// - total_expenses = operational_expenses + inventory_purchases (untuk info saja)
+```
+
+### Material Purchases Endpoint (Virtual)
+
+**Purpose**: Query expenses dengan kategori='bahan' untuk inventory tracking
+
+```typescript
+// src/app/api/material-purchases/route.ts
+GET /api/material-purchases?outlet_id=X
+
+// Returns: Array of expenses WHERE category='bahan'
+// NOT a separate table - hanya filter dari expenses table
+```
+
+## Mapping Endpoint ke DB (Updated)
+
+## TypeScript Types & Interfaces (Updated 2026-06-09)
+
+### Expense Interface (src/types/index.ts - Line 169-188)
+
+```typescript
+export interface Expense {
+  id: string;
+  session_id: string;
+  outlet_id: string;
+  date: string;
+  category: 'bahan' | 'operasional' | 'peralatan';  // ✅ 3 kategori inti
+  description: string;
+  amount: number;
+  funding_source?: 'kas' | 'modal';  // ✅ Funding source tracking
+  funded_by_investor_id?: string | null;  // ✅ Link ke investor
+  payment_method?: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+  payment_status?: 'paid' | 'pending' | 'refunded';
+  settlement_date?: string | null;
+  refund_amount?: number | null;
+  refund_reason?: string | null;
+  refunded_at?: string | null;
+  refund_reference?: string | null;
+  notes?: string;
+  created_at: string;
+}
+```
+
+### DashboardMetrics Interface (src/types/index.ts - Line 368+)
+
+```typescript
+export interface DashboardMetrics {
+  today_gross_revenue: number;
+  today_net_revenue: number;
+  today_profit: number;
+  today_operational_expenses?: number;  // ✅ Operasional saja
+  today_inventory_purchases?: number;   // ✅ Bahan + Peralatan (for info)
+  
+  // Expense breakdown (3 kategori)
+  expense_by_category?: {
+    bahan: number;
+    operasional: number;
+    peralatan: number;
+  };
+  
+  // ... other fields
+  revenue_by_channel: RevenueByChannel;
+  payment_methods: PaymentMethodBreakdown;
+}
+```
+
+### Capital & Investor Types (Updated with Funding Source)
+
+```typescript
+export interface CapitalEntry {
+  id: string;
+  outlet_id: string;
+  date: string;
+  amount: number;
+  investor_id?: string | null;
+  source_type?: 'owner' | 'investor';
+  notes?: string;
+  created_at: string;
+}
+
+export interface InvestorRepayment {
+  id: string;
+  investor_id: string;
+  amount: number;
+  repayment_date: string;
+  repayment_type?: 'lunas' | 'cicil';  // ✅ Full vs partial
+  remaining_modal?: number | null;      // ✅ Remaining after partial repayment
+  method?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface Investor {
+  id: string;
+  outlet_id: string;
+  name: string;
+  source_type?: 'owner' | 'investor' | 'karyawan';
+  initial_contribution: number;
+  remaining_balance: number;
+  status: 'active' | 'settled' | 'partial';
+  phone?: string;
+  notes?: string;
+  created_at: string;
+}
+```
+
+## File Structure & Key Components
+
+- **`src/app/(auth)`**: Alur login dan layout autentikasi (stub for future auth expansion)
+- **`src/app/dashboard`**: Halaman operasional
+  - `expenses/page.tsx` - Form & tabel pengeluaran dengan kategori & tooltip
+  - `dashboard/page.tsx` - Metrics dengan expense breakdown
+  - `funding/page.tsx` - Alokasi laba manual & modal repayment
+  - `investors/page.tsx` - CRUD investor dengan source_type
+  - `products/page.tsx` - Master produk dengan channel-specific pricing
+  - `sales/page.tsx` - Entry penjualan per channel
+  - `sessions/page.tsx` - Daily session management
+  - dll
+
+- **`src/app/api`**: Backend routes
+  - `/api/expenses` - CRUD expenses dengan kategori validation
+  - `/api/dashboard` - Profit calculation & metrics breakdown
+  - `/api/sales` - Sales CRUD dengan HPP tracking
+  - `/api/capital` - Modal management
+  - `/api/investors` - Investor CRUD
+  - `/api/material-purchases` - Virtual endpoint dari expenses WHERE category='bahan'
+  - `/api/products` - Product CRUD dengan null-safe price handling
+  - dll
+
+- **`src/components`**: Reusable UI components
+  - **forms/**: 
+    - `ExpenseForm.tsx` - Include kategori tooltip dengan hover
+    - `SaleForm.tsx`
+    - `SessionForm.tsx`
+    - dll
+  - **tables**: 
+    - `ExpensesTable.tsx` - Fixed kategori labels (bahan/operasional/peralatan)
+    - `SalesTable.tsx`
+    - `InvestorsTable.tsx`
+    - dll
+  - **charts/**: DailyProfitChart, RevenueByChannelChart, dll
+  - **layout/**: Header, Sidebar, OutletContext Provider
+  - **modals/**: Create/edit/delete dialogs
+  - **ui/**: shadcn components (Button, Card, Dialog, Select, etc.)
+
+- **`src/lib`**: Business logic & utilities
+  - **supabase/**: Server & client Supabase clients
+  - **calculations/**: Profit calculation logic (hanya operasional)
+  - **allocation/**: Manual profit allocation engine
+  - **cash/**: Cash ledger & validation
+  - **context/**: OutletContext untuk outlet selector
+  - **export/**: Excel export utilities
+
+- **`database/` & `migrations/`**: SQL schema & migrations
+  - Key migrations: 
+    - `migration-funding-source-tracking.sql` - Add funding_source, funded_by_investor_id
+    - `migration-sales-expenses-model.sql` - HPP tracking di sale_items
+    - `migration-capital-audit-trail.sql` - Capital edit history
+
+## File Updates Summary (2026-06-09)
+
+### Components Updated
+
+| File | Change | Status |
+|------|--------|--------|
+| `src/components/forms/ExpenseForm.tsx` | ✅ Added kategori tooltip dengan hover penjelasan | DONE |
+| `src/components/tables/ExpensesTable.tsx` | ✅ Fixed kategori labels (bahan_baku → bahan) | DONE |
+
+### Documentation Updated
+
+| File | Change | Status |
+|------|--------|--------|
+| `README.md` | ✅ Added changelog 2026-06-09 | DONE |
+| `README.md` | ✅ Added Expense Category table & Profit Formula | DONE |
+| `README.md` | ✅ Added Database Schema details | DONE |
+| `README.md` | ✅ Added API Endpoint & Validation documentation | DONE |
+| `README.md` | ✅ Added TypeScript Types documentation | DONE |
+| `WORKFLOW_CALCULATIONS.md` | ✅ Updated Section 3 Profit Calculation | DONE |
+| `WORKFLOW_CALCULATIONS.md` | ✅ Updated Summary Table | DONE |
+| `WORKFLOW_CALCULATIONS.md` | ✅ Updated Example 2 | DONE |
+
+### Backend Verified (No Changes Needed)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `/api/expenses` validation | ✅ CORRECT | Category strictly validated to 3 types |
+| `/api/dashboard` calculation | ✅ CORRECT | Profit = Revenue - Operasional ONLY |
+| Expense schema | ✅ CORRECT | 3 kategori inti consistent di database |
+| Types/Interfaces | ✅ CORRECT | Kategori types match database |
+
+---
+
+## Installation & Setup Instructions
+
+### Prerequisites
+- Node.js 18+
+- Supabase project (free tier ok)
+- PostgreSQL database dari Supabase
+
+### Setup Steps
+
+1. **Clone repository**
+   ```bash
+   git clone <repo-url>
+   cd manajemen-roti-bakar
+   npm install
+   ```
+
+2. **Setup Environment**
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local dengan Supabase credentials
+   ```
+
+3. **Run Migrations**
+   ```bash
+   # Login ke Supabase SQL Editor
+   # Run semua migration files dalam urutan:
+   # 1. migration-session-status.sql
+   # 2. migration-outlet-settings.sql
+   # 3. migration-sales-expenses-model.sql
+   # 4. migration-funding-source-tracking.sql
+   # 5. migration-capital-audit-trail.sql
+   # dll
+   ```
+
+4. **Seed Demo Data (Optional)**
+   ```bash
+   # Run seed files di Supabase SQL Editor
+   # - seed-complete-setup.sql (recommended untuk quick start)
+   ```
+
+5. **Development Server**
+   ```bash
+   npm run dev
+   # Open http://localhost:3000
+   ```
+
+6. **Build untuk Production**
+   ```bash
+   npm run build
+   npm run start
+   ```
+
+---
+
+## Support & Documentation
+
+- **Workflow & Calculations**: [WORKFLOW_CALCULATIONS.md](WORKFLOW_CALCULATIONS.md)
+- **Refactor Plan**: [REFACTOR_FUNDING_EXPENSES_PLAN.md](REFACTOR_FUNDING_EXPENSES_PLAN.md)
+- **Smoke Testing**: [SMOKE_TESTING_GUIDE.md](SMOKE_TESTING_GUIDE.md)
+- **Setup Outlets**: [SETUP_OUTLETS.md](SETUP_OUTLETS.md)
 
 ### Alokasi Dana & Pembagian Laba (Alur Baru - Manual & Transparan)
 
@@ -192,12 +606,95 @@ flowchart LR
   O --> R
 ```
 
-## Skema Inti
+## Skema Database Inti
 
-| Tabel | Peran | Relasi penting |
-| --- | --- | --- |
-| `businesses` | Identitas usaha (holding) | Induk dari `outlets` |
-| `outlets` | Cabang/gerai aktif | Foreign key di semua transaksi & master data |
+### Tabel-tabel Utama
+
+| Tabel | Peran | Relasi penting | Key Columns |
+| --- | --- | --- | --- |
+| `businesses` | Identitas usaha (holding) | Induk dari `outlets` | id, name |
+| `outlets` | Cabang/gerai aktif | Foreign key di semua transaksi & master data | id, business_id, name |
+| `products` | Master produk | FK di sales, sale_items | id, outlet_id, name, cost_price (HPP), price_* |
+| `daily_sessions` | Sesi penjualan harian | FK di sales, expenses | id, outlet_id, date, status |
+| `sales` | Transaksi penjualan | FK di sale_items, cash_transactions | id, session_id, channel, gross_amount, platform_fee, net_amount |
+| `sale_items` | Detail item per penjualan | FK di sales, products | id, sale_id, product_id, quantity, unit_price, cost_price, gross_profit |
+| `expenses` | Pengeluaran operasional | FK di sessions, investors | id, outlet_id, date, **category** (bahan/operasional/peralatan), amount, **funding_source**, **funded_by_investor_id** |
+| `investors` | Daftar stakeholder | FK di capital_entries, capital_repayments | id, outlet_id, name, source_type (owner/investor/karyawan), status |
+| `capital_entries` | Pencatatan modal masuk | FK di investors | id, outlet_id, investor_id, date, amount |
+| `capital_repayments` | Pencatatan modal kembali | FK di investors | id, investor_id, date, amount, **repayment_type** (lunas/cicil), **remaining_modal** |
+| `profit_allocations` | Pencatatan alokasi laba | FK di outlets | id, outlet_id, period_label, total_profit, reserve_amount, distributed_amount |
+| `cash_transactions` | Ledger kas real-time | FK di outlets, sales, expenses | id, outlet_id, transaction_type (inflow/outflow), amount, reference_type |
+| `raw_materials` | Master bahan baku | FK di material_purchases | id, outlet_id, name, unit, cost_per_unit |
+| `suppliers` | Master supplier | FK di supplier_prices, material_purchases | id, outlet_id, name, contact |
+| `outlet_settings` | Konfigurasi per outlet | FK di outlets | id, outlet_id, key, value |
+
+### Expense Table - Schema Detail (Key untuk Refactor 2026-06-09)
+
+```sql
+CREATE TABLE expenses (
+  id UUID PRIMARY KEY,
+  outlet_id UUID NOT NULL REFERENCES outlets(id),
+  session_id UUID REFERENCES daily_sessions(id),
+  date DATE NOT NULL,
+  
+  -- Kategori pengeluaran (3 kategori inti)
+  category VARCHAR(50) NOT NULL CHECK (category IN ('bahan', 'operasional', 'peralatan')),
+  
+  -- Basic info
+  description TEXT NOT NULL,
+  amount DECIMAL(15, 2) NOT NULL,
+  
+  -- Funding source tracking (2026-06-07 refactor)
+  funding_source VARCHAR(50) DEFAULT 'kas' CHECK (funding_source IN ('kas', 'modal')),
+  funded_by_investor_id UUID REFERENCES investors(id) ON DELETE SET NULL,
+  
+  -- Payment tracking
+  payment_method VARCHAR(50) CHECK (payment_method IN ('cash', 'qris', 'bank_transfer', 'pending')),
+  payment_status VARCHAR(50) DEFAULT 'paid' CHECK (payment_status IN ('paid', 'pending', 'refunded')),
+  settlement_date DATE,
+  
+  -- Refund tracking
+  refund_amount DECIMAL(15, 2),
+  refund_reason TEXT,
+  refunded_at TIMESTAMP,
+  refund_reference VARCHAR(255),
+  
+  -- Metadata
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Penting: Tidak ada duplikasi dengan bahan dalam HPP
+-- Bahan terpakai saat produksi = dalam cost_price product (HPP)
+-- Bahan dibeli/refill = kategori='bahan' di expenses table
+```
+
+### Profit Calculation - Database Layer
+
+```sql
+-- Kalkulasi Gross Profit (dari sale_items)
+SELECT 
+  SUM(sale_items.gross_profit) as total_gross_profit
+FROM sale_items
+JOIN sales ON sale_items.sale_id = sales.id
+WHERE sales.outlet_id = $outlet_id
+  AND sales.date = $date;
+
+-- Kalkulasi Operasional Expenses (ONLY kategori='operasional')
+SELECT 
+  SUM(amount) as operational_expenses
+FROM expenses
+WHERE outlet_id = $outlet_id
+  AND date = $date
+  AND category = 'operasional'
+  AND payment_status = 'paid';
+
+-- Profit Final
+SELECT 
+  (total_gross_profit - operational_expenses) as profit
+-- Bahan & Peralatan tracked terpisah, TIDAK dikurangi
+```
 | `daily_sessions` | Wadah transaksi harian | Parent untuk `sales` dan `expenses` |
 | `sales` | Header penjualan | Parent untuk `sale_items`, refer ke `daily_sessions` & `outlets` |
 | `sale_items` | Detail item per penjualan | Refer ke `sales` dan `products` |
