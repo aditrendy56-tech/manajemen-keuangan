@@ -403,4 +403,19 @@ export interface DashboardMetrics {
   today_cash_outflow?: number;
   today_pending_sales?: number;
   today_pending_expenses?: number;
+  // NEW: Detailed profit tracking for expandable card
+  total_profit_cumulative?: number; // Cumulative profit from start
+  profit_detail?: {
+    gross_revenue?: number;
+    operational_expenses?: number;
+    daily_revenue_by_channel?: Record<string, number>;
+    daily_expenses_detailed?: Array<{ description: string; amount: number; category: string }>;
+    total_gross_revenue?: number;
+    total_operational_expenses?: number;
+    cumulative_revenue_by_channel?: Record<string, number>;
+    cumulative_expenses_by_category?: Record<string, number>;
+    daily_breakdown?: Array<{ date: string; profit: number; gross_revenue: number }>;
+    average_daily_profit?: number;
+  };
+  capital_entries?: Array<{ id: string; source: string; amount: number; date: string }>;
 }

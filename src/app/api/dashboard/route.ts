@@ -235,6 +235,123 @@ export async function GET(request: NextRequest) {
       profit: totals.revenue - totals.expense,
     }));
 
+    // ===== NEW: DETAILED DATA FOR EXPANDABLE CARDS =====
+
+    // 1. DAILY REVENUE BREAKDOWN (by channel)
+    const daily_revenue_by_channel = {
+      offline: 0,
+      shopeefood: 0,
+      gofood: 0,
+    };
+    (sales || []).forEach((sale: any) => {
+      const channel = normalizeChannel(sale);
+      if (daily_revenue_by_channel.hasOwnProperty(channel)) {
+        daily_revenue_by_channel[channel as keyof typeof daily_revenue_by_channel] += getRecognizedSaleAmount(sale);
+      }
+    });
+
+    // 2. DAILY EXPENSE BREAKDOWN (by category with descriptions)
+    const daily_expenses_detailed = (expenses || [])
+      .filter(e => (e.category || '').toLowerCase() === 'operasional')
+      .map((e: any) => ({
+        description: e.description || 'Operasional',
+        amount: getRecognizedExpenseAmount(e),
+        category: 'operasional',
+      }));
+
+    // 3. CUMULATIVE DATA (all time up to today)
+    const { data: allExpenses } = await getSupabaseServer().from('expenses')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('date', date);
+
+    const { data: allSales } = await getSupabaseServer().from('sales')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('created_at', `${date}T23:59:59`);
+
+    // Calculate cumulative operational expenses
+    const cumulative_operational_expenses = (allExpenses || [])
+      .filter(e => (e.category || '').toLowerCase() === 'operasional')
+      .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    // Calculate cumulative gross profit from all sales
+    let cumulative_gross_profit = 0;
+    if ((allSales || []).length > 0) {
+      const allSaleIds = allSales.map((s: any) => s.id);
+      const { data: allSaleItems } = await getSupabaseServer().from('sale_items')
+        .select('gross_profit')
+        .in('sale_id', allSaleIds);
+      cumulative_gross_profit = (allSaleItems || []).reduce((sum: number, item: any) => sum + (item.gross_profit || 0), 0) || 0;
+    }
+
+    const total_profit_cumulative = cumulative_gross_profit - cumulative_operational_expenses;
+
+    // 4. CUMULATIVE REVENUE BY CHANNEL
+    const cumulative_revenue_by_channel = {
+      offline: 0,
+      shopeefood: 0,
+      gofood: 0,
+    };
+    (allSales || []).forEach((sale: any) => {
+      const channel = normalizeChannel(sale);
+      if (cumulative_revenue_by_channel.hasOwnProperty(channel)) {
+        cumulative_revenue_by_channel[channel as keyof typeof cumulative_revenue_by_channel] += getRecognizedSaleAmount(sale);
+      }
+    });
+
+    // 5. CUMULATIVE EXPENSE BY CATEGORY (detailed)
+    const cumulative_expenses_by_category = {
+      operasional: 0,
+      bahan: 0,
+      peralatan: 0,
+    };
+    (allExpenses || []).forEach((expense: any) => {
+      const cat = (expense.category || '').toLowerCase();
+      if (cumulative_expenses_by_category.hasOwnProperty(cat)) {
+        cumulative_expenses_by_category[cat as keyof typeof cumulative_expenses_by_category] += getRecognizedExpenseAmount(expense);
+      }
+    });
+
+    // 6. 7-DAY DAILY BREAKDOWN
+    const daily_breakdown = Array.from(dailyTotals.entries())
+      .map(([day, totals]) => {
+        // Get operational expenses for this day
+        const dayOperational = (weeklyExpenses || [])
+          .filter(e => e.date === day && (e.category || '').toLowerCase() === 'operasional')
+          .reduce((sum, e) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+        
+        return {
+          date: day,
+          profit: totals.revenue - dayOperational,
+          gross_revenue: totals.revenue,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // 7. AVERAGE DAILY PROFIT
+    const total_days = daily_breakdown.filter(d => d.profit !== 0).length || 1;
+    const average_daily_profit = total_profit_cumulative / total_days;
+
+    // 8. DETAIL OBJECTS FOR UI
+    const profit_detail = {
+      // Daily
+      gross_revenue: gross_revenue,
+      operational_expenses: operational_expenses,
+      daily_revenue_by_channel,
+      daily_expenses_detailed,
+      
+      // Cumulative
+      total_gross_revenue: cumulative_gross_profit,
+      total_operational_expenses: cumulative_operational_expenses,
+      cumulative_revenue_by_channel,
+      cumulative_expenses_by_category,
+      
+      // Breakdown & insights
+      daily_breakdown,
+      average_daily_profit,
+    };
+
     // NEW: Separate cash sources (Modal vs Sales)
     // Get ALL capital entries UP TO TODAY (cumulative, not just today)
     const { data: capitalEntries } = await getSupabaseServer().from('capital_entries')
@@ -281,6 +398,15 @@ export async function GET(request: NextRequest) {
       today_cash_outflow,
       today_pending_sales,
       today_pending_expenses,
+      // NEW: Detailed data for expandable cards
+      total_profit_cumulative,
+      profit_detail: profit_detail as any,
+      capital_entries: (capitalEntries || []).map((e: any) => ({
+        id: e.id,
+        source: e.source,
+        amount: e.amount,
+        date: e.date,
+      })),
     };
 
     return NextResponse.json(metrics);

@@ -7,6 +7,7 @@ import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
 import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
+import { ProfitToggleCard } from '@/components/dashboard/ProfitToggleCard';
 import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -55,7 +56,10 @@ export default function DashboardPage() {
         today_cash_outflow: 0,
         today_pending_sales: 0,
         today_pending_expenses: 0,
-      });
+        total_profit_cumulative: 0,
+        profit_detail: {},
+        capital_entries: [],
+      } as DashboardMetrics);
     } finally {
       setLoading(false);
     }
@@ -211,29 +215,12 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* BUCKET 2: Profit (Accounting Metric) */}
-          <Card className="border-l-4 border-l-blue-500 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-blue-700">📊 Laba Hari Ini</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <span className="text-3xl font-bold text-blue-700">
-                  Rp {(metrics.today_profit || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-blue-200">
-                <p className="font-semibold mb-1">📌 Apa itu Laba?</p>
-                <p><strong>Laba = Penjualan Kotor − Biaya Operasional</strong></p>
-                <p className="mt-1">Laba adalah keuntungan bisnis Anda setelah mengurangi biaya operasional dari total penjualan. Laba dapat bernilai positif (untung) atau negatif (rugi).</p>
-                <p className="mt-1">❌ <strong>Catatan Penting</strong>: Laba TIDAK termasuk:</p>
-                <ul className="list-disc list-inside mt-0.5 space-y-0.5">
-                  <li>Pembelian bahan baku (sudah termasuk dalam HPP produk)</li>
-                  <li>Pembelian peralatan (aset bisnis, bukan biaya operasional)</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
+          {/* BUCKET 2: Profit (With Toggle - NEW) */}
+          <ProfitToggleCard
+            todayProfit={metrics.today_profit || 0}
+            totalProfitCumulative={metrics.total_profit_cumulative || 0}
+            profitDetail={metrics.profit_detail}
+          />
 
           {/* BUCKET 3: Total Aset Keuangan */}
           <Card className="border-l-4 border-l-purple-500 bg-purple-50">
@@ -243,14 +230,14 @@ export default function DashboardPage() {
             <CardContent className="space-y-3">
               <div>
                 <span className="text-3xl font-bold text-purple-700">
-                  Rp {((metrics.cash_from_modal || 0) + (metrics.today_profit || 0)).toLocaleString('id-ID')}
+                  Rp {((metrics.cash_from_modal || 0) + (metrics.total_profit_cumulative || 0)).toLocaleString('id-ID')}
                 </span>
               </div>
               <div className="text-xs text-gray-700 bg-white p-2 rounded border border-purple-200">
                 <p className="font-semibold mb-1">📌 Apa itu Total Aset Keuangan?</p>
-                <p><strong>Total = Dompet Kas + Laba Hari Ini</strong></p>
+                <p><strong>Total = Dompet Kas + Total Profit</strong></p>
                 <p className="mt-1">Total aset keuangan adalah gabungan dari semua uang Anda (kas + profit), yang menunjukkan kesehatan finansial bisnis roti bakar Anda secara keseluruhan.</p>
-                <p className="mt-1">📈 <strong>Kesimpulan</strong>: Dengan nilai ini, Anda dapat mengetahui seberapa kuat kondisi keuangan bisnis Anda hari ini.</p>
+                <p className="mt-1">📈 <strong>Kesimpulan</strong>: Dengan nilai ini, Anda dapat mengetahui seberapa kuat kondisi keuangan bisnis Anda.</p>
               </div>
             </CardContent>
           </Card>
