@@ -1,10 +1,13 @@
 # 🔧 REFACTOR PLAN - Funding Source Tracking & Expense Simplification
 
-**Status:** ✅ IMPLEMENTATION COMPLETE (No Errors Found)  
+**Status:** ✅ IMPLEMENTATION COMPLETE + ✅ SIMPLIFIED (2026-06-09)  
 **Date Started:** 2026-06-06  
-**Date Completed:** 2026-06-07  
+**Date Completed Phase 1:** 2026-06-07  
+**Date Completed Phase 2:** 2026-06-09 (Removed unused funding_source field)  
 **Owner:** User  
-**Objective:** Implement per-transaction funding source tracking (Modal vs Kas) + simplify expense categories
+**Objective:** 
+- ✅ Phase 1: Implement per-transaction funding source tracking (Modal vs Kas)
+- ✅ Phase 2: Removed unused field - simplified to category-based tracking only
 
 **Testing Status:** ⏳ NOT YET COMPREHENSIVELY TESTED
 - All code compiles without errors ✅
@@ -12,54 +15,100 @@
 - Will test with real data during production usage 🧪
 - Manual smoke test guide prepared: [SMOKE_TESTING_GUIDE.md](SMOKE_TESTING_GUIDE.md)
 
+**MAJOR UPDATE (2026-06-09):**
+- ✅ Removed `funding_source` field from ExpenseForm (was unused in calculations)
+- ✅ Removed `funded_by_investor_id` field from ExpenseForm
+- ✅ Simplified to: **Category selection is the source of truth** (bahan/operasional/peralatan)
+- ✅ Updated Dashboard with visual 2-bucket money system (Kas + Profit) with clear explanations
+
 ---
 
-## 📋 ARCHITECTURE DECISION (FINALIZED)
+## 📋 ARCHITECTURE DECISION (FINALIZED) - SIMPLIFIED 2026-06-09
 
-### Settlement Model - Priority Order
-
-```
-✅ PRIORITY SETTLEMENT (FIXED):
-1️⃣  Operating Expenses (dibayar dari kas penjualan)
-2️⃣  Balik Modal (partial/full, sesuai available)
-3️⃣  Kas Reserve (untuk operasional bulan depan)
-4️⃣  PROFIT SHARING (hanya jika modal 100% sudah kembali)
-
-Modal Tracking: Per-transaksi, flexible (bukan lump sum)
-Funding Source: ADA FIELD terpisah di expense (Dari Modal / Dari Penjualan)
-```
-
-### Business Logic
+### Final Financial Model - 2-Bucket System
 
 ```
-SKENARIO MONTHLY SETTLEMENT:
+✅ KAS (Money Available for Spending):
+   ├─ From: Modal Injection / Capital Input
+   ├─ From: Profit Allocation (reserve fund)
+   └─ Used for: Operasional expenses (daily costs)
 
-Penjualan Bulan 1: Rp 4juta
-├─ Operating Expenses (dari kas): Rp 300rb
-├─ Beli Bahan (dari modal Damim): Rp 400rb
-├─ NET: Rp 4juta - Rp 300rb - Rp 400rb = Rp 3.3juta
-│
-├─ Balik Modal: PILIHAN FLEKSIBEL
-│  ├─ OPSI 1 LUNAS: Balik Rp 1.5juta penuh (jika cash memenuhi)
-│  │  └─ Semua modal clear, profit sharing mulai bulan 2
-│  │
-│  └─ OPSI 2 CICIL: Balik sebagian (jika cash tidak cukup)
-│     └─ Sisa modal pending untuk bulan depan
-│
-├─ Kas Reserve Bulan 2: Rp 300rb
-└─ PROFIT Bulan 1: Fleksibel tergantung modal repayment
+✅ PROFIT (Accounting Metric, NOT actual money):
+   ├─ Formula: Penjualan Gross - Operasional Expenses
+   ├─ Only: Operasional category affects profit calculation
+   ├─ NOT included: Bahan (materials) & Peralatan (equipment) costs
+   └─ Can be: NEGATIVE (when operasional > sales)
 
-SKENARIO PENJUALAN KECIL (Bulan 1 alternatif):
+✅ DECISION: Removed funding_source field from ExpenseForm
+   ├─ REASON: Field was unused in profit/allocation calculations
+   ├─ SIMPLIFIED: Category selection is the only source of truth
+   ├─ LOGIC: 
+   │   ├─ Category=operasional → affects profit calculation
+   │   ├─ Category=bahan → asset tracking, no profit impact
+   │   └─ Category=peralatan → asset tracking, no profit impact
+   └─ BENEFIT: Simpler form, clearer logic, no confusion
+```
 
-Penjualan: Rp 2.5juta
-├─ Operating Expenses: Rp 200rb
-├─ Pengeluaran Bahan/Alat: Rp 200rb
-├─ NET: Rp 2.1juta
-│
-├─ Kas Reserve: Rp 100rb
-├─ OPSI: Hanya bisa cicil (cash tidak cukup untuk balik penuh)
-├─ Balik Modal Per Owner: Rp 2juta ÷ 3 = Rp 667rb each
-└─ Sisa Modal Belum Balik: Rp 333rb each (pending ke bulan 2-3)
+### Simplified Business Logic
+
+```
+MONTHLY FLOW (Simplified):
+
+1. INPUTS:
+   ├─ Capital: Investor modal injection → goes to KAS
+   ├─ Sales: Penjualan from outlets → gross revenue
+   └─ Expenses: 
+       ├─ Operasional (kategori operasional) → affects profit
+       ├─ Materials (kategori bahan) → asset only, no profit impact
+       └─ Equipment (kategori peralatan) → asset only, no profit impact
+
+2. CALCULATIONS:
+   ├─ Profit = Penjualan Gross - Operasional Expenses (only)
+   ├─ Kas = Capital Injected + Profit Reserve Allocated
+   └─ Can track depreciation/usage separately if needed
+
+3. SETTLEMENT (Flexible based on actual cash):
+   ├─ Operating Expenses (paid from kas penjualan first)
+   ├─ Balik Modal (partial/full, as cash available)
+   ├─ Kas Reserve Allocation (for next month operasional)
+   └─ PROFIT SHARING (only when modal 100% returned)
+
+4. DASHBOARD VISUALIZATION:
+   ├─ 💵 Dompet Kas: Shows available cash
+   ├─ 📊 Laba Hari Ini: Shows profit metric  
+   └─ 💎 Total Aset: Shows kas + profit combined
+```
+
+---
+
+## ⚠️ RATIONALE FOR SIMPLIFICATION
+
+### Why Remove funding_source Field?
+
+**Problem:**
+- Field existed but was NEVER used in:
+  - Profit calculation (always: operasional expenses only)
+  - Allocation logic (no reference to funding_source)
+  - Any business calculation
+
+**Solution:**
+- Category selection is sufficient source of truth:
+  - operasional → impacts profit
+  - bahan → asset only
+  - peralatan → asset only
+- Simpler form = fewer UI fields = less user confusion
+- Cleaner codebase = easier to maintain
+
+**Example:**
+```
+OLD (with funding_source): User sees 3 fields to choose
+├─ Category: [operasional] ✓
+├─ Funding Source: [dari kas / dari modal] ← UNUSED
+└─ If modal → Investor: [select] ← UNUSED
+
+NEW (simplified): User sees just category
+├─ Category: [operasional] ✓
+└─ Done - category determines everything
 ```
 
 ---
@@ -140,9 +189,55 @@ GROUP BY category;
 
 ## 🎨 UI/FORM CHANGES
 
-### 1. ExpenseForm.tsx - Major Refactor
+### ✅ COMPLETED: ExpenseForm.tsx Simplification (2026-06-09)
 
 **Location:** `src/components/forms/ExpenseForm.tsx`
+
+**Changes Made:**
+```
+REMOVED FIELDS (unused in any calculation):
+❌ fundingSource state
+❌ fundedByInvestorId state  
+❌ investors fetching hook
+❌ funding_source validation
+❌ Funding source Select field
+❌ Conditional investor Select field
+
+KEPT FIELDS (source of truth):
+✅ category (select: bahan/operasional/peralatan)
+✅ description (text, min 3 chars - flexible for costs)
+✅ amount (currency input)
+✅ date
+✅ paymentMethod
+✅ paymentStatus
+✅ settlementDate
+✅ notes
+```
+
+**Form Data Now:**
+```tsx
+{
+  outlet_id: string,
+  date: string,
+  category: 'bahan' | 'operasional' | 'peralatan',
+  description: string,
+  amount: number,
+  payment_method: string,
+  payment_status: string,
+  settlement_date: string | null,
+  notes: string
+  // Removed: funding_source
+  // Removed: funded_by_investor_id
+}
+```
+
+**Result:**
+- ✅ Simpler form with fewer fields
+- ✅ Clearer user experience
+- ✅ Category selection alone determines business logic
+- ✅ All code compiles without errors
+
+### Historical: ExpenseForm.tsx - Previous Structure (Pre-2026-06-09)
 
 **BEFORE Structure:**
 ```tsx
