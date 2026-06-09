@@ -12,7 +12,57 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 
 ## 📋 CHANGELOG - Perubahan Terbaru (2026-06-09)
 
-### 🔄 PERUBAHAN SISTEM TERBARU (2026-06-09)
+### 🎯 EQUIPMENT TRACKER & MATERIALS DASHBOARD RESTRUCTURE (2026-06-09 - Session 2)
+
+**1. Equipment (Alat) Tracker - Fitur Baru**
+- ✅ **Tab Alat ditambahkan** di laman Manajemen Bahan (`/dashboard/sourcing`)
+- ✅ **Lokasi**: Tab pertama dalam struktur: [🔧 Alat] [📦 Bahan] [💰 Harga] [📊 Analisis] [⚡ Performa]
+- ✅ **Data Source**: Expenses WHERE `category='peralatan'`
+- ✅ **Tabel Display**: Nama Alat | Harga | Tanggal (Simple, no filter)
+- 📊 **Purpose**: Track asset pembelian dari awal untuk investor ROI monitoring
+- **Contoh**: Gerobak, Kompor, Freezer, Display Case → auto-display saat input di Pengeluaran kategori "Peralatan"
+
+**2. Materials Dashboard Restructure**
+- ✅ **Supplier Tab Removed**: Supplier functionality dipindah ke menu terpisah (future planning)
+- ✅ **Bahan Tab Updated**: Tambah note "Coming Soon!" - persiapan untuk HPP auto-calculation
+- ✅ **Harga Tab Updated**: Tambah note "Coming Soon!" - price comparison akan dikembangkan
+- ✅ **Analisis Tab Updated**: Tambah note "Coming Soon!" - detailed analysis akan ditambahkan
+- ✅ **Performa Tab Updated**: Tambah note "Coming Soon!" - KPI & performance tracking akan dikembangkan
+
+**3. Why Equipment Tracking?**
+- **Asset Registry**: Tracking semua peralatan dari pembelian awal
+- **Future HPP Enhancement**: Akan support depreciation calculation untuk investor ROI
+- **Clear Asset Ownership**: Investasi modal → visible perolehan asset
+- **Non-Profit Impact**: Peralatan dibeli tapi TIDAK dikurangi dari profit (asset value, bukan expense)
+
+**4. Data Flow - Equipment Input**
+```
+User Input (Pengeluaran) 
+  → Category = "Peralatan"
+  → Description = nama alat (e.g., "Kompor 2 Burner")
+  → Amount = harga beli
+  → Tanggal = pembelian
+  ↓
+Stored in expenses table
+  → category='peralatan'
+  → amount=harga
+  → date=tanggal
+  ↓
+Tab Alat display
+  → Query: SELECT * FROM expenses WHERE category='peralatan'
+  → Show: Nama Alat | Harga | Tanggal
+```
+
+**5. Future Enhancements (Planned)**
+- [ ] Equipment condition tracking (Aktif/Rusak/Dijual)
+- [ ] Depreciation calculation
+- [ ] ROI per equipment per investor
+- [ ] Equipment lifecycle management
+- [ ] Maintenance log integration
+
+---
+
+### 🔄 PERUBAHAN SISTEM TERBARU (2026-06-09 - Session 1)
 
 **1. Profit Calculation Model Clarification & Simplification**
 - ✅ **Model Profit DIPERJELAS**: Profit = Penjualan - Operasional SAJA
@@ -134,6 +184,10 @@ STATUS: Tracked sebagai asset, TIDAK dikurangi dari profit hari ini
 - ✅ Payment methods: Cash, QRIS, Split
 - ✅ Expense entry dengan 3 kategori (Bahan/Operasional/Peralatan)
 - ✅ Expense kategori tooltip dengan penjelasan impact
+- ✅ **Equipment (Alat) Tracker** ⭐ NEW - Simple asset registry dari expenses kategori 'peralatan'
+  - Display di Tab "Alat" → `/dashboard/sourcing`
+  - Tabel: Nama Alat | Harga | Tanggal
+  - Non-profit tracking (asset, bukan expense deduction)
 - ✅ Funding source tracking (Dari Kas / Dari Modal)
 - ✅ Investor management dengan source_type (owner/investor/karyawan)
 - ✅ Cicil vs Lunas repayment dengan smart guidance

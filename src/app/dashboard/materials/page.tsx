@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { MaterialPurchase, RawMaterial, Supplier, SupplierPrice } from '@/types';
+import { MaterialPurchase, RawMaterial, Supplier, SupplierPrice, Expense } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,15 @@ import Link from 'next/link';
 
 import { useOutlet } from '@/lib/context/OutletContext';
 
+type TabType = 'alat' | 'bahan' | 'harga' | 'analisis' | 'performa';
+
 export default function MaterialsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('alat');
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierPrices, setSupplierPrices] = useState<SupplierPrice[]>([]);
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
+  const [equipment, setEquipment] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -171,6 +175,22 @@ export default function MaterialsPage() {
         console.error('Error fetching purchases:', error);
         setPurchases([]);
       }
+
+      // Fetch equipment (expenses with category='peralatan')
+      try {
+        const equipRes = await fetch(
+          `/api/expenses?outlet_id=${outletId}&category=peralatan`
+        );
+        if (equipRes.ok) {
+          const data = await equipRes.json();
+          setEquipment(Array.isArray(data) ? data.filter((e: any) => e.category === 'peralatan') : []);
+        } else {
+          setEquipment([]);
+        }
+      } catch (error) {
+        console.error('Error fetching equipment:', error);
+        setEquipment([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -261,43 +281,143 @@ export default function MaterialsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Pembelian Bahan Baku</h1>
+        <h1 className="text-3xl font-bold">Manajemen Bahan & Alat</h1>
         <p className="text-gray-600">
-          Kelola pembelian bahan dengan tracking supplier dan price comparison
-        </p>
-        <p className="text-sm text-gray-500 mt-1">
-          Pembelian akan ditautkan ke sesi harian aktif.
+          Tracking pembelian bahan baku dan aset peralatan
         </p>
       </div>
 
-      {/* Navigation Links */}
-      <div className="flex gap-3 mb-6">
-        <Link
-          href="/materials/price-comparison"
-          className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-gray-300 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('alat')}
+          className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'alat'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
         >
-          📊 Price Comparison
-        </Link>
+          🔧 Alat
+        </button>
+        <button
+          onClick={() => setActiveTab('bahan')}
+          className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'bahan'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          📦 Bahan
+        </button>
+        <button
+          onClick={() => setActiveTab('harga')}
+          className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'harga'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          💰 Harga
+        </button>
+        <button
+          onClick={() => setActiveTab('analisis')}
+          className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'analisis'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          📊 Analisis
+        </button>
+        <button
+          onClick={() => setActiveTab('performa')}
+          className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'performa'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          ⚡ Performa
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form */}
-        <div className="lg:col-span-1">
-          <Card className="border-orange-200">
-            <CardHeader>
-              <CardTitle className="text-orange-900">Input Pembelian Baru</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {message && (
-                <Alert
-                  className={`mb-4 ${
-                    message.type === 'success'
-                      ? 'bg-green-50 text-green-800 border-green-200'
-                      : 'bg-red-50 text-red-800 border-red-200'
-                  }`}
-                >
-                  {message.text}
-                </Alert>
+      {/* Tab Content */}
+
+      {/* Alat Tab */}
+      {activeTab === 'alat' && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-orange-900">Tracking Alat & Peralatan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {equipment.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Belum ada data alat/peralatan. Input via menu Pengeluaran dengan kategori "Peralatan".
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-orange-50 border-b-2 border-orange-200">
+                    <tr>
+                      <th className="text-left p-2">Nama Alat</th>
+                      <th className="text-right p-2">Harga</th>
+                      <th className="text-left p-2">Tanggal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipment.map((item) => (
+                      <tr key={item.id} className="border-b hover:bg-orange-50">
+                        <td className="p-2 text-gray-800 font-medium">
+                          {item.description}
+                        </td>
+                        <td className="text-right p-2 font-semibold text-orange-600">
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="p-2 text-gray-600">
+                          {formatDate(item.date)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bahan Tab */}
+      {activeTab === 'bahan' && (
+        <div className="space-y-6">
+          {/* Coming Soon Note */}
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+            <div className="flex items-start gap-3">
+              <span className="text-lg">💡</span>
+              <div>
+                <strong>Coming Soon!</strong><br />
+                Untuk perhitungan bahan dan HPP detail, fitur ini akan dikembangkan lebih lanjut. Saat ini, tracking bahan dapat dilakukan melalui menu Pengeluaran dengan kategori "Bahan".
+              </div>
+            </div>
+          </Alert>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Form */}
+            <div className="lg:col-span-1">
+              <Card className="border-orange-200">
+                <CardHeader>
+                  <CardTitle className="text-orange-900">Input Pembelian Baru</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {message && (
+                    <Alert
+                      className={`mb-4 ${
+                        message.type === 'success'
+                          ? 'bg-green-50 text-green-800 border-green-200'
+                          : 'bg-red-50 text-red-800 border-red-200'
+                      }`}
+                    >
+                      {message.text}
+                    </Alert>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -492,105 +612,167 @@ export default function MaterialsPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+            </div>
 
-        {/* Purchases List */}
-        <div className="lg:col-span-2">
-          <Card className="border-orange-200">
-            <CardHeader>
-              <CardTitle className="text-orange-900">
-                Riwayat Pembelian Bahan ({purchases.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {purchases.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  Belum ada data pembelian
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-orange-50 border-b-2 border-orange-200">
-                      <tr>
-                        <th className="text-left p-2">Tanggal</th>
-                        <th className="text-left p-2">Supplier</th>
-                        <th className="text-left p-2">Barang</th>
-                        <th className="text-center p-2">Qty</th>
-                        <th className="text-right p-2">Harga/Unit</th>
-                        <th className="text-right p-2">Total</th>
-                        <th className="text-center p-2">Kualitas</th>
-                        <th className="text-center p-2">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {purchases.map((purchase) => {
-                        const material = materials.find(
-                          (m) => m.id === purchase.raw_material_id
-                        );
-                        const supplier = suppliers.find(
-                          (s) => s.id === purchase.supplier_id
-                        );
-                        return (
-                          <tr key={purchase.id} className="border-b hover:bg-orange-50">
-                            <td className="p-2 text-gray-800">
-                              {formatDate(purchase.date)}
-                            </td>
-                            <td className="p-2 font-medium text-gray-800">
-                              {supplier?.name || '-'}
-                            </td>
-                            <td className="p-2 text-gray-800">
-                              {material?.name}
-                            </td>
-                            <td className="text-center p-2 text-gray-600">
-                              {purchase.quantity} {material?.unit}
-                            </td>
-                            <td className="text-right p-2 text-gray-600">
-                              {formatCurrency(purchase.unit_price)}
-                            </td>
-                            <td className="text-right p-2 font-semibold text-orange-600">
-                              {formatCurrency(purchase.total_amount)}
-                            </td>
-                            <td className="text-center p-2">
-                              {purchase.quality && (
-                                <Badge
-                                  className={`${
-                                    purchase.quality === 'Baik'
-                                      ? 'bg-green-100 text-green-800'
-                                      : purchase.quality === 'Kurang'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-red-100 text-red-800'
-                                  }`}
-                                >
-                                  {purchase.quality}
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="text-center p-2">
-                              {purchase.payment_status && (
-                                <Badge
-                                  className={`${
-                                    purchase.payment_status === 'Paid'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : purchase.payment_status === 'Pending'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-orange-100 text-orange-800'
-                                  }`}
-                                >
-                                  {purchase.payment_status}
-                                </Badge>
-                              )}
-                            </td>
+            {/* Purchases List */}
+            <div className="lg:col-span-2">
+              <Card className="border-orange-200">
+                <CardHeader>
+                  <CardTitle className="text-orange-900">
+                    Riwayat Pembelian Bahan ({purchases.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {purchases.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      Belum ada data pembelian
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-orange-50 border-b-2 border-orange-200">
+                          <tr>
+                            <th className="text-left p-2">Tanggal</th>
+                            <th className="text-left p-2">Supplier</th>
+                            <th className="text-left p-2">Barang</th>
+                            <th className="text-center p-2">Qty</th>
+                            <th className="text-right p-2">Harga/Unit</th>
+                            <th className="text-right p-2">Total</th>
+                            <th className="text-center p-2">Kualitas</th>
+                            <th className="text-center p-2">Status</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        </thead>
+                        <tbody>
+                          {purchases.map((purchase) => {
+                            const material = materials.find(
+                              (m) => m.id === purchase.raw_material_id
+                            );
+                            const supplier = suppliers.find(
+                              (s) => s.id === purchase.supplier_id
+                            );
+                            return (
+                              <tr key={purchase.id} className="border-b hover:bg-orange-50">
+                                <td className="p-2 text-gray-800">
+                                  {formatDate(purchase.date)}
+                                </td>
+                                <td className="p-2 font-medium text-gray-800">
+                                  {supplier?.name || '-'}
+                                </td>
+                                <td className="p-2 text-gray-800">
+                                  {material?.name}
+                                </td>
+                                <td className="text-center p-2 text-gray-600">
+                                  {purchase.quantity} {material?.unit}
+                                </td>
+                                <td className="text-right p-2 text-gray-600">
+                                  {formatCurrency(purchase.unit_price)}
+                                </td>
+                                <td className="text-right p-2 font-semibold text-orange-600">
+                                  {formatCurrency(purchase.total_amount)}
+                                </td>
+                                <td className="text-center p-2">
+                                  {purchase.quality && (
+                                    <Badge
+                                      className={`${
+                                        purchase.quality === 'Baik'
+                                          ? 'bg-green-100 text-green-800'
+                                          : purchase.quality === 'Kurang'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-red-100 text-red-800'
+                                      }`}
+                                    >
+                                      {purchase.quality}
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="text-center p-2">
+                                  {purchase.payment_status && (
+                                    <Badge
+                                      className={`${
+                                        purchase.payment_status === 'Paid'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : purchase.payment_status === 'Pending'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-orange-100 text-orange-800'
+                                      }`}
+                                    >
+                                      {purchase.payment_status}
+                                    </Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Harga Tab */}
+      {activeTab === 'harga' && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-orange-900">Price Comparison & Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">⏰</span>
+                <div>
+                  <strong>Coming Soon!</strong><br />
+                  Fitur price comparison dan analisis harga supplier akan segera tersedia.
+                </div>
+              </div>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Analisis Tab */}
+      {activeTab === 'analisis' && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-orange-900">Analisis Bahan & Biaya</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">⏰</span>
+                <div>
+                  <strong>Coming Soon!</strong><br />
+                  Fitur analisis detail pengeluaran bahan dan biaya produksi akan segera tersedia.
+                </div>
+              </div>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Performa Tab */}
+      {activeTab === 'performa' && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-orange-900">Performa & KPI</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">⏰</span>
+                <div>
+                  <strong>Coming Soon!</strong><br />
+                  Fitur analisis performa dan KPI inventory akan segera tersedia.
+                </div>
+              </div>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

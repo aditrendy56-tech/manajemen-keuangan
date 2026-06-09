@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, AlertTriangle } from 'lucide-react';
-import { RawMaterial, Supplier, SupplierPrice, MaterialPurchase } from '@/types';
+import { RawMaterial, Supplier, SupplierPrice, MaterialPurchase, Expense } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -21,18 +21,20 @@ interface TabState {
   suppliers: Supplier[];
   prices: SupplierPrice[];
   purchases: MaterialPurchase[];
+  equipment: Expense[];
   loading: boolean;
   error: string | null;
 }
 
 export default function SourcingPage() {
   const { outletId, sessionId } = useOutlet();
-  const [activeTab, setActiveTab] = useState('materials');
+  const [activeTab, setActiveTab] = useState('alat');
   const [data, setData] = useState<TabState>({
     materials: [],
     suppliers: [],
     prices: [],
     purchases: [],
+    equipment: [],
     loading: true,
     error: null,
   });
@@ -44,11 +46,12 @@ export default function SourcingPage() {
   async function fetchAllData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
-      const [materials, suppliers, prices, purchases] = await Promise.all([
+      const [materials, suppliers, prices, purchases, equipment] = await Promise.all([
         fetch(`/api/raw-materials?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/suppliers?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/supplier-prices?outlet_id=${outletId}`).then(r => r.json()),
         fetch(`/api/material-purchases?outlet_id=${outletId}`).then(r => r.json()),
+        fetch(`/api/expenses?outlet_id=${outletId}&category=peralatan`).then(r => r.json()).catch(() => []),
       ]);
 
       setData({
@@ -56,12 +59,60 @@ export default function SourcingPage() {
         suppliers: Array.isArray(suppliers) ? suppliers : [],
         prices: Array.isArray(prices) ? prices : [],
         purchases: Array.isArray(purchases) ? purchases : [],
+        equipment: Array.isArray(equipment) ? equipment.filter((e: any) => e.category === 'peralatan') : [],
         loading: false,
         error: null,
       });
     } catch (error: any) {
       setData(prev => ({ ...prev, loading: false, error: error.message }));
     }
+  }
+
+  // ===== TAB 0: ALAT (NEW) =====
+  function Tab0Equipment() {
+    return (
+      <div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Tracking Alat & Peralatan</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.equipment.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Belum ada data alat/peralatan. Input via menu Pengeluaran dengan kategori "Peralatan".
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-orange-50 border-b-2 border-orange-200">
+                    <tr>
+                      <th className="text-left p-2">Nama Alat</th>
+                      <th className="text-right p-2">Harga</th>
+                      <th className="text-left p-2">Tanggal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.equipment.map((item: any) => (
+                      <tr key={item.id} className="border-b hover:bg-orange-50">
+                        <td className="p-2 text-gray-800 font-medium">
+                          {item.description}
+                        </td>
+                        <td className="text-right p-2 font-semibold text-orange-600">
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="p-2 text-gray-600">
+                          {formatDate(item.date)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // ===== TAB 1: Daftar Bahan =====
@@ -98,6 +149,16 @@ export default function SourcingPage() {
 
     return (
       <div className="space-y-6">
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">💡</span>
+            <div>
+              <strong>Coming Soon!</strong><br />
+              Untuk perhitungan bahan dan HPP detail, fitur ini akan dikembangkan lebih lanjut. Saat ini, tracking bahan dapat dilakukan melalui menu Pengeluaran dengan kategori "Bahan".
+            </div>
+          </div>
+        </Alert>
+
         <Card>
           <CardHeader>
             <CardTitle>Tambah Bahan Baku</CardTitle>
@@ -411,6 +472,16 @@ export default function SourcingPage() {
   function Tab3Prices() {
     return (
       <div className="space-y-6">
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">⏰</span>
+            <div>
+              <strong>Coming Soon!</strong><br />
+              Fitur price comparison dan analisis harga supplier akan segera tersedia dengan antarmuka yang lebih baik.
+            </div>
+          </div>
+        </Alert>
+
         <Card>
           <CardHeader>
             <CardTitle>Harga per Supplier</CardTitle>
@@ -482,6 +553,16 @@ export default function SourcingPage() {
 
     return (
       <div className="space-y-6">
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">⏰</span>
+            <div>
+              <strong>Coming Soon!</strong><br />
+              Fitur analisis detail pengeluaran bahan dan biaya produksi akan segera tersedia dengan dashboard yang lebih komprehensif.
+            </div>
+          </div>
+        </Alert>
+
         <Card>
           <CardHeader>
             <CardTitle>Pilih Bahan</CardTitle>
@@ -601,6 +682,16 @@ export default function SourcingPage() {
 
     return (
       <div className="space-y-6">
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">⏰</span>
+            <div>
+              <strong>Coming Soon!</strong><br />
+              Fitur analisis performa dan KPI inventory akan segera tersedia dengan laporan yang lebih detail.
+            </div>
+          </div>
+        </Alert>
+
         <Card>
           <CardHeader>
             <CardTitle>Grafik Pengeluaran per Supplier</CardTitle>
@@ -681,19 +772,19 @@ export default function SourcingPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="materials">Bahan</TabsTrigger>
-          <TabsTrigger value="suppliers">Supplier</TabsTrigger>
-          <TabsTrigger value="prices">Harga</TabsTrigger>
-          <TabsTrigger value="analysis">Analisis</TabsTrigger>
-          <TabsTrigger value="performance">Performa</TabsTrigger>
+          <TabsTrigger value="alat">🔧 Alat</TabsTrigger>
+          <TabsTrigger value="materials">📦 Bahan</TabsTrigger>
+          <TabsTrigger value="prices">💰 Harga</TabsTrigger>
+          <TabsTrigger value="analysis">📊 Analisis</TabsTrigger>
+          <TabsTrigger value="performance">⚡ Performa</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="alat">
+          <Tab0Equipment />
+        </TabsContent>
 
         <TabsContent value="materials">
           <Tab1Materials />
-        </TabsContent>
-
-        <TabsContent value="suppliers">
-          <Tab2Suppliers />
         </TabsContent>
 
         <TabsContent value="prices">

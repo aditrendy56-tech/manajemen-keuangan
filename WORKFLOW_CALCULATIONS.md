@@ -20,7 +20,8 @@
 **Sistem Manajemen Roti Bakar** adalah platform terintegrasi untuk mengelola:
 - Multi-outlet operations
 - Sales & revenue tracking (online + offline)
-- Material sourcing & inventory
+- Material sourcing & inventory (tracking & future HPP calculation)
+- **Equipment (Alat) asset tracking** ⭐ NEW
 - Financial allocation (profit sharing)
 - Capital management & investor tracking
 - Expense & cash flow monitoring
@@ -33,7 +34,11 @@ Business
   │   ├── Sessions (sesi penjualan harian)
   │   ├── Sales (transaksi per session)
   │   ├── Expenses (pengeluaran operasional)
-  │   ├── Material Purchases
+  │   │   ├── category='operasional' (dikurangi profit)
+  │   │   ├── category='bahan' (tracked, tidak dikurangi)
+  │   │   └── category='peralatan' ⭐ NEW (asset tracker)
+  │   ├── Material Purchases (tracked via expenses WHERE category='bahan')
+  │   ├── Equipment Assets (tracked via expenses WHERE category='peralatan')
   │   └── Cash Ledger
   ├── Investors (pemberi modal)
   ├── Suppliers (pemasok bahan)
@@ -141,6 +146,55 @@ Identify Need
 - **Total Amount** = `quantity × unit_price`
 - **Cash Impact** = `-total_amount` (debit from cash)
 - **Quality Score** = User input (1-5 stars)
+
+---
+
+### 3B. **Equipment (Alat) Tracking Workflow** ⭐ NEW (2026-06-09)
+
+```
+[Equipment Purchase] → Input via Pengeluaran dengan category='peralatan'
+  ├─ Deskripsi: nama alat (e.g., "Kompor 2 Burner", "Gerobak", "Freezer")
+  ├─ Amount: harga beli
+  ├─ Date: tanggal pembelian
+  ├─ Funding Source: kas/modal
+  └─ Notes: (optional) kondisi awal, spec
+  ↓
+[Stored in expenses table]
+  └─ category='peralatan' (NOT deducted from profit)
+  ↓
+[View in Tab "Alat"] → Dashboard Manajemen Bahan
+  ├─ Display: Nama Alat | Harga | Tanggal
+  ├─ Sorted: By date (newest first)
+  └─ Total: Sum of all equipment purchases
+  ↓
+[Future Enhancements - PLANNED]
+  ├─ [ ] Condition tracking (Aktif/Rusak/Dijual)
+  ├─ [ ] Depreciation calculation (straight-line, declining balance)
+  ├─ [ ] ROI per equipment per investor
+  ├─ [ ] Equipment lifecycle (purchase → maintenance → sale/scrap)
+  └─ [ ] Maintenance log integration
+```
+
+**Key Concepts:**
+- **Asset Registry**: Transparent tracking semua peralatan dari pembelian awal
+- **NOT deducted from profit**: Equipment adalah ASSET, bukan expense
+- **For Investor Transparency**: Investor bisa lihat apa aja asset yang dibeli dengan modal mereka
+- **Future HPP Enhancement**: Equipment cost dapat include depreciation dalam HPP (later phase)
+
+**Data Flow:**
+```
+User Input → Pengeluaran Form (kategori='peralatan')
+           ↓
+         API POST /api/expenses
+           ↓
+    Validate: category='peralatan', amount > 0
+           ↓
+    Save to expenses table
+           ↓
+    Tab "Alat" ← Query: SELECT * FROM expenses WHERE category='peralatan'
+           ↓
+    Display: Simple table (Nama Alat | Harga | Tanggal)
+```
 
 ---
 
@@ -519,8 +573,23 @@ Response
 | **Cash Validation** | Expense amount > kas_tersedia | Show warning (soft fail) |
 | **Force Override** | User confirms despite warning | Allow with `force_override=true` flag |
 | **Category Required** | Category = null | Reject (400 error) |
-| **Material Link** | Category = 'bahan' | Must provide raw_material_id + supplier_id |
+| **Category Options** | Category must be one of 3 | ONLY: 'bahan', 'operasional', 'peralatan' |
+| **Operasional Deduction** | Category = 'operasional' | ✅ DEDUCTED from profit calculation |
+| **Bahan Non-Deduction** | Category = 'bahan' | ⚠️ TRACKED only, NOT deducted (HPP already included) |
+| **Peralatan Non-Deduction** | Category = 'peralatan' | 📊 ASSET tracking, NOT deducted from profit |
+| **Peralatan Visibility** | Category = 'peralatan' | Auto-display in Tab "Alat" (Manajemen Bahan page) |
 | **Date Validation** | Date > today | Warn but allow (for planning) |
+
+### Equipment (Alat) Rules
+
+| Rule | Condition | Action |
+|------|-----------|--------|
+| **Input Method** | Add equipment | Via Pengeluaran form dengan category='peralatan' |
+| **Display** | Query peralatan | Tab "Alat" → `/dashboard/sourcing` |
+| **Profit Impact** | Equipment purchased | TIDAK dikurangi dari profit (is ASSET, not expense) |
+| **Ownership Tracking** | Via funding_source field | Track modal/kas source for investor transparency |
+| **Future Condition** | (PLANNED) Maintenance tracking | Will support aktif/rusak/dijual status |
+| **Future Depreciation** | (PLANNED) Equipment lifecycle | Will calculate depreciation for HPP enhancement |
 
 ### Allocation Rules
 
