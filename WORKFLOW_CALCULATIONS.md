@@ -33,10 +33,10 @@ Business
   │   ├── Products (harga per channel)
   │   ├── Sessions (sesi penjualan harian)
   │   ├── Sales (transaksi per session)
-  │   ├── Expenses (pengeluaran operasional)
-  │   │   ├── category='operasional' (dikurangi profit)
-  │   │   ├── category='bahan' (tracked, tidak dikurangi)
-  │   │   └── category='peralatan' ⭐ NEW (asset tracker)
+  │   ├── Expenses (pengeluaran operasional + tracking)
+  │   │   ├── category='operasional' (ALL recurring costs: sewa, gaji, listrik, air, gas, marketing, dll → DEDUCTED from profit)
+  │   │   ├── category='bahan' (raw materials → tracked only, NOT deducted)
+  │   │   └── category='peralatan' (equipment/assets → tracked only, NOT deducted)
   │   ├── Material Purchases (tracked via expenses WHERE category='bahan')
   │   ├── Equipment Assets (tracked via expenses WHERE category='peralatan')
   │   └── Cash Ledger
@@ -352,9 +352,11 @@ const all_cash_outflows = {
 ```
 
 **Expense Categories in System:**
-- **`category='operasional'`** → Gaji, Listrik, Air, Gas, Misc → ✅ Deducted from profit
+- **`category='operasional'`** → Semua recurring operational costs (Sewa, Gaji, Listrik, Air, Gas, Misc, Marketing, dll) → ✅ Deducted from profit
 - **`category='bahan'`** → Raw materials → ❌ NOT deducted (HPP already included)
-- **`category='peralatan'`** → Equipment/tools → ❌ NOT deducted
+- **`category='peralatan'`** → Equipment/tools/assets → ❌ NOT deducted
+
+**Note:** Deskripsi di ekspense form menjelaskan apa expense tersebut (e.g., "Sewa Lahan Rp 500rb", "Gaji karyawan", "Pembayaran Listrik", dll)
 
 ### C. Profit Calculation (Current - 2026-06-08)
 
@@ -365,15 +367,22 @@ const all_cash_outflows = {
 const total_penjualan = total_net_sales  // After platform fees
 
 // Operating Expenses (ONLY - category='operasional')
+// FLEXIBLE - bisa apa saja recurring operational cost
 const operasional_expenses = {
+  sewa_lahan: rent,       // Sewa lahan (fixed monthly)
   gaji: wages,            // Salaries
   listrik: electricity,   // Electric bills
   air: water,            // Water
   gas: gas,              // Gas
-  misc: other            // Marketing, transport, misc
+  marketing: marketing,   // Marketing & promo
+  transport: transport,   // Transport & delivery
+  misc: other            // Other misc costs
 }
 
 const total_operasional = SUM(operasional_expenses)
+
+// ⚠️ IMPORTANT: Profit dapat NEGATIVE jika operasional expense > penjualan
+// Contoh: Hari pertama bayar sewa Rp 500rb tanpa penjualan = profit -Rp 500rb (OK)
 
 // PROFIT CALCULATION
 const penjualan_bersih = total_penjualan - total_operasional
@@ -792,7 +801,44 @@ edit (by owner): {
 
 ---
 
+### Example 5: Negative Profit (Opening Day with Rental Payment)
+
+**Scenario (Day 1 - Grand Opening):**
+- Outlet: "Roti Bakar Baru"
+- Sales: Rp 0 (baru buka, belum mulai jualan)
+- Operasional Expenses:
+  - Sewa Lahan: Rp 500,000 (deskripsi: "Sewa Lahan 1 Bulan")
+  - Listrik (instalasi awal): Rp 100,000
+
+**Calculation:**
+
+```typescript
+total_penjualan: 0         // No sales yet
+total_operasional: 600_000  // Sewa + Listrik
+
+penjualan_bersih: 0 - 600_000 = -600_000  ✅ NEGATIVE PROFIT (OK!)
+
+// Interpretation
+├─ Bisnis belum mulai menghasilkan
+├─ Tapi sudah mengeluarkan biaya operasional
+└─ Profit negative adalah NORMAL & EXPECTED
+
+// Impact pada Allocation Tab
+├─ No profit to allocate
+├─ Kas reserve: -60,000 (deficit)
+└─ Message: "Deficit bulan ini, perlu capital injection untuk operasi"
+```
+
+**Status:** SISTEM BEKERJA DENGAN BENAR ✅
+- Operasional expenses masuk kategori 'operasional' (deskripsi: "Sewa Lahan")
+- Tidak ada penjualan
+- Profit = negative (OK, tidak ada validation yang mencegah)
+- Sistem siap untuk capital injection bulan depan
+
+---
+
 ## Summary Table: Key Formulas
+
 
 | Metric | Formula | Notes |
 |--------|---------|-------|

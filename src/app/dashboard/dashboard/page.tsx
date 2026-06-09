@@ -182,6 +182,81 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* 💰 TWO MONEY BUCKETS SECTION - Kas & Profit */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">💰 Dompet Keuangan Anda</h2>
+        <p className="text-sm text-gray-600 mb-4">Berikut adalah dua tempat uang Anda dalam bisnis roti bakar:</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* BUCKET 1: Kas (Cash) */}
+          <Card className="border-l-4 border-l-green-500 bg-green-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-green-700">💵 Dompet Kas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <span className="text-3xl font-bold text-green-700">
+                  Rp {(metrics.cash_from_modal || 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-green-200">
+                <p className="font-semibold mb-1">📌 Apa itu Dompet Kas?</p>
+                <p>Uang kas adalah dana tunai yang siap digunakan untuk operasional sehari-hari bisnis Anda. Sumber uang kas berasal dari:</p>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li><strong>Injeksi Modal</strong>: Uang dari investor yang disetorkan ke bisnis</li>
+                  <li><strong>Alokasi Profit Cadangan</strong>: Sebagian dari profit hari ini yang dialokasikan kembali ke kas untuk cadangan operasional</li>
+                </ul>
+                <p className="mt-1">💡 Gunakan uang kas ini untuk membayar pengeluaran operasional seperti: gaji karyawan, sewa tempat, listrik, air, gas, dan pengeluaran rutin lainnya.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* BUCKET 2: Profit (Accounting Metric) */}
+          <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-blue-700">📊 Laba Hari Ini</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <span className="text-3xl font-bold text-blue-700">
+                  Rp {(metrics.today_profit || 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-blue-200">
+                <p className="font-semibold mb-1">📌 Apa itu Laba?</p>
+                <p><strong>Laba = Penjualan Kotor − Biaya Operasional</strong></p>
+                <p className="mt-1">Laba adalah keuntungan bisnis Anda setelah mengurangi biaya operasional dari total penjualan. Laba dapat bernilai positif (untung) atau negatif (rugi).</p>
+                <p className="mt-1">❌ <strong>Catatan Penting</strong>: Laba TIDAK termasuk:</p>
+                <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                  <li>Pembelian bahan baku (sudah termasuk dalam HPP produk)</li>
+                  <li>Pembelian peralatan (aset bisnis, bukan biaya operasional)</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* BUCKET 3: Total Aset Keuangan */}
+          <Card className="border-l-4 border-l-purple-500 bg-purple-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-purple-700">💎 Total Aset Keuangan</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <span className="text-3xl font-bold text-purple-700">
+                  Rp {((metrics.cash_from_modal || 0) + (metrics.today_profit || 0)).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-purple-200">
+                <p className="font-semibold mb-1">📌 Apa itu Total Aset Keuangan?</p>
+                <p><strong>Total = Dompet Kas + Laba Hari Ini</strong></p>
+                <p className="mt-1">Total aset keuangan adalah gabungan dari semua uang Anda (kas + profit), yang menunjukkan kesehatan finansial bisnis roti bakar Anda secara keseluruhan.</p>
+                <p className="mt-1">📈 <strong>Kesimpulan</strong>: Dengan nilai ini, Anda dapat mengetahui seberapa kuat kondisi keuangan bisnis Anda hari ini.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* PHASE 2: Cash Inflow Breakdown by Channel */}
       <div>
         <h2 className="text-lg font-semibold mb-4">📊 Penjualan per Channel</h2>
