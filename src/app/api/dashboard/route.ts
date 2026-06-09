@@ -236,10 +236,11 @@ export async function GET(request: NextRequest) {
     }));
 
     // NEW: Separate cash sources (Modal vs Sales)
+    // Get ALL capital entries UP TO TODAY (cumulative, not just today)
     const { data: capitalEntries } = await getSupabaseServer().from('capital_entries')
       .select('*')
       .eq('outlet_id', outletId)
-      .eq('date', date);
+      .lte('date', date);  // All capital entries up to today
 
     const cash_from_modal = (capitalEntries || []).reduce((sum: number, entry: any) => sum + (entry.amount || 0), 0) || 0;
     const cash_from_sales = net_revenue; // Sales revenue = cash from sales
