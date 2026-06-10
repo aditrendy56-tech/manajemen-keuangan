@@ -358,44 +358,76 @@ const all_cash_outflows = {
 
 **Note:** Deskripsi di ekspense form menjelaskan apa expense tersebut (e.g., "Sewa Lahan Rp 500rb", "Gaji karyawan", "Pembayaran Listrik", dll)
 
-### C. Profit Calculation (Current - 2026-06-08)
+### C. Profit Calculation (Current - 2026-06-10) ⭐ UPDATED
 
-**Simple Model: Penjualan - Operasional Expenses**
+**Revenue Breakdown Model (with Platform Fee Calculation):**
 
 ```typescript
-// Revenue
-const total_penjualan = total_net_sales  // After platform fees
+// ===== STEP 1: Calculate Gross Revenue by Channel =====
+const offline_gross = SUM(sales where channel='offline')
+const shopeefood_gross = SUM(sales where channel='shopeefood')
+const gofood_gross = SUM(sales where channel='gofood')
 
-// Operating Expenses (ONLY - category='operasional')
-// FLEXIBLE - bisa apa saja recurring operational cost
+const pendapatan_kotor = offline_gross + shopeefood_gross + gofood_gross
+// Pendapatan Kotor = Total penjualan sebelum dikurangi apapun
+
+// ===== STEP 2: Deduct HPP (Cost of Goods Sold) =====
+const total_hpp = SUM(sale_items.cost_price × quantity_sold)
+// HPP = Harga Pokok Penjualan (already includes ALL material costs per unit)
+// Contoh: Jual roti @Rp 20k dengan HPP Rp 8k → profit margin Rp 12k sudah termasuk bahan
+// ℹ️ HPP tidak di-display terpisah di dashboard utama (internal calculation only)
+
+// ===== STEP 3: Deduct Platform Fees (Per Session/Harian, dari Settings) =====
+// Fee di-hitung berdasarkan rate di outlet_settings (bisa di-ubah anytime)
+const fee_rate_shopeefood = outlet_settings.fee_rate_shopeefood  // e.g., 0.08 (8%)
+const fee_rate_gofood = outlet_settings.fee_rate_gofood          // e.g., 0.10 (10%)
+
+const fee_shopeefood = shopeefood_gross × fee_rate_shopeefood
+const fee_gofood = gofood_gross × fee_rate_gofood
+const total_platform_fee = fee_shopeefood + fee_gofood  // offline: 0%
+
+// ℹ️ PENTING: Fee di-hitung per sesi/harian (aggregated by channel)
+// Bukan per transaksi (karena sistem ini reporting-based, bukan POS real-time)
+// Jika fee rate berubah di Settings, historical data di-recalculate otomatis via PATCH endpoint
+// ℹ️ Total Platform Fee tidak di-display terpisah di dashboard utama (internal calculation)
+
+// ===== ✅ STEP 4: Calculate Net Revenue =====
+const pendapatan_bersih = pendapatan_kotor - total_hpp - total_platform_fee
+// Pendapatan Bersih = Revenue SETELAH dikurangi cost of goods + marketplace fees
+
+// ===== STEP 5: Deduct Operating Expenses (ONLY - category='operasional') =====
 const operasional_expenses = {
-  sewa_lahan: rent,       // Sewa lahan (fixed monthly)
-  gaji: wages,            // Salaries
-  listrik: electricity,   // Electric bills
-  air: water,            // Water
-  gas: gas,              // Gas
-  marketing: marketing,   // Marketing & promo
-  transport: transport,   // Transport & delivery
-  misc: other            // Other misc costs
+  sewa_lahan: rent,           // Sewa lahan (fixed monthly)
+  gaji: wages,                // Salaries
+  listrik: electricity,       // Electric bills
+  air: water,                 // Water
+  gas: gas,                   // Gas
+  marketing: marketing,       // Marketing & promo
+  transport: transport,       // Transport & delivery
+  misc: other                 // Other misc costs
 }
 
-const total_operasional = SUM(operasional_expenses)
+const total_operasional = SUM(expenses where category='operasional')
 
-// ⚠️ IMPORTANT: Profit dapat NEGATIVE jika operasional expense > penjualan
-// Contoh: Hari pertama bayar sewa Rp 500rb tanpa penjualan = profit -Rp 500rb (OK)
+// ⚠️ IMPORTANT: Profit dapat NEGATIVE jika operasional > pendapatan_bersih
+// Contoh: Hari pertama bayar sewa Rp 500rb tanpa penjualan = profit -Rp 500rb (OK, normal)
 
-// PROFIT CALCULATION
-const penjualan_bersih = total_penjualan - total_operasional
+// ===== ✅ FINAL: Calculate Profit =====
+const profit = pendapatan_bersih - total_operasional
 
-// Why is this simple?
-// - HPP (product cost_price) already includes ALL material costs
-// - When selling at 20k with HPP 8k → 12k profit margin already accounts for materials
-// - Materials don't need separate monthly deduction
-// - Operasional expenses are the ONLY monthly costs
+// Visual Flow (Dashboard Display):
+// ┌─ Pendapatan Kotor (Rp X)
+// │  (HPP & Platform Fee di-deduct internally, tidak di-display terpisah)
+// │
+// └─ = Pendapatan Bersih (Rp Y)
+//    ├─ (visible)
+//    ├─ - Operasional (Rp O)
+//    │
+//    └─ = PROFIT (Rp Z)
 
 // Reserve & Distribution
-const kas_cadangan = penjualan_bersih * reserve_percent        // 10-20%
-const available_distribution = penjualan_bersih - kas_cadangan
+const kas_cadangan = profit * reserve_percent        // 10-20% dari profit
+const available_distribution = profit - kas_cadangan
 
 // Manual Distribution to Stakeholders
 const distribution = {
@@ -410,11 +442,35 @@ const distribution = {
 }
 ```
 
+**Formula Summary:**
+```
+Pendapatan Kotor = offline_gross + shopeefood_gross + gofood_gross
+Pendapatan Bersih = Pendapatan Kotor - HPP - Platform Fee
+  (HPP, Platform Fee = internal calculation, not displayed separately)
+Profit = Pendapatan Bersih - Operasional Expenses ONLY
+```
+
+**Platform Fee Calculation (New - 2026-06-10):**
+```
+Channel-based Fee (per Session/Harian):
+  ├─ Offline Revenue × 0% = Rp 0
+  ├─ Shopeefood Revenue × setting.fee_rate_shopeefood (from Settings)
+  └─ Gofood Revenue × setting.fee_rate_gofood (from Settings)
+
+Fee Rate Management:
+  ├─ User dapat mengubah rate di outlet_settings
+  ├─ Saat rate berubah, historical data AUTO-RECALCULATE via PATCH endpoint
+  └─ Audit trail: siapa ubah, kapan, dari berapa jadi berapa
+```
+
 **Notes:**
-- **NOT tracking material costs monthly** because they're already in product HPP
-- **Bahan & Peralatan expenses** are recorded in system but NOT used in profit calculation
-- **Future enhancement:** Might track inventory & re-cost products if needed
-- **Current focus:** Simple monthly settlement for stakeholder distribution
+- **HPP (Harga Pokok Penjualan)** sudah include ALL material costs per unit (internal calc)
+- **Bahan & Peralatan expenses** di-track tapi NOT digunakan di profit calculation (already in HPP)
+- **Platform fees** dihitung per session/harian berdasarkan rate dari Settings
+- **Operasional** adalah SATU-SATUNYA kategori expense yang dikurangi dari profit
+- **Dashboard Display:** Hanya tampil [Kotor] → [Bersih] → [Operasional] → [Profit] (clean & simple)
+- **Internal Calculations:** HPP & Platform Fee di-calculate backend, tidak perlu di-display terpisah
+- **Current focus:** Accurate profit calculation untuk stakeholder distribution dengan flexibility untuk update fee policy
 
 ### D. Cost Price & Margin Calculation
 

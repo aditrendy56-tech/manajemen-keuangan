@@ -37,7 +37,7 @@ export default function DashboardPage() {
       // Set empty data on error
       setMetrics({
         today_gross_revenue: 0,
-        today_net_revenue: 0,
+        today_pendapatan_bersih: 0,
         today_profit: 0,
         today_inventory_purchases: 0,
         today_operational_expenses: 0,
@@ -46,17 +46,17 @@ export default function DashboardPage() {
         expense_from_kas: 0,
         expense_from_modal: 0,
         available_for_distribution: 0,
-        revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
-        payment_methods: { cash: 0, qris: 0 },
-        cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
-        expense_by_category: { bahan: 0, operasional: 0, peralatan: 0 },
+        today_revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+        today_payment_methods: { cash: 0, qris: 0 },
+        today_cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+        today_expense_by_category: { bahan: 0, operasional: 0, peralatan: 0 },
         top_products: [],
         weekly_profit: [],
         today_cash_inflow: 0,
         today_cash_outflow: 0,
         today_pending_sales: 0,
         today_pending_expenses: 0,
-        total_profit_cumulative: 0,
+        cumulative_profit: 0,
         profit_detail: {},
         capital_entries: [],
       } as DashboardMetrics);
@@ -138,7 +138,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-600" />
-              <span className="text-2xl font-bold">Rp {metrics.today_gross_revenue.toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {(metrics.today_gross_revenue || 0).toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
@@ -152,7 +152,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-blue-600" />
-              <span className="text-2xl font-bold">Rp {metrics.today_net_revenue.toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {(metrics.today_pendapatan_bersih || 0).toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
@@ -166,7 +166,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-orange-600" />
-              <span className="text-2xl font-bold">Rp {metrics.today_profit.toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {(metrics.today_profit || 0).toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
@@ -218,7 +218,7 @@ export default function DashboardPage() {
           {/* BUCKET 2: Profit (With Toggle - NEW) */}
           <ProfitToggleCard
             todayProfit={metrics.today_profit || 0}
-            totalProfitCumulative={metrics.total_profit_cumulative || 0}
+            totalProfitCumulative={metrics.cumulative_profit || 0}
             profitDetail={metrics.profit_detail}
           />
 
@@ -230,7 +230,7 @@ export default function DashboardPage() {
             <CardContent className="space-y-3">
               <div>
                 <span className="text-3xl font-bold text-purple-700">
-                  Rp {((metrics.cash_from_modal || 0) + (metrics.total_profit_cumulative || 0)).toLocaleString('id-ID')}
+                  Rp {((metrics.cash_from_modal || 0) + (metrics.cumulative_profit || 0)).toLocaleString('id-ID')}
                 </span>
               </div>
               <div className="text-xs text-gray-700 bg-white p-2 rounded border border-purple-200">
@@ -253,7 +253,7 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-medium text-green-700">Offline</CardTitle>
             </CardHeader>
             <CardContent>
-              <span className="text-2xl font-bold text-green-700">Rp {(metrics.cash_inflow_by_channel?.offline || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold text-green-700">Rp {(metrics.today_cash_inflow_by_channel?.offline || 0).toLocaleString('id-ID')}</span>
             </CardContent>
           </Card>
           <Card className="border-orange-200">
@@ -261,7 +261,7 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-medium text-orange-700">ShopeeFood</CardTitle>
             </CardHeader>
             <CardContent>
-              <span className="text-2xl font-bold text-orange-700">Rp {(metrics.cash_inflow_by_channel?.shopeefood || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold text-orange-700">Rp {(metrics.today_cash_inflow_by_channel?.shopeefood || 0).toLocaleString('id-ID')}</span>
             </CardContent>
           </Card>
           <Card className="border-red-200">
@@ -269,7 +269,7 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-medium text-red-700">GoFood</CardTitle>
             </CardHeader>
             <CardContent>
-              <span className="text-2xl font-bold text-red-700">Rp {(metrics.cash_inflow_by_channel?.gofood || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold text-red-700">Rp {(metrics.today_cash_inflow_by_channel?.gofood || 0).toLocaleString('id-ID')}</span>
             </CardContent>
           </Card>
         </div>
@@ -328,7 +328,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold text-blue-700">
-                  Rp {(metrics.expense_by_category?.bahan || 0).toLocaleString('id-ID')}
+                  Rp {(metrics.today_expense_by_category?.bahan || 0).toLocaleString('id-ID')}
                 </span>
                 <ChevronRight className="w-4 h-4 text-blue-600" />
               </div>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold text-orange-700">
-                  Rp {(metrics.expense_by_category?.operasional || 0).toLocaleString('id-ID')}
+                  Rp {(metrics.today_expense_by_category?.operasional || 0).toLocaleString('id-ID')}
                 </span>
                 <ChevronRight className="w-4 h-4 text-orange-600" />
               </div>
@@ -370,7 +370,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold text-yellow-700">
-                  Rp {(metrics.expense_by_category?.peralatan || 0).toLocaleString('id-ID')}
+                  Rp {(metrics.today_expense_by_category?.peralatan || 0).toLocaleString('id-ID')}
                 </span>
                 <ChevronRight className="w-4 h-4 text-yellow-600" />
               </div>
@@ -418,12 +418,12 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueByChannelChart data={metrics.revenue_by_channel} />
-        <PaymentMethodChart data={metrics.payment_methods} />
+        <RevenueByChannelChart data={metrics.today_revenue_by_channel || { offline: 0, shopeefood: 0, gofood: 0 }} />
+        <PaymentMethodChart data={metrics.today_payment_methods || { cash: 0, qris: 0 }} />
       </div>
 
       {/* Daily Profit Chart */}
-      <DailyProfitChart data={metrics.weekly_profit} />
+      <DailyProfitChart data={metrics.weekly_profit || []} />
 
       {/* Expense Details Modal */}
       {selectedCategory && outletId && (

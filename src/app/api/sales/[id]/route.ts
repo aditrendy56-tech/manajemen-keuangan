@@ -50,6 +50,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       refund_reason,
       refunded_at,
       refund_reference,
+      platform_fee,
+      edit_reason,
     } = body;
 
     if (!id) {
@@ -80,6 +82,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       notes: notes ?? existing.notes ?? null,
     };
 
+    // PATCH Update: Handle platform_fee update
+    if (platform_fee !== undefined && platform_fee !== null) {
+      baseUpdateData.platform_fee = Number(platform_fee);
+    }
+
     const refundUpdateData = {
       ...baseUpdateData,
       refund_amount: refund_amount ?? existing.refund_amount ?? null,
@@ -109,6 +116,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (updateError) throw updateError;
+
+    // PATCH Update: Log fee edit to audit trail (if table exists)
+    if (platform_fee !== undefined && platform_fee !== null) {
+      const old_fee = existing.platform_fee || 0;
+      const new_fee = platform_fee;
+      try {
+        await supabase.from('sales_fee_edits').insert([
+          {
+            sale_id: id,
+            old_fee,
+            new_fee,
+            reason: edit_reason || 'Manual adjustment',
+            edited_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (e) {
+        // Silently fail if audit table doesn't exist
+        console.log('Audit table not available, skipping audit log');
+      }
+    }
 
     const isRefunded = String(updatePayload.payment_status || '').toLowerCase() === 'refunded';
     if (isRefunded) {

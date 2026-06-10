@@ -39,6 +39,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
+    // Get outlet settings for fee rates
+    const { data: outletSettings } = await supabase.from('outlet_settings')
+      .select('fee_rate_shopeefood, fee_rate_gofood')
+      .eq('outlet_id', outletId)
+      .maybeSingle();
+
+    const fee_rate_shopeefood = Number(outletSettings?.fee_rate_shopeefood || 0.08);
+    const fee_rate_gofood = Number(outletSettings?.fee_rate_gofood || 0.10);
+
     // Get today's sales (recognized by transaction date)
     const { data: sales } = await supabase.from('sales')
       .select('*')
@@ -66,45 +75,63 @@ export async function GET(request: NextRequest) {
       .lte('created_at', `${date}T23:59:59`);
 
     const { data: weeklyExpenses } = await supabase.from('expenses')
-      .select('date, amount')
+      .select('date, amount, category')
       .eq('outlet_id', outletId)
       .gte('date', weekStartDate)
       .lte('date', date);
 
-    // Calculate metrics - PROPER ACCOUNTING with HPP
-    const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
-    const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
+    // ===== TODAY (HARIAN) CALCULATION =====
     
-    // PHASE 4: Calculate Gross Profit from sale_items HPP
+    // STEP 1: Calculate Gross Revenue by Channel
+    const today_revenue_by_channel = {
+      offline: 0,
+      shopeefood: 0,
+      gofood: 0,
+    };
+
+    (sales || []).forEach((sale: any) => {
+      const channel = normalizeChannel(sale);
+      const saleAmount = getRecognizedSaleAmount(sale);
+      if (today_revenue_by_channel.hasOwnProperty(channel)) {
+        today_revenue_by_channel[channel as keyof typeof today_revenue_by_channel] += saleAmount;
+      }
+    });
+
+    const today_gross_revenue = today_revenue_by_channel.offline + today_revenue_by_channel.shopeefood + today_revenue_by_channel.gofood;
+
+    // STEP 2: Calculate HPP (Cost of Goods Sold) - internal only, not displayed
     const saleIds = (sales || []).map((sale: any) => sale.id) || [];
-    let total_gross_profit = 0;
+    let today_total_hpp = 0;
     if (saleIds.length > 0) {
       const { data: saleItems } = await supabase.from('sale_items')
-        .select('gross_profit')
+        .select('cost_price, quantity')
         .in('sale_id', saleIds);
       
-      total_gross_profit = (saleItems || []).reduce((sum: number, item: any) => sum + (item.gross_profit || 0), 0) || 0;
+      today_total_hpp = (saleItems || []).reduce((sum: number, item: any) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
     }
-    
-    // PHASE 4: Operational expenses include ONLY operasional category (daily operating costs)
-    // Bahan is now tracked via HPP in gross profit calculation, not as a separate expense
-    const operational_expenses = (expenses || []).filter(e => {
+
+    // STEP 3: Calculate Platform Fees by Channel (per session/harian)
+    const today_fee_shopeefood = today_revenue_by_channel.shopeefood * fee_rate_shopeefood;
+    const today_fee_gofood = today_revenue_by_channel.gofood * fee_rate_gofood;
+    const today_total_platform_fee = today_fee_shopeefood + today_fee_gofood; // offline: 0%
+
+    // STEP 4: Calculate Pendapatan Bersih (Net Revenue)
+    const today_pendapatan_bersih = today_gross_revenue - today_total_hpp - today_total_platform_fee;
+
+    // STEP 5: Calculate Operational Expenses (ONLY category='operasional')
+    const today_operational_expenses = (expenses || []).filter(e => {
       const cat = (e.category || '').toLowerCase();
-      return cat === 'operasional'; // ONLY operasional, not bahan (bahan is via HPP now)
+      return cat === 'operasional';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
-    
-    // For backward compat: inventory_purchases still tracked (peralatan, bahan dari expenses)
-    const inventory_purchases = (expenses || []).filter(e => {
+
+    // FINAL: Calculate Profit
+    const today_profit = today_pendapatan_bersih - today_operational_expenses;
+
+    // Backward compat: track inventory_purchases (not deducted from profit)
+    const today_inventory_purchases = (expenses || []).filter(e => {
       const cat = (e.category || '').toLowerCase();
       return cat === 'bahan' || cat === 'peralatan';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
-    
-    const total_expenses = operational_expenses + inventory_purchases;
-    const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
-    
-    // PHASE 4: Net Profit = Gross Profit - Operational Expenses (PROPER FORMULA)
-    // Gross Profit already deducted HPP, so we only subtract operasional expenses
-    const profit = total_gross_profit - operational_expenses;
 
     const today_cash_inflow = cashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
@@ -123,34 +150,20 @@ export async function GET(request: NextRequest) {
       0
     ) || 0;
 
-    // Revenue by channel
-    const revenue_by_channel = {
-      offline: 0,
-      shopeefood: 0,
-      gofood: 0,
-    };
-
-    (sales || []).forEach((sale: any) => {
-      const channel = normalizeChannel(sale);
-      if (revenue_by_channel.hasOwnProperty(channel)) {
-        revenue_by_channel[channel as keyof typeof revenue_by_channel] += getRecognizedSaleAmount(sale);
-      }
-    });
-
-    // Payment methods
-    const payment_methods = {
+    // Payment methods (today)
+    const today_payment_methods = {
       cash: 0,
       qris: 0,
     };
 
     (sales || []).forEach((sale: any) => {
-      if (payment_methods.hasOwnProperty(sale.payment_method)) {
-        payment_methods[sale.payment_method as keyof typeof payment_methods] += getRecognizedSaleAmount(sale);
+      if (today_payment_methods.hasOwnProperty(sale.payment_method)) {
+        today_payment_methods[sale.payment_method as keyof typeof today_payment_methods] += getRecognizedSaleAmount(sale);
       }
     });
 
-    // PHASE 2: Expense breakdown by category (3 only: bahan, operasional, peralatan)
-    const expense_by_category = {
+    // Expense by category (today)
+    const today_expense_by_category = {
       bahan: 0,
       operasional: 0,
       peralatan: 0,
@@ -158,13 +171,13 @@ export async function GET(request: NextRequest) {
 
     (expenses || []).forEach((expense: any) => {
       const cat = (expense.category || '').toLowerCase();
-      if (expense_by_category.hasOwnProperty(cat)) {
-        expense_by_category[cat as keyof typeof expense_by_category] += getRecognizedExpenseAmount(expense);
+      if (today_expense_by_category.hasOwnProperty(cat)) {
+        today_expense_by_category[cat as keyof typeof today_expense_by_category] += getRecognizedExpenseAmount(expense);
       }
     });
 
-    // Cash inflow breakdown by channel (from sales only, not capital)
-    const cash_inflow_by_channel = {
+    // Cash inflow by channel (today)
+    const today_cash_inflow_by_channel = {
       offline: 0,
       shopeefood: 0,
       gofood: 0,
@@ -172,13 +185,92 @@ export async function GET(request: NextRequest) {
 
     (sales || []).forEach((sale: any) => {
       const channel = normalizeChannel(sale);
-      if (cash_inflow_by_channel.hasOwnProperty(channel)) {
-        cash_inflow_by_channel[channel as keyof typeof cash_inflow_by_channel] += getRecognizedSaleAmount(sale);
+      if (today_cash_inflow_by_channel.hasOwnProperty(channel)) {
+        today_cash_inflow_by_channel[channel as keyof typeof today_cash_inflow_by_channel] += getRecognizedSaleAmount(sale);
       }
     });
 
+    // ===== CUMULATIVE (TOTAL) CALCULATION =====
+
+    // Get ALL sales up to today
+    const { data: allSales } = await supabase.from('sales')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('created_at', `${date}T23:59:59`);
+
+    // Get ALL expenses up to today
+    const { data: allExpenses } = await supabase.from('expenses')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('date', date);
+
+    // STEP 1: Calculate Cumulative Gross Revenue by Channel
+    const cumulative_revenue_by_channel = {
+      offline: 0,
+      shopeefood: 0,
+      gofood: 0,
+    };
+
+    (allSales || []).forEach((sale: any) => {
+      const channel = normalizeChannel(sale);
+      const saleAmount = getRecognizedSaleAmount(sale);
+      if (cumulative_revenue_by_channel.hasOwnProperty(channel)) {
+        cumulative_revenue_by_channel[channel as keyof typeof cumulative_revenue_by_channel] += saleAmount;
+      }
+    });
+
+    const cumulative_gross_revenue = cumulative_revenue_by_channel.offline + cumulative_revenue_by_channel.shopeefood + cumulative_revenue_by_channel.gofood;
+
+    // STEP 2: Calculate Cumulative HPP
+    const allSaleIds = (allSales || []).map((sale: any) => sale.id) || [];
+    let cumulative_total_hpp = 0;
+    if (allSaleIds.length > 0) {
+      const { data: allSaleItems } = await supabase.from('sale_items')
+        .select('cost_price, quantity')
+        .in('sale_id', allSaleIds);
+      
+      cumulative_total_hpp = (allSaleItems || []).reduce((sum: number, item: any) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
+    }
+
+    // STEP 3: Calculate Cumulative Platform Fees
+    const cumulative_fee_shopeefood = cumulative_revenue_by_channel.shopeefood * fee_rate_shopeefood;
+    const cumulative_fee_gofood = cumulative_revenue_by_channel.gofood * fee_rate_gofood;
+    const cumulative_total_platform_fee = cumulative_fee_shopeefood + cumulative_fee_gofood;
+
+    // STEP 4: Calculate Cumulative Pendapatan Bersih
+    const cumulative_pendapatan_bersih = cumulative_gross_revenue - cumulative_total_hpp - cumulative_total_platform_fee;
+
+    // STEP 5: Calculate Cumulative Operational Expenses
+    const cumulative_operational_expenses = (allExpenses || []).filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      return cat === 'operasional';
+    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    // FINAL: Calculate Cumulative Profit
+    const cumulative_profit = cumulative_pendapatan_bersih - cumulative_operational_expenses;
+
+    // Backward compat: cumulative inventory_purchases
+    const cumulative_inventory_purchases = (allExpenses || []).filter(e => {
+      const cat = (e.category || '').toLowerCase();
+      return cat === 'bahan' || cat === 'peralatan';
+    }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    // Cumulative expense by category
+    const cumulative_expense_by_category = {
+      bahan: 0,
+      operasional: 0,
+      peralatan: 0,
+    };
+
+    (allExpenses || []).forEach((expense: any) => {
+      const cat = (expense.category || '').toLowerCase();
+      if (cumulative_expense_by_category.hasOwnProperty(cat)) {
+        cumulative_expense_by_category[cat as keyof typeof cumulative_expense_by_category] += getRecognizedExpenseAmount(expense);
+      }
+    });
+
+    // Top Products (Today)
     const topProducts = [] as DashboardMetrics['top_products'];
-    // saleIds already defined above in gross profit calculation
     if (saleIds.length > 0) {
       const { data: saleItems } = await getSupabaseServer().from('sale_items')
         .select('sale_id, product_id, quantity, subtotal, products(name)')
@@ -207,12 +299,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const dailyTotals = new Map<string, { revenue: number; expense: number }>();
+    // Weekly profit (7-day breakdown)
+    const dailyTotals = new Map<string, { revenue: number; operasional: number }>();
     for (let i = 0; i < 7; i += 1) {
       const day = new Date(`${weekStartDate}T00:00:00`);
       day.setDate(day.getDate() + i);
       const dayKey = day.toISOString().split('T')[0];
-      dailyTotals.set(dayKey, { revenue: 0, expense: 0 });
+      dailyTotals.set(dayKey, { revenue: 0, operasional: 0 });
     }
 
     (weeklySales || []).forEach((sale: any) => {
@@ -224,33 +317,25 @@ export async function GET(request: NextRequest) {
     });
 
     (weeklyExpenses || []).forEach((expense: any) => {
-      const current = dailyTotals.get(expense.date);
-      if (current) {
-        current.expense += getRecognizedExpenseAmount(expense);
+      const cat = (expense.category || '').toLowerCase();
+      if (cat === 'operasional') {  // Only operasional affects profit
+        const current = dailyTotals.get(expense.date);
+        if (current) {
+          current.operasional += getRecognizedExpenseAmount(expense);
+        }
       }
     });
 
     const weekly_profit = Array.from(dailyTotals.entries()).map(([day, totals]) => ({
       date: day,
-      profit: totals.revenue - totals.expense,
+      profit: totals.revenue - totals.operasional,
     }));
 
     // ===== NEW: DETAILED DATA FOR EXPANDABLE CARDS =====
 
-    // 1. DAILY REVENUE BREAKDOWN (by channel)
-    const daily_revenue_by_channel = {
-      offline: 0,
-      shopeefood: 0,
-      gofood: 0,
-    };
-    (sales || []).forEach((sale: any) => {
-      const channel = normalizeChannel(sale);
-      if (daily_revenue_by_channel.hasOwnProperty(channel)) {
-        daily_revenue_by_channel[channel as keyof typeof daily_revenue_by_channel] += getRecognizedSaleAmount(sale);
-      }
-    });
+    // ===== DETAILED DATA FOR EXPANDABLE CARDS =====
 
-    // 2. DAILY EXPENSE BREAKDOWN (by category with descriptions)
+    // Daily expense breakdown (operasional only)
     const daily_expenses_detailed = (expenses || [])
       .filter(e => (e.category || '').toLowerCase() === 'operasional')
       .map((e: any) => ({
@@ -259,110 +344,53 @@ export async function GET(request: NextRequest) {
         category: 'operasional',
       }));
 
-    // 3. CUMULATIVE DATA (all time up to today)
-    const { data: allExpenses } = await getSupabaseServer().from('expenses')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .lte('date', date);
+    // Average daily profit (cumulative profit / days with activity)
+    const days_with_profit = weekly_profit.filter(d => d.profit !== 0).length || 1;
+    const average_daily_profit = cumulative_profit / days_with_profit;
 
-    const { data: allSales } = await getSupabaseServer().from('sales')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .lte('created_at', `${date}T23:59:59`);
-
-    // Calculate cumulative operational expenses
-    const cumulative_operational_expenses = (allExpenses || [])
-      .filter(e => (e.category || '').toLowerCase() === 'operasional')
-      .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
-
-    // Calculate cumulative gross profit from all sales
-    let cumulative_gross_profit = 0;
-    if ((allSales || []).length > 0) {
-      const allSaleIds = allSales.map((s: any) => s.id);
-      const { data: allSaleItems } = await getSupabaseServer().from('sale_items')
-        .select('gross_profit')
-        .in('sale_id', allSaleIds);
-      cumulative_gross_profit = (allSaleItems || []).reduce((sum: number, item: any) => sum + (item.gross_profit || 0), 0) || 0;
-    }
-
-    const total_profit_cumulative = cumulative_gross_profit - cumulative_operational_expenses;
-
-    // 4. CUMULATIVE REVENUE BY CHANNEL
-    const cumulative_revenue_by_channel = {
-      offline: 0,
-      shopeefood: 0,
-      gofood: 0,
-    };
-    (allSales || []).forEach((sale: any) => {
-      const channel = normalizeChannel(sale);
-      if (cumulative_revenue_by_channel.hasOwnProperty(channel)) {
-        cumulative_revenue_by_channel[channel as keyof typeof cumulative_revenue_by_channel] += getRecognizedSaleAmount(sale);
-      }
-    });
-
-    // 5. CUMULATIVE EXPENSE BY CATEGORY (detailed)
-    const cumulative_expenses_by_category = {
-      operasional: 0,
-      bahan: 0,
-      peralatan: 0,
-    };
-    (allExpenses || []).forEach((expense: any) => {
-      const cat = (expense.category || '').toLowerCase();
-      if (cumulative_expenses_by_category.hasOwnProperty(cat)) {
-        cumulative_expenses_by_category[cat as keyof typeof cumulative_expenses_by_category] += getRecognizedExpenseAmount(expense);
-      }
-    });
-
-    // 6. 7-DAY DAILY BREAKDOWN
-    const daily_breakdown = Array.from(dailyTotals.entries())
-      .map(([day, totals]) => {
-        // Get operational expenses for this day
-        const dayOperational = (weeklyExpenses || [])
-          .filter(e => e.date === day && (e.category || '').toLowerCase() === 'operasional')
-          .reduce((sum, e) => sum + getRecognizedExpenseAmount(e), 0) || 0;
-        
-        return {
-          date: day,
-          profit: totals.revenue - dayOperational,
-          gross_revenue: totals.revenue,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    // 7. AVERAGE DAILY PROFIT
-    const total_days = daily_breakdown.filter(d => d.profit !== 0).length || 1;
-    const average_daily_profit = total_profit_cumulative / total_days;
-
-    // 8. DETAIL OBJECTS FOR UI
+    // Profit detail object for expandable cards
     const profit_detail = {
-      // Daily
-      gross_revenue: gross_revenue,
-      operational_expenses: operational_expenses,
-      daily_revenue_by_channel,
+      // Today (Harian) - new field names
+      today_gross_revenue: today_gross_revenue,
+      today_pendapatan_bersih: today_pendapatan_bersih,
+      today_operational_expenses: today_operational_expenses,
+      today_profit: today_profit,
+      today_revenue_by_channel,
       daily_expenses_detailed,
-      
-      // Cumulative
-      total_gross_revenue: cumulative_gross_profit,
-      total_operational_expenses: cumulative_operational_expenses,
+
+      // Cumulative (Total) - new field names
+      cumulative_gross_revenue,
+      cumulative_pendapatan_bersih,
+      cumulative_operational_expenses,
+      cumulative_profit,
       cumulative_revenue_by_channel,
-      cumulative_expenses_by_category,
-      
+
       // Breakdown & insights
-      daily_breakdown,
+      weekly_profit,
       average_daily_profit,
+
+      // Legacy field names for ProfitToggleCard compatibility
+      gross_revenue: today_gross_revenue,
+      operational_expenses: today_operational_expenses,
+      daily_revenue_by_channel: today_revenue_by_channel,
+      total_gross_revenue: cumulative_gross_revenue,
+      total_operational_expenses: cumulative_operational_expenses,
+      cumulative_expenses_by_category: cumulative_expense_by_category,
+      daily_breakdown: weekly_profit,
     };
 
     // NEW: Separate cash sources (Modal vs Sales)
     // Get ALL capital entries UP TO TODAY (cumulative, not just today)
+    // Capital entries and cash sources
     const { data: capitalEntries } = await getSupabaseServer().from('capital_entries')
       .select('*')
       .eq('outlet_id', outletId)
-      .lte('date', date);  // All capital entries up to today
+      .lte('date', date);
 
     const cash_from_modal = (capitalEntries || []).reduce((sum: number, entry: any) => sum + (entry.amount || 0), 0) || 0;
-    const cash_from_sales = net_revenue; // Sales revenue = cash from sales
+    const cash_from_sales = today_pendapatan_bersih; // Today's net revenue (after fee)
 
-    // NEW: Separate expense sources (Kas vs Modal)
+    // Separate expense sources (Kas vs Modal)
     const expense_from_kas = (expenses || [])
       .filter(e => (e.funding_source || 'kas') === 'kas')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
@@ -371,36 +399,50 @@ export async function GET(request: NextRequest) {
       .filter(e => (e.funding_source || 'kas') === 'modal')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
 
-    // NEW: Available for distribution = Operating cash - Modal needs
-    // Operating cash = Sales - Operating expenses (only)
-    const operating_cash = net_revenue - operational_expenses;
-    const available_for_distribution = operating_cash - expense_from_modal;
+    // Available for distribution = Net Revenue - Modal needs
+    const available_for_distribution = today_pendapatan_bersih - expense_from_modal;
 
+    // Build metrics object with both today and cumulative values
     const metrics: DashboardMetrics = {
-      today_gross_revenue: gross_revenue,
-      today_net_revenue: net_revenue,
-      today_gross_profit: total_gross_profit,
-      today_profit: profit,
-      today_inventory_purchases: inventory_purchases,
-      today_operational_expenses: operational_expenses,
+      // Today (Harian)
+      today_gross_revenue: today_gross_revenue,
+      today_pendapatan_bersih: today_pendapatan_bersih,
+      today_operational_expenses: today_operational_expenses,
+      today_profit: today_profit,
+      today_inventory_purchases: today_inventory_purchases,
+      today_revenue_by_channel,
+      today_expense_by_category,
+      today_payment_methods,
+      today_cash_inflow_by_channel,
+      
+      // Cumulative (Total)
+      cumulative_gross_revenue,
+      cumulative_pendapatan_bersih,
+      cumulative_operational_expenses,
+      cumulative_profit,
+      cumulative_inventory_purchases,
+      cumulative_revenue_by_channel,
+      cumulative_expense_by_category,
+      
+      // Cash flow
       cash_from_modal,
       cash_from_sales,
       expense_from_kas,
       expense_from_modal,
       available_for_distribution,
-      revenue_by_channel,
-      payment_methods,
-      cash_inflow_by_channel,
-      expense_by_category,
-      top_products: topProducts,
-      weekly_profit,
       today_cash_inflow,
       today_cash_outflow,
       today_pending_sales,
       today_pending_expenses,
-      // NEW: Detailed data for expandable cards
-      total_profit_cumulative,
+      
+      // Products and weekly
+      top_products: topProducts,
+      weekly_profit,
+      
+      // Detailed data for expandable cards
       profit_detail: profit_detail as any,
+      
+      // Capital entries
       capital_entries: (capitalEntries || []).map((e: any) => ({
         id: e.id,
         source: e.source,

@@ -366,56 +366,100 @@ export interface PaymentMethodBreakdown {
 }
 
 export interface DashboardMetrics {
-  today_gross_revenue: number;
-  today_net_revenue: number;
-  today_gross_profit?: number;
-  today_profit: number;
-  today_inventory_purchases?: number; // Inventory purchases (asset, not expense)
-  today_operational_expenses?: number; // Operational expenses only (excludes inventory)
-  revenue_by_channel: RevenueByChannel;
-  payment_methods: PaymentMethodBreakdown;
-  // NEW: Separate cash tracking (Modal vs Sales)
-  cash_from_modal?: number; // Cash inflow from investor capital
-  cash_from_sales?: number; // Cash inflow from sales revenue
-  // Separate expense sources
-  expense_from_kas?: number; // Operational expenses from sales revenue
-  expense_from_modal?: number; // Asset/investment expenses from investor capital
-  available_for_distribution?: number; // Operating cash available after modal needs
-  // PHASE 2: Additional breakdowns
-  cash_inflow_by_channel?: {
+  // ===== TODAY (HARIAN) METRICS =====
+  today_gross_revenue: number; // Kotor
+  today_pendapatan_bersih: number; // Bersih (Kotor - HPP - Platform Fee)
+  today_operational_expenses: number; // Operasional
+  today_profit: number; // Profit (Bersih - Operasional)
+  today_inventory_purchases?: number; // Inventory (not deducted from profit)
+  today_revenue_by_channel?: {
     offline: number;
     shopeefood: number;
     gofood: number;
   };
-  expense_by_category?: {
+  today_expense_by_category?: {
     bahan: number;
     operasional: number;
     peralatan: number;
   };
-  top_products: Array<{
+  today_payment_methods?: {
+    cash: number;
+    qris: number;
+  };
+  today_cash_inflow_by_channel?: {
+    offline: number;
+    shopeefood: number;
+    gofood: number;
+  };
+
+  // ===== CUMULATIVE (TOTAL) METRICS =====
+  cumulative_gross_revenue?: number; // Kotor (all time)
+  cumulative_pendapatan_bersih?: number; // Bersih (all time)
+  cumulative_operational_expenses?: number; // Operasional (all time)
+  cumulative_profit?: number; // Profit (all time)
+  cumulative_inventory_purchases?: number; // Inventory (all time)
+  cumulative_revenue_by_channel?: {
+    offline: number;
+    shopeefood: number;
+    gofood: number;
+  };
+  cumulative_expense_by_category?: {
+    bahan: number;
+    operasional: number;
+    peralatan: number;
+  };
+
+  // ===== CASH FLOW TRACKING =====
+  cash_from_modal?: number; // Capital from investors
+  cash_from_sales?: number; // Revenue from sales
+  expense_from_kas?: number; // Expenses from sales revenue
+  expense_from_modal?: number; // Expenses from investor capital
+  available_for_distribution?: number; // Available profit after modal needs
+  today_cash_inflow?: number;
+  today_cash_outflow?: number;
+  today_pending_sales?: number;
+  today_pending_expenses?: number;
+
+  // ===== ANALYSIS =====
+  top_products?: Array<{
     product_id: string;
     name: string;
     quantity: number;
     revenue: number;
   }>;
-  weekly_profit: Array<{ date: string; profit: number }>;
-  today_cash_inflow?: number;
-  today_cash_outflow?: number;
-  today_pending_sales?: number;
-  today_pending_expenses?: number;
-  // NEW: Detailed profit tracking for expandable card
-  total_profit_cumulative?: number; // Cumulative profit from start
+  weekly_profit?: Array<{ date: string; profit: number; gross_revenue: number }>;
+
+  // ===== DETAILED BREAKDOWNS FOR EXPANDABLE CARDS =====
   profit_detail?: {
-    gross_revenue?: number;
-    operational_expenses?: number;
-    daily_revenue_by_channel?: Record<string, number>;
+    // Today breakdown
+    today_gross_revenue?: number;
+    today_pendapatan_bersih?: number;
+    today_operational_expenses?: number;
+    today_profit?: number;
+    today_revenue_by_channel?: Record<string, number>;
     daily_expenses_detailed?: Array<{ description: string; amount: number; category: string }>;
-    total_gross_revenue?: number;
-    total_operational_expenses?: number;
+
+    // Cumulative breakdown
+    cumulative_gross_revenue?: number;
+    cumulative_pendapatan_bersih?: number;
+    cumulative_operational_expenses?: number;
+    cumulative_profit?: number;
     cumulative_revenue_by_channel?: Record<string, number>;
-    cumulative_expenses_by_category?: Record<string, number>;
-    daily_breakdown?: Array<{ date: string; profit: number; gross_revenue: number }>;
+
+    // Trends
+    weekly_profit?: Array<{ date: string; profit: number; gross_revenue: number }>;
     average_daily_profit?: number;
   };
+
+  // ===== CAPITAL ENTRIES =====
   capital_entries?: Array<{ id: string; source: string; amount: number; date: string }>;
+
+  // ===== LEGACY/BACKWARD COMPAT (deprecated) =====
+  today_net_revenue?: number; // Use today_pendapatan_bersih instead
+  today_gross_profit?: number; // Deprecated (use today_profit)
+  revenue_by_channel?: { offline: number; shopeefood: number; gofood: number };
+  payment_methods?: { cash: number; qris: number };
+  cash_inflow_by_channel?: { offline: number; shopeefood: number; gofood: number };
+  expense_by_category?: { bahan: number; operasional: number; peralatan: number };
+  total_profit_cumulative?: number; // Use cumulative_profit instead
 }
