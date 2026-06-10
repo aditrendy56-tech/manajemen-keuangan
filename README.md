@@ -176,7 +176,138 @@ Equipment (kategori='peralatan'):
 STATUS: Tracked sebagai asset, TIDAK dikurangi dari profit hari ini
 ```
 
-### ✅ Fitur yang SUDAH Selesai & Teruji
+---
+
+### 🔴 PLATFORM FEE SYSTEM (Clarified 2026-06-10)
+
+**What is Platform Fee?**
+- **Biaya marketplace** untuk ShopeeFood & GoFood
+- Dipotong LANGSUNG oleh platform → uang tidak masuk ke kas kita
+- Offline penjualan: TIDAK ada platform fee (0%)
+
+**Fee Flow:**
+```
+Harga Produk di Aplikasi (ShopeeFood/GoFood)
+  └─ Rp 20,000 (BELUM di potong fee)
+
+Customer Membeli
+  ├─ Total Penjualan = Rp 20,000 × qty (semua produk yang terjual)
+  └─ Platform Memotong Fee Langsung:
+     └─ ShopeeFood: Rp 20,000 × 8% = Rp 1,600
+     └─ GoFood: Rp 20,000 × 10% = Rp 2,000
+
+Uang Masuk ke Kas Kita (Net Amount)
+  └─ ShopeeFood: Rp 20,000 - Rp 1,600 = Rp 18,400 ✅
+  └─ GoFood: Rp 20,000 - Rp 2,000 = Rp 18,000 ✅
+  └─ Offline: Rp 20,000 (no fee) ✅
+```
+
+**Database Fields (sales table):**
+```
+├─ gross_amount: Rp 20,000 (harga jual SEBELUM fee dipotong)
+├─ platform_fee: Rp 1,600 (fee amount)
+├─ net_amount: Rp 18,400 (ACTUAL cash yang masuk ke kas)
+└─ channel: 'shopeefood' / 'gofood' / 'offline'
+```
+
+**Fee Rate Management:**
+```
+Current Default Rates:
+├─ fee_rate_shopeefood: 8% (configurable di Settings)
+├─ fee_rate_gofood: 10% (configurable di Settings)
+└─ fee_rate_offline: 0% (fixed, no marketplace)
+
+User dapat MENGUBAH rate kapan saja:
+├─ Dashboard → Settings → Update fee_rate_shopeefood / fee_rate_gofood
+├─ Historical data AUTO-RECALCULATE saat rate diubah
+└─ Audit trail tersimpan: siapa ubah, kapan, dari berapa jadi berapa
+```
+
+**Platform Fee Impact on Calculations:**
+```
+Profit Calculation (Internal):
+  = Gross Revenue - HPP - Platform Fee - Operasional Expenses
+  
+Cash Dashboard (What User Sees):
+  "CASH DARI PENJUALAN" = SUM(net_amount)
+                        = Uang ACTUAL yang masuk (sudah dikurangi fee)
+  
+Profit Dashboard (Estimate):
+  "PROFIT ANALYSIS" = Bersih - Operasional
+                    = (Gross - HPP - Fee) - Operasional
+```
+
+**Key Insight:**
+- Platform fee **BUKAN expense** di kategori pengeluaran
+- Fee sudah terdeduct di `net_amount` saat penjualan dicatat
+- Dashboard tidak perlu show fee terpisah (cuma gross vs bersih)
+- Fee adalah **INTERNAL COST**, customer membayar langsung ke platform
+
+---
+
+### 💰 CASH vs PROFIT: Understanding the Difference
+
+**What is Kas (Cash)?**
+```
+Real money yang tersimpan/tersedia di kas operasional
+
+Calculation:
+  = Modal Awal
+  + Profit Allocation ke Kas
+  - Pengeluaran Operasional (dari kas)
+  
+  = ACTUAL MONEY yang bisa pakai hari ini
+```
+
+**What is Profit (Laba)?**
+```
+Theoretical estimate of business success
+
+Calculation:
+  = Revenue Bersih (Gross - HPP - Platform Fee)
+  - Operasional Expenses
+  
+  = ESTIMATED surplus untuk stakeholder distribution
+  
+Note: Profit BUKAN cash! Bisa negative, bisa berbeda timing dari cash.
+```
+
+**Example - Bulan Pertama:**
+```
+CASH (Real):
+  Modal awal: Rp 1,000,000
+  - Sewa lahan (Rp 500,000)
+  - Gaji karyawan (Rp 200,000)
+  - Beli peralatan (Rp 200,000)
+  ─────────────────────────────
+  Kas tersisa: Rp 100,000 ✅ (positif, OK)
+
+PROFIT (Estimate):
+  Penjualan bersih: Rp 600,000
+  - Operasional: (Rp 700,000)
+  ─────────────────────────────
+  Profit: -Rp 100,000 ❌ (negative, TAPI OK di bulan 1)
+
+Why different?
+  → Peralatan (Rp 200,000) adalah ASSET, tidak dikurangi dari profit
+  → Sewa (Rp 500,000) sudah dalam operasional
+  → So: Cash negative, Profit more negative, BUT both OK di awal bisnis
+```
+
+**Dashboard Display (Kedua-duanya ditampilkan):**
+```
+🟢 KAS OPERASIONAL
+   Rp 100,000 (REAL money)
+
+🟡 PROFIT ESTIMATE
+   -Rp 100,000 (theoretical)
+   
+🔵 SURPLUS/DEFICIT
+   Rp 200,000 (cash - profit difference)
+   = Shows buffer atau shortage
+```
+
+---
 - ✅ Multi-outlet support dengan selector outlet
 - ✅ Daily session management (buka/tutup sesi)
 - ✅ Sales entry dengan 3 channel (Offline/ShopeeFood/GoFood)

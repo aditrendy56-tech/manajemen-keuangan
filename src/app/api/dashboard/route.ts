@@ -390,6 +390,21 @@ export async function GET(request: NextRequest) {
     const cash_from_modal = (capitalEntries || []).reduce((sum: number, entry: any) => sum + (entry.amount || 0), 0) || 0;
     const cash_from_sales = today_pendapatan_bersih; // Today's net revenue (after fee)
 
+    // NEW: Get profit allocations UP TO TODAY (for kas operasional calculation)
+    const { data: profitAllocations } = await getSupabaseServer().from('profit_allocations')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('allocation_date', date);
+
+    // TODAY's profit allocation
+    const today_profit_allocated_to_kas = (profitAllocations || [])
+      .filter(pa => pa.allocation_date === date)
+      .reduce((sum: number, pa: any) => sum + (pa.reserve_amount || 0), 0) || 0;
+
+    // CUMULATIVE profit allocation
+    const cumulative_profit_allocated_to_kas = (profitAllocations || [])
+      .reduce((sum: number, pa: any) => sum + (pa.reserve_amount || 0), 0) || 0;
+
     // Separate expense sources (Kas vs Modal)
     const expense_from_kas = (expenses || [])
       .filter(e => (e.funding_source || 'kas') === 'kas')
@@ -399,8 +414,23 @@ export async function GET(request: NextRequest) {
       .filter(e => (e.funding_source || 'kas') === 'modal')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
 
-    // Available for distribution = Net Revenue - Modal needs
+    // NEW: Available for distribution = Net Revenue - Modal needs
     const available_for_distribution = today_pendapatan_bersih - expense_from_modal;
+
+    // NEW: Calculate KAS OPERASIONAL (TODAY)
+    const today_available_cash = cash_from_modal + today_profit_allocated_to_kas - expense_from_kas;
+
+    // NEW: Calculate KAS OPERASIONAL (CUMULATIVE)
+    const cumulative_available_cash = cash_from_modal + cumulative_profit_allocated_to_kas - (allExpenses || [])
+      .filter(e => (e.funding_source || 'kas') === 'kas')
+      .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
+
+    // NEW: Calculate SURPLUS/DEFICIT (TODAY)
+    // Surplus = Available Cash - Profit (shows buffer or shortage)
+    const today_surplus_deficit = today_available_cash - today_profit;
+
+    // NEW: Calculate SURPLUS/DEFICIT (CUMULATIVE)
+    const cumulative_surplus_deficit = cumulative_available_cash - cumulative_profit;
 
     // Build metrics object with both today and cumulative values
     const metrics: DashboardMetrics = {
@@ -434,6 +464,26 @@ export async function GET(request: NextRequest) {
       today_cash_outflow,
       today_pending_sales,
       today_pending_expenses,
+      
+      // NEW: KAS OPERASIONAL (Modal + Alokasi Profit - Pengeluaran)
+      today_profit_allocated_to_kas,
+      cumulative_profit_allocated_to_kas,
+      today_available_cash,
+      cumulative_available_cash,
+      
+      // NEW: SURPLUS/DEFICIT (Cash vs Profit)
+      today_surplus_deficit,
+      cumulative_surplus_deficit,
+      
+      // NEW: HPP & FEE DETAILS (internal calcs, now exposed)
+      today_total_hpp,
+      cumulative_total_hpp,
+      today_total_platform_fee,
+      cumulative_total_platform_fee,
+      today_fee_shopeefood,
+      today_fee_gofood,
+      cumulative_fee_shopeefood,
+      cumulative_fee_gofood,
       
       // Products and weekly
       top_products: topProducts,

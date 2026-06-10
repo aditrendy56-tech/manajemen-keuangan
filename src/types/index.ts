@@ -420,6 +420,26 @@ export interface DashboardMetrics {
   today_pending_sales?: number;
   today_pending_expenses?: number;
 
+  // ===== KAS OPERASIONAL (Modal + Alokasi Profit - Pengeluaran) =====
+  today_profit_allocated_to_kas?: number; // Profit allocated to kas operasional today
+  cumulative_profit_allocated_to_kas?: number; // Cumulative profit allocated
+  today_available_cash?: number; // Modal + Alokasi - Pengeluaran (TODAY)
+  cumulative_available_cash?: number; // Modal + Alokasi - Pengeluaran (CUMULATIVE)
+
+  // ===== SURPLUS/DEFICIT (Cash vs Profit) =====
+  today_surplus_deficit?: number; // Available Cash - Profit (TODAY)
+  cumulative_surplus_deficit?: number; // Available Cash - Profit (CUMULATIVE)
+
+  // ===== HPP & PLATFORM FEE DETAILS =====
+  today_total_hpp?: number; // Cost of Goods Sold (TODAY)
+  cumulative_total_hpp?: number; // COGS (CUMULATIVE)
+  today_total_platform_fee?: number; // Total platform fees (TODAY)
+  cumulative_total_platform_fee?: number; // Total fees (CUMULATIVE)
+  today_fee_shopeefood?: number; // ShopeeFood fee breakdown (TODAY)
+  today_fee_gofood?: number; // GoFood fee breakdown (TODAY)
+  cumulative_fee_shopeefood?: number; // ShopeeFood fee (CUMULATIVE)
+  cumulative_fee_gofood?: number; // GoFood fee (CUMULATIVE)
+
   // ===== ANALYSIS =====
   top_products?: Array<{
     product_id: string;

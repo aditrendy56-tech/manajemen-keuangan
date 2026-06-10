@@ -463,6 +463,192 @@ Fee Rate Management:
   └─ Audit trail: siapa ubah, kapan, dari berapa jadi berapa
 ```
 
+---
+
+### 🔴 **CLARIFICATION: Platform Fee Flow (Confirmed 2026-06-10)**
+
+**User Requirement:**
+> "Pendapatan kotor itu sesudah di potong fee dong, intinya uang yg diterima lah"
+
+**MEANING:**
+- Harga produk di aplikasi (ShopeeFood/GoFood) = **Rp 20,000** (BELUM di potong fee)
+- Pas penjualan, total kotor = **Rp 20,000 × qty** (semua produk yang terjual)
+- Fee di potong LANGSUNG oleh platform = **Rp 20,000 × 8% = Rp 1,600**
+- Uang masuk ke kas kita = **Rp 20,000 - Rp 1,600 = Rp 18,400** ✅ INI CASH YANG KITA TERIMA
+
+**System Implementation:**
+```
+Database fields (sales table):
+  ├─ gross_amount: 20000 (harga jual sebelum fee)
+  ├─ platform_fee: 1600 (fee dipotong platform)
+  └─ net_amount: 18400 (uang yang masuk ke kas)
+
+Dashboard "CASH DARI PENJUALAN":
+  └─ Display: SUM(net_amount) = Rp 18,400
+     (INI adalah uang ACTUAL yang masuk, bukan gross)
+
+Profit Calculation (Internal):
+  ├─ Start: gross_amount (20000)
+  ├─ Minus: HPP (8000)
+  ├─ Minus: Platform Fee (1600) ← Fee already deducted at transaction level
+  └─ Result: Pendapatan Bersih (10400)
+```
+
+**Key Insight:**
+- Platform fee adalah **BIAYA OPERASIONAL**, dibayar LANGSUNG oleh customer ke platform
+- Tidak ada "payment source" untuk fee (bukan dari Kas atau Profit)
+- Fee sudah ter-deduct di `net_amount` saat transaksi dicatat
+- Dashboard tidak perlu show fee terpisah → cuma tampil gross vs bersih (clean)
+
+---
+
+### 🔴 **CLARIFICATION: HPP Calculation & Accuracy**
+
+**User Feedback:**
+> "HPP cuma tebakan, ga bisa pas banget... ga mungkin kan hitung hpp pas banget, ribet kalo harus liat gas berapa perak"
+
+**Current System:**
+```
+HPP = SUM(product.cost_price × quantity_sold) per item
+Contoh: Jual 10 roti @ Rp 20k/item dengan HPP Rp 8k/item
+Total HPP = 10 × Rp 8k = Rp 80k
+
+Mengapa ini BEST ESTIMATE:
+  ✅ Berdasarkan actual cost_price di product master
+  ✅ User dapat update cost_price kapan saja (di Settings → Products)
+  ✅ Lebih akurat daripada percentage-based
+  ✅ HPP sudah include semua material cost per unit
+
+Pengakuan bahwa HPP bukan EXACT:
+  ⚠️ Ada waste (terigu yang terbuang, dll)
+  ⚠️ Ada shrinkage (material hilang/rusak)
+  ⚠️ Gas/utility cost per unit sulit diukur presisi
+  
+Oleh karena itu:
+  → HPP yang tercatat adalah BEST ESTIMATE, bukan EXACT
+  → Gunakan untuk business intelligence, bukan audit keuangan
+  → Dashboard note: "HPP = Estimasi berdasarkan cost price + waste"
+  → Future enhancement: Option untuk adjust HPP % jika perlu
+```
+
+**Recommendation: TETAP PAKAI CURRENT SYSTEM**
+- Alasan: Sudah cukup akurat untuk decision-making
+- Alternative (percentage-based) terlalu imprecise
+- User sudah bisa update cost_price per product jika ada perubahan supplier
+
+---
+
+### 🔴 **NEW: Dashboard Structure (Confirmed 2026-06-10)**
+
+**Section 1: 💰 KAS OPERASIONAL**
+```
+Formula: Modal + Alokasi Profit ke Kas - Pengeluaran (Kas)
+
+Components:
+  ├─ cash_from_modal
+  │  └─ SUM(capital_entries.amount) all-time
+  ├─ profit_allocated_to_kas
+  │  └─ SUM(profit_allocations.reserve_amount) all-time
+  ├─ expense_from_kas
+  │  └─ SUM(expenses.amount) where funding_source='kas'
+  │
+  └─ Result: today_available_cash (TODAY)
+     └─ cash_from_modal + today_profit_allocated_to_kas - expense_from_kas_today
+     
+     Result: cumulative_available_cash (CUMULATIVE)
+     └─ cash_from_modal + cumulative_profit_allocated_to_kas - cumulative_expense_from_kas
+
+What This Shows:
+  → Real cash balance di kas operasional
+  → Berapa yang bisa dipakai untuk operasional + emergency
+  → Update setiap hari when sales terjadi + expenses recorded
+```
+
+**Section 2: 💸 CASH DARI PENJUALAN (REAL - ACTUAL MONEY IN)**
+```
+Formula: SUM(sales.net_amount - refund_amount) [TODAY]
+
+Meaning:
+  → Uang ACTUAL yang masuk hari ini dari penjualan
+  → Sudah di potong platform fee (Shopeefood/Gofood)
+  → Offline = tidak ada fee
+
+Breakdown by channel:
+  ├─ Offline: 100% masuk (no fee)
+  ├─ ShopeeFood: gross - (gross × fee_rate_shopeefood)
+  └─ GoFood: gross - (gross × fee_rate_gofood)
+
+Note: Ini adalah REAL CASH, bukan estimasi
+```
+
+**Section 3: 📊 PROFIT ANALYSIS (ESTIMATE)**
+```
+Formula: Pendapatan Bersih - Operasional Expenses
+
+Components (today + cumulative):
+  ├─ Pendapatan Kotor
+  │  └─ SUM(sales.gross_amount) - HPP - Platform Fee
+  ├─ Breakdown detail:
+  │  ├─ Gross Revenue (kotor)
+  │  ├─ Cost of Goods (HPP)
+  │  ├─ Platform Fees
+  │  └─ = Pendapatan Bersih
+  ├─ Operating Expenses
+  │  └─ SUM(expenses where category='operasional')
+  │
+  └─ = PROFIT (dapat NEGATIVE, OK)
+
+Note: Profit adalah ESTIMATE, bukan cash
+      Used for: Stakeholder distribution, business planning
+      Difference from Cash: Different timing, different deductions
+```
+
+**Section 4: 📈 SURPLUS/DEFICIT (Buffer Analysis)**
+```
+Formula: Available Cash - Profit Estimate
+
+Meaning:
+  → If POSITIVE: Ada cash buffer (lebih banyak cash daripada profit)
+  → If NEGATIVE: Cash shortage (perlu potong profit untuk operasional)
+
+Example:
+  Available Cash: Rp 500,000
+  Estimated Profit: Rp 100,000
+  Surplus: Rp 400,000 ← Good! Ada buffer untuk emergency
+  
+  OR:
+  Available Cash: Rp 50,000
+  Estimated Profit: Rp 100,000
+  Deficit: Rp -50,000 ← Profit estimate > cash (normal di bulan pertama)
+
+Use Case: Monitor apakah ada cash pressure atau cash positive
+```
+
+**New API Fields (Returned by /api/dashboard):**
+```
+TODAY:
+  ├─ today_profit_allocated_to_kas (from profit_allocations.reserve)
+  ├─ today_available_cash = modal + alokasi - expense_kas
+  ├─ today_surplus_deficit = available_cash - profit
+  ├─ today_total_hpp (internal detail)
+  ├─ today_total_platform_fee (internal detail)
+  ├─ today_fee_shopeefood (breakdown)
+  └─ today_fee_gofood (breakdown)
+
+CUMULATIVE:
+  ├─ cumulative_profit_allocated_to_kas
+  ├─ cumulative_available_cash
+  ├─ cumulative_surplus_deficit
+  ├─ cumulative_total_hpp
+  ├─ cumulative_total_platform_fee
+  ├─ cumulative_fee_shopeefood
+  └─ cumulative_fee_gofood
+
+Purpose: Support new dashboard structure with all 4 sections
+```
+
+---
+
 **Notes:**
 - **HPP (Harga Pokok Penjualan)** sudah include ALL material costs per unit (internal calc)
 - **Bahan & Peralatan expenses** di-track tapi NOT digunakan di profit calculation (already in HPP)
