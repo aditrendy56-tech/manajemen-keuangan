@@ -372,6 +372,7 @@ export interface DashboardMetrics {
   today_operational_expenses: number; // Operasional
   today_profit: number; // Profit (Bersih - Operasional)
   today_inventory_purchases?: number; // Inventory (not deducted from profit)
+  today_total_items_sold?: number; // Total quantity of items sold (TODAY)
   today_revenue_by_channel?: {
     offline: number;
     shopeefood: number;
@@ -398,6 +399,7 @@ export interface DashboardMetrics {
   cumulative_operational_expenses?: number; // Operasional (all time)
   cumulative_profit?: number; // Profit (all time)
   cumulative_inventory_purchases?: number; // Inventory (all time)
+  cumulative_total_items_sold?: number; // Total quantity of items sold (CUMULATIVE)
   cumulative_revenue_by_channel?: {
     offline: number;
     shopeefood: number;
@@ -419,6 +421,8 @@ export interface DashboardMetrics {
   today_cash_outflow?: number;
   today_pending_sales?: number;
   today_pending_expenses?: number;
+  cumulative_cash_inflow?: number;
+  cumulative_cash_outflow?: number;
 
   // ===== KAS OPERASIONAL (Modal + Alokasi Profit - Pengeluaran) =====
   today_profit_allocated_to_kas?: number; // Profit allocated to kas operasional today

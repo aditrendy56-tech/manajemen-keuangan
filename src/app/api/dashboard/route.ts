@@ -102,12 +102,14 @@ export async function GET(request: NextRequest) {
     // STEP 2: Calculate HPP (Cost of Goods Sold) - internal only, not displayed
     const saleIds = (sales || []).map((sale: any) => sale.id) || [];
     let today_total_hpp = 0;
+    let today_total_items_sold = 0;
     if (saleIds.length > 0) {
       const { data: saleItems } = await supabase.from('sale_items')
         .select('cost_price, quantity')
         .in('sale_id', saleIds);
       
       today_total_hpp = (saleItems || []).reduce((sum: number, item: any) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
+      today_total_items_sold = (saleItems || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
     }
 
     // STEP 3: Calculate Platform Fees by Channel (per session/harian)
@@ -147,6 +149,21 @@ export async function GET(request: NextRequest) {
     ) || 0;
     const today_pending_expenses = (expenses || []).reduce(
       (sum: number, expense: any) => sum + (String(expense.payment_status || '').toLowerCase() === 'paid' ? 0 : getRecognizedExpenseAmount(expense)),
+      0
+    ) || 0;
+
+    // Get ALL cash transactions for cumulative
+    const { data: allCashTransactions } = await supabase.from('cash_transactions')
+      .select('*')
+      .eq('outlet_id', outletId)
+      .lte('transaction_date', date);
+
+    const cumulative_cash_inflow = allCashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
+      0
+    ) || 0;
+    const cumulative_cash_outflow = allCashTransactions?.reduce(
+      (sum: number, tx: any) => sum + (tx.transaction_type === 'outflow' ? (tx.amount || 0) : 0),
       0
     ) || 0;
 
@@ -224,12 +241,14 @@ export async function GET(request: NextRequest) {
     // STEP 2: Calculate Cumulative HPP
     const allSaleIds = (allSales || []).map((sale: any) => sale.id) || [];
     let cumulative_total_hpp = 0;
+    let cumulative_total_items_sold = 0;
     if (allSaleIds.length > 0) {
       const { data: allSaleItems } = await supabase.from('sale_items')
         .select('cost_price, quantity')
         .in('sale_id', allSaleIds);
       
       cumulative_total_hpp = (allSaleItems || []).reduce((sum: number, item: any) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
+      cumulative_total_items_sold = (allSaleItems || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
     }
 
     // STEP 3: Calculate Cumulative Platform Fees
@@ -440,6 +459,7 @@ export async function GET(request: NextRequest) {
       today_operational_expenses: today_operational_expenses,
       today_profit: today_profit,
       today_inventory_purchases: today_inventory_purchases,
+      today_total_items_sold: today_total_items_sold,
       today_revenue_by_channel,
       today_expense_by_category,
       today_payment_methods,
@@ -451,6 +471,7 @@ export async function GET(request: NextRequest) {
       cumulative_operational_expenses,
       cumulative_profit,
       cumulative_inventory_purchases,
+      cumulative_total_items_sold,
       cumulative_revenue_by_channel,
       cumulative_expense_by_category,
       
@@ -464,6 +485,8 @@ export async function GET(request: NextRequest) {
       today_cash_outflow,
       today_pending_sales,
       today_pending_expenses,
+      cumulative_cash_inflow,
+      cumulative_cash_outflow,
       
       // NEW: KAS OPERASIONAL (Modal + Alokasi Profit - Pengeluaran)
       today_profit_allocated_to_kas,
