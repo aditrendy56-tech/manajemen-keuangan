@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { recordCashTransaction } from '@/lib/cash/ledger';
 import { validateExpenseTransaction } from '@/lib/cash/validation';
+import { validateExpenseBucket, deductExpenseFromBucket } from '@/lib/cash/dual-bucket-v2';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       invoice_number,
       funding_source,
       funded_by_investor_id,
+      kas_source,  // NEW: Specify bucket (kas_utama | simpan_uang)
     } = body;
 
     console.log('[POST /api/expenses] Received:', { 
@@ -136,6 +138,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // NEW: VALIDATION - kas_source for dual-bucket system
+    const validKasSources = ['kas_utama', 'simpan_uang'];
+    const finalKasSource = kas_source || 'kas_utama';
+    if (!validKasSources.includes(finalKasSource)) {
+      return NextResponse.json(
+        { error: `Invalid kas_source. Must be kas_utama or simpan_uang` },
+        { status: 400 }
+      );
+    }
+
     const session = await resolveSessionForTransaction({
       autoCreate: false, // Require explicit session creation
       sessionId: session_id,
@@ -150,26 +162,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // VALIDATION: Cek apakah kas cukup untuk pengeluaran ini (unless force_override)
+    // VALIDATION: Cek apakah kas di bucket cukup untuk pengeluaran ini (unless force_override)
     if (!force_override) {
-      console.log('[POST /api/expenses] Validating cash for amount:', amount);
-      const validation = await validateExpenseTransaction(outlet_id, parseFloat(amount));
-      console.log('[POST /api/expenses] Cash validation result:', JSON.stringify(validation));
+      console.log('[POST /api/expenses] Validating budget for kas_source:', finalKasSource, 'amount:', amount);
+      const bucketValidation = await validateExpenseBucket(outlet_id, finalKasSource, parseFloat(amount));
+      console.log('[POST /api/expenses] Bucket validation result:', JSON.stringify(bucketValidation));
       
-      if (!validation.canProceed) {
-        console.log('[POST /api/expenses] KAS_TIDAK_CUKUP - returning 400 with warning');
-        // Return warning tapi jangan blocking - client bisa pilih untuk proceed dengan soft warning
+      if (!bucketValidation.valid) {
+        console.log('[POST /api/expenses] BUCKET_INSUFFICIENT - returning 400 with warning');
         return NextResponse.json({
-          error: validation.message,
-          errorType: 'KAS_TIDAK_CUKUP',
-          availableCash: validation.availableCash,
-          requestedAmount: parseFloat(amount),
-          shortfall: validation.shortfall,
-          message: validation.message,
-          status: 'warning' // Soft warning, bukan hard block
+          error: bucketValidation.reason,
+          errorType: 'BUCKET_INSUFFICIENT',
+          kas_source: finalKasSource,
+          available: bucketValidation.available,
+          requested: parseFloat(amount),
+          shortfall: parseFloat(amount) - bucketValidation.available,
+          status: 'warning'
         }, { status: 400 });
       }
-      console.log('[POST /api/expenses] Cash validation passed, proceeding with insert');
+      console.log('[POST /api/expenses] Bucket validation passed, proceeding with insert');
     }
 
     const insertData: any = {
@@ -181,6 +192,7 @@ export async function POST(request: NextRequest) {
       amount,
       funding_source: finalFundingSource,
       funded_by_investor_id: finalFundingSource === 'modal' ? funded_by_investor_id : null,
+      kas_source: finalKasSource,  // NEW: Track which bucket this expense came from
       notes,
       payment_method: payment_method || 'cash',
       payment_status: payment_status || 'paid',
@@ -227,6 +239,15 @@ export async function POST(request: NextRequest) {
         description: description,
         notes: notes || null,
       });
+
+      // NEW: Deduct from the specified bucket
+      try {
+        await deductExpenseFromBucket(outlet_id, finalKasSource, parseFloat(amount), data[0]?.id);
+        console.log('[POST /api/expenses] Deducted amount from', finalKasSource);
+      } catch (deductError) {
+        console.error('[POST /api/expenses] Warning: Could not deduct from bucket:', deductError);
+        // Don't throw - expense is already recorded, bucket deduction is best-effort
+      }
     }
 
     console.log('[POST /api/expenses] Success, created expense:', data[0]?.id);

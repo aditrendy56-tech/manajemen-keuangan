@@ -4,6 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculatePlatformFee, calculatePlatformFeeServer } from '@/lib/calculations/platform-fees';
 import { recordCashTransaction } from '@/lib/cash/ledger';
+import { splitSalesTransaction } from '@/lib/cash/dual-bucket-v2';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 
 export async function GET(request: NextRequest) {
@@ -234,6 +235,21 @@ export async function POST(request: NextRequest) {
     if (saleError) throw saleError;
 
     const saleId = saleData.id;
+
+    // ===== NEW: Auto-split sales between Kas Utama (60%) and Profit Pending (40%) =====
+    try {
+      await splitSalesTransaction(
+        outlet_id,
+        saleId,
+        effectiveGrossAmount,
+        platform_fee
+      );
+      console.log('[POST /api/sales] Auto-split completed for sale:', saleId);
+    } catch (splitError) {
+      console.error('[POST /api/sales] Warning: Auto-split failed:', splitError);
+      // Don't throw - sale is created, split failure is non-critical
+    }
+    // ===== END: Auto-split =====
 
     // Insert sale items with HPP calculation
     let totalGrossProfit = 0;

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Save, Edit2, X } from 'lucide-react';
+import { Trash2, Plus, Save, Edit2, X, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction, DashboardMetrics } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -748,293 +748,752 @@ export default function FundingPage() {
   }
 
   // TAB 2: Alokasi Laba
+  // ========== TAB 2: ALOKASI LABA v2.0 - NEW DESIGN WITH HUTANG PRIORITY ==========
   function TabAllokasiLaba() {
-    const [netProfit, setNetProfit] = useState<number>(0);
-    const [kasAmount, setKasAmount] = useState('');
-    const [allocationItems, setAllocationItems] = useState<{ investorId: string; name: string; roleType: string; amount: number }[]>([]);
-    const [selectedRole, setSelectedRole] = useState('');
-    const [itemAmount, setItemAmount] = useState('');
+    // ===== STATES =====
+    const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1); // Step tracker
+    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // AUTO-CALCULATE PROFIT from metrics (PHASE 5): Profit = Gross Profit - Operational Expenses
-    // New formula uses HPP tracking for accurate gross profit calculation
+    // Step 1: Load balances
+    const [profitPending, setProfitPending] = useState(0);
+    const [kasUtama, setKasUtama] = useState(0);
+    const [simpanUang, setSimpanUang] = useState(0);
+
+    // Step 2-3: Hutang calculation
+    const [investorHutang, setInvestorHutang] = useState<
+      Record<string, { total: number; status: 'lunas' | 'cicil' | 'belum' }>
+    >({});
+    const [totalHutang, setTotalHutang] = useState(0);
+    const [hutangWarning, setHutangWarning] = useState(false);
+
+    // Step 4: Auto-deduct
+    const [profitAfterHutang, setProfitAfterHutang] = useState(0);
+    const [hutangAllocations, setHutangAllocations] = useState<
+      Record<string, { investorName: string; amount: number }>
+    >({});
+
+    // Step 5: User choice
+    const [userChoice, setUserChoice] = useState<'full_profit' | 'available_kas' | 'custom'>('full_profit');
+    const [availableForAllocation, setAvailableForAllocation] = useState(0);
+
+    // Step 6: Kas Utama top-up
+    const [kasTopup, setKasTopup] = useState('');
+    const [useKasTopup, setUseKasTopup] = useState(false);
+
+    // Step 7: Simpan Uang
+    const [simpanAmount, setSimpanAmount] = useState('');
+    const [simpanReason, setSimpanReason] = useState('');
+
+    // Step 8: Profit share
+    const [profitDistribution, setProfitDistribution] = useState<
+      Record<string, { name: string; amount: number; status: 'lunas' | 'cicil' | 'belum' }>
+    >({});
+    const [allocatedProfit, setAllocatedProfit] = useState(0);
+
+    // ===== STEP 1: Load balances and hutang data =====
     useEffect(() => {
-      if (data.metrics) {
-        // Use pre-calculated profit from dashboard (Gross Profit - Operational Expenses)
-        // This uses HPP from sale_items for accurate cost of goods sold
-        const calculatedProfit = data.metrics.today_profit || 0;
-        setNetProfit(Math.max(0, calculatedProfit));
+      if (step === 1) {
+        loadAllocationData();
       }
-    }, [data.metrics]);
+    }, [step]);
 
-    const kasNum = parseFloat(kasAmount) || 0;
-    const allocatedTotal = allocationItems.reduce((sum, item) => sum + item.amount, 0);
-    const remainder = netProfit - kasNum - allocatedTotal;
+    async function loadAllocationData() {
+      setLoading(true);
+      try {
+        // Load financial balances
+        const balanceRes = await fetch(`/api/cash/financial-summary?outlet_id=${outletId}`);
+        if (!balanceRes.ok) throw new Error('Failed to load balances');
+        const balance = await balanceRes.json();
 
-    async function addAllocationItem() {
-      if (!selectedRole) {
-        alert('Pilih role');
-        return;
+        setProfitPending(balance.profit_pending || 0);
+        setKasUtama(balance.kas_utama || 0);
+        setSimpanUang(balance.simpan_uang || 0);
+        setProfitAfterHutang(balance.profit_pending || 0);
+
+        // Calculate hutang per investor
+        const hutangMap: Record<string, { total: number; status: 'lunas' | 'cicil' | 'belum' }> = {};
+        let totalHutangAmount = 0;
+
+        for (const investor of data.investors) {
+          try {
+            // Fetch investor's hutang status
+            const hutangRes = await fetch(`/api/investors/${investor.id}/hutang-status`);
+            if (hutangRes.ok) {
+              const hutang = await hutangRes.json();
+              hutangMap[investor.id] = hutang;
+              if (hutang.status === 'cicil') {
+                totalHutangAmount += hutang.total;
+              }
+            }
+          } catch (err) {
+            console.warn('Could not fetch hutang for investor:', investor.id);
+          }
+        }
+
+        setInvestorHutang(hutangMap);
+        setTotalHutang(totalHutangAmount);
+
+        // WARN if profit_pending < total hutang
+        if (balance.profit_pending < totalHutangAmount) {
+          setHutangWarning(true);
+        }
+
+        setStep(2);
+      } catch (error: any) {
+        console.error('Load data error:', error);
+        alert('Error loading allocation data: ' + error.message);
+      } finally {
+        setLoading(false);
       }
-      if (!itemAmount || parseFloat(itemAmount) <= 0) {
-        alert('Masukkan jumlah');
-        return;
-      }
-
-      const selected = data.investors.find((inv: any) => inv.id === selectedRole);
-      if (!selected) return;
-
-      setAllocationItems([
-        ...allocationItems,
-        {
-          investorId: selected.id,
-          name: selected.name,
-          roleType: selected.source_type || 'investor',
-          amount: parseFloat(itemAmount),
-        },
-      ]);
-      setSelectedRole('');
-      setItemAmount('');
     }
 
-    function removeAllocationItem(index: number) {
-      setAllocationItems(allocationItems.filter((_, i) => i !== index));
-    }
+    // ===== STEP 4: Auto-deduct hutang =====
+    function autoDeductHutang() {
+      const allocations: Record<string, { investorName: string; amount: number }> = {};
+      let remainingProfit = profitPending;
 
-    async function handleSaveAllocation() {
-      if (remainder < 0) {
-        alert('Total alokasi melebihi sisa! Periksa kembali.');
-        return;
+      // Prioritas: bayar hutang investor CICIL dulu
+      for (const investor of data.investors) {
+        const hutang = investorHutang[investor.id];
+        if (hutang && hutang.status === 'cicil') {
+          const toPay = Math.min(hutang.total, remainingProfit);
+          if (toPay > 0) {
+            allocations[investor.id] = { investorName: investor.name, amount: toPay };
+            remainingProfit -= toPay;
+          }
+        }
       }
 
+      setHutangAllocations(allocations);
+      setProfitAfterHutang(remainingProfit);
+      setStep(5);
+    }
+
+    // ===== STEP 5: Handle user choice =====
+    function handleUserChoice(choice: 'full_profit' | 'available_kas' | 'custom') {
+      setUserChoice(choice);
+      
+      // Calculate available for allocation
+      let available = profitAfterHutang;
+      if (choice === 'available_kas') {
+        available = Math.min(profitAfterHutang, kasUtama);
+      }
+      
+      setAvailableForAllocation(available);
+      setStep(6);
+    }
+
+    // ===== STEP 6: Kas top-up =====
+    function handleKasTopup() {
+      const topup = parseFloat(kasTopup) || 0;
+      const BUFFER_KAS = 100000;
+      if (topup < 0) {
+        alert('Invalid kas top-up amount');
+        return;
+      }
+      if (useKasTopup) {
+        if (topup > kasUtama - BUFFER_KAS) {
+          alert(`Kas utama tidak mencukupi setelah buffer Rp ${BUFFER_KAS.toLocaleString('id-ID')}`);
+          return;
+        }
+      } else {
+        if (topup > profitAfterHutang) {
+          alert('Invalid kas top-up amount (cannot exceed available profit)');
+          return;
+        }
+      }
+      setStep(7);
+    }
+
+    // ===== STEP 7: Simpan Uang =====
+    function handleSimpanAllocation() {
+      const amount = parseFloat(simpanAmount) || 0;
+      if (amount < 0 || amount > profitAfterHutang) {
+        alert('Invalid simpan amount');
+        return;
+      }
+      if (amount > 0 && !simpanReason.trim()) {
+        alert('Masukkan alasan Simpan Uang');
+        return;
+      }
+      setStep(8);
+    }
+
+    // ===== STEP 8: Profit share =====
+    async function calculateAndSaveAllocation() {
       setSaving(true);
       try {
+        const month = new Date().toISOString().substring(0, 7); // YYYY-MM
+
+        // Build allocation record
+        const allocationRecord = {
+          outlet_id: outletId,
+          allocation_month: month,
+          allocation_date: new Date().toISOString().split('T')[0],
+          
+          // Hutang payments (auto)
+          hutang_payments: hutangAllocations,
+          total_hutang_paid: Object.values(hutangAllocations).reduce((sum, h) => sum + h.amount, 0),
+          
+          // Kas top-up
+          kas_utama_topup: parseFloat(kasTopup) || 0,
+          use_kas_utama_topup: useKasTopup || false,
+          
+          // Simpan Uang
+          simpan_uang_amount: parseFloat(simpanAmount) || 0,
+          simpan_reason: simpanReason || null,
+          
+          // Profit available
+          profit_pending_amount: profitPending,
+          profit_after_hutang: profitAfterHutang,
+          user_choice: userChoice,
+          
+          // Tracking
+          notes: `Phase 2.0: Hutang priority allocation with ${data.investors.length} investors`,
+        };
+
         const response = await fetch('/api/profit-allocations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outlet_id: outletId,
-            allocation_date: new Date().toISOString().split('T')[0],
-            period_label: null,
-            total_profit: netProfit,
-            reserve_amount: kasNum,
-            distributed_amount: allocatedTotal,
-            notes: `Manual allocation: ${allocationItems.length} entries`,
-          }),
+          body: JSON.stringify(allocationRecord),
         });
 
-        if (!response.ok) throw new Error('Gagal simpan alokasi');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save allocation');
+        }
 
-        setKasAmount('');
-        setAllocationItems([]);
+        // Success
+        alert('✅ Alokasi laba berhasil disimpan dengan hutang-priority logic!');
         await fetchAllData();
-        alert('Alokasi laba berhasil disimpan');
-      } catch (error) {
-        console.error('Error:', error);
-        alert('Error saving allocation');
+        setStep(1);
+        
+        // Reset forms
+        setKasTopup('');
+        setSimpanAmount('');
+        setSimpanReason('');
+        setProfitDistribution({});
+      } catch (error: any) {
+        console.error('Save error:', error);
+        alert('❌ Error: ' + error.message);
       } finally {
         setSaving(false);
       }
     }
 
+    // ===== RENDER =====
     return (
       <div className="space-y-6">
-        {/* Profit Breakdown - show it clearly aligned with OPSI A */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-lg">💡 Profit Calculation (OPSI A)</CardTitle>
-            <CardDescription className="mt-2">
-              Profit = Penjualan Bersih - Operasional ONLY (Bahan & Peralatan = ASSETS, bukan expense)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
-              <div className="p-3 bg-white rounded border border-blue-200">
-                <p className="text-xs text-gray-600">Laba Kotor (HPP)</p>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(data.metrics?.today_gross_profit || 0)}</p>
+        {/* Step Indicator */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+            <div key={s} className="flex items-center gap-1">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  s <= step
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {s <= step - 1 ? '✓' : s}
               </div>
-              <div className="flex items-center justify-center">
-                <span className="text-2xl font-bold text-gray-400">−</span>
-              </div>
-              <div className="p-3 bg-white rounded border border-orange-200">
-                <p className="text-xs text-gray-600">Operasional</p>
-                <p className="text-lg font-bold text-orange-600">{formatCurrency(data.metrics?.today_operational_expenses || 0)}</p>
-              </div>
-              <div className="flex items-center justify-center">
-                <span className="text-2xl font-bold text-gray-400">=</span>
-              </div>
-              <div className="p-3 bg-white rounded border border-blue-300">
-                <p className="text-xs text-gray-600 font-semibold">🎯 Laba Bersih</p>
-                <p className="text-lg font-bold text-blue-600">{formatCurrency(netProfit)}</p>
-              </div>
+              {s < 8 && <div className={`w-2 h-0.5 ${s < step ? 'bg-blue-600' : 'bg-gray-300'}`} />}
             </div>
-            <p className="text-xs text-gray-600 mt-3 italic">
-              📌 Catatan: Laba Kotor dihitung dari Penjualan − HPP (Harga Pokok Penjualan per item). Peralatan dihitung sebagai ASSETS (tidak mengurangi profit). Hanya Operasional yang mengurangi profit.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Settlement Priority Guide */}
-        <Card className="border-purple-200 bg-purple-50">
-          <CardHeader>
-            <CardTitle className="text-sm">📋 Prioritas Penggunaan Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ol className="space-y-2 text-sm">
-              <li><span className="font-semibold">1️⃣ Operasional Expenses:</span> Bayar dari Kas Penjualan (Dari Kas)</li>
-              <li><span className="font-semibold">2️⃣ Modal Repayment:</span> Bayar Cicil/Lunas investor (Tab "📤 Pembayaran")</li>
-              <li><span className="font-semibold">3️⃣ Reserve Kas:</span> Simpan untuk operasional bulan depan</li>
-              <li><span className="font-semibold">4️⃣ Profit Sharing:</span> Bagikan ke investors (HANYA jika modal 100% sudah lunas)</li>
-            </ol>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-gray-600">Laba Bersih</p>
-              <p className="text-2xl font-bold text-blue-600">{formatCurrency(netProfit)}</p>
-              <p className="text-xs text-gray-500 mt-1">otomatis dari laporan</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-gray-600">Ke Kas</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(kasNum)}</p>
-              <p className="text-xs text-gray-500 mt-1">potongan kas</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-gray-600">Dialokasikan</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(allocatedTotal)}</p>
-              <p className="text-xs text-gray-500 mt-1">{allocationItems.length} entries</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-gray-600">Sisa</p>
-              <p className={`text-2xl font-bold ${remainder >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
-                {formatCurrency(remainder)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">{remainder >= 0 ? 'dapat dibagikan' : 'MELEBIHI!'}</p>
-            </CardContent>
-          </Card>
+          ))}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>1. Potong Kas</CardTitle>
-            <CardDescription>Berapa nominal yang masuk ke kas usaha?</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Nominal Kas (Rp)</Label>
-              <Input
-                type="number"
-                value={kasAmount}
-                onChange={(e) => setKasAmount(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* STEP 1: Load Data */}
+        {step === 1 && (
+          <Card className="border-blue-300 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Step 1: Loading Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm mb-4">Sedang memuat Profit Pending dan status hutang investor...</p>
+              <Button onClick={loadAllocationData} disabled={loading} className="bg-blue-600">
+                {loading ? 'Loading...' : 'Load Data'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>2. Bagikan Sisa Laba</CardTitle>
-            <CardDescription>Pilih role → input jumlah → tambahkan ke daftar</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Pilih Role</Label>
-                <Select value={selectedRole || ''} onValueChange={(val) => setSelectedRole(val || '')}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih role">
-                      {selectedRole && data.investors.find((inv: any) => inv.id === selectedRole)?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data.investors.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Tidak ada role</div>
-                    ) : (
-                      data.investors.map((inv: any) => {
-                        const icon = inv.source_type === 'owner' ? '👤' : inv.source_type === 'karyawan' ? '🧑' : '🤝';
-                        return (
-                          <SelectItem key={inv.id} value={inv.id}>
-                            {icon} {inv.name}
-                          </SelectItem>
-                        );
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
+        {/* STEP 2: Show Balances & Hutang Warning */}
+        {step >= 2 && (
+          <Card className={hutangWarning ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                {hutangWarning ? (
+                  <>
+                    <AlertCircle className="w-5 h-5 text-red-600" /> Step 2-3: ⚠️ Hutang Check
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-green-600" /> Step 2-3: ✅ Hutang Status
+                  </>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Profit Pending</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(profitPending)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Tersedia untuk alokasi</p>
+                </div>
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Kas Utama</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(kasUtama)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Operasional saat ini</p>
+                </div>
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Simpan Uang</p>
+                  <p className="text-xl font-bold text-orange-600">{formatCurrency(simpanUang)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Strategis fund</p>
+                </div>
+                <div className="p-3 bg-white rounded border border-red-300">
+                  <p className="text-xs text-red-600 font-semibold">Total Hutang</p>
+                  <p className="text-xl font-bold text-red-600">{formatCurrency(totalHutang)}</p>
+                  <p className="text-xs text-gray-500 mt-1">CICIL investors</p>
+                </div>
               </div>
-              <div>
-                <Label>Jumlah (Rp)</Label>
-                <Input
-                  type="number"
-                  value={itemAmount}
-                  onChange={(e) => setItemAmount(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  onClick={addAllocationItem}
-                  className="bg-blue-600 hover:bg-blue-700 w-full"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Tambah
-                </Button>
-              </div>
-            </div>
 
-            {allocationItems.length > 0 && (
-              <div className="mt-6 pt-6 border-t">
-                <h3 className="font-semibold mb-3">Daftar Alokasi ({allocationItems.length})</h3>
+              {hutangWarning && (
+                <div className="p-4 bg-red-100 border border-red-400 rounded">
+                  <p className="text-sm font-semibold text-red-700">
+                    ⚠️ WARNING: Profit pending ({formatCurrency(profitPending)}) KURANG dari total hutang ({formatCurrency(totalHutang)})!
+                  </p>
+                  <p className="text-xs text-red-600 mt-2">
+                    Shortfall: {formatCurrency(totalHutang - profitPending)}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <h3 className="font-semibold mb-3 text-sm">Hutang Status per Investor:</h3>
                 <div className="space-y-2">
-                  {allocationItems.map((item, idx) => {
-                    const icon = item.roleType === 'owner' ? '👤' : item.roleType === 'karyawan' ? '🧑' : '🤝';
-                    const label = item.roleType === 'owner' ? 'Owner' : item.roleType === 'karyawan' ? 'Karyawan' : 'Investor';
+                  {data.investors.map((investor) => {
+                    const hutang = investorHutang[investor.id];
+                    if (!hutang) return null;
+                    
+                    const icon = hutang.status === 'lunas' ? '✅' : hutang.status === 'cicil' ? '⚠️' : '❌';
+                    const color = hutang.status === 'lunas' ? 'text-green-600' : hutang.status === 'cicil' ? 'text-orange-600' : 'text-red-600';
+                    
                     return (
-                      <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded">
-                        <div>
-                          <p className="font-medium">
-                            <span className="text-xl mr-2">{icon}</span>
-                            {item.name}
-                          </p>
-                          <p className="text-sm text-gray-600">{label}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <p className="font-semibold min-w-max">{formatCurrency(item.amount)}</p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeAllocationItem(idx)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                      <div key={investor.id} className="flex items-center justify-between text-sm bg-white p-2 rounded">
+                        <span>
+                          {icon} {investor.name}
+                        </span>
+                        <span className={`font-semibold ${color}`}>{hutang.status.toUpperCase()}</span>
+                        {hutang.total > 0 && (
+                          <span className="text-gray-600">{formatCurrency(hutang.total)}</span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
-            )}
 
-            <Button
-              onClick={handleSaveAllocation}
-              disabled={saving || allocationItems.length === 0 || remainder < 0}
-              className="w-full bg-green-600 hover:bg-green-700 mt-4"
-            >
-              <Save className="w-4 h-4 mr-1" />
-              {saving ? 'Menyimpan...' : 'Simpan Alokasi Laba'}
-            </Button>
-          </CardContent>
-        </Card>
+              {step === 2 && (
+                <Button onClick={() => setStep(3)} className="w-full bg-blue-600">
+                  Lanjut ke Step 3: Auto-Deduct Hutang
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 3: Confirm Auto-Deduct */}
+        {step === 3 && (
+          <Card className="border-purple-300 bg-purple-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Step 3: Auto-Deduct Hutang
+              </CardTitle>
+              <CardDescription>
+                Sistem akan otomatis mengurangi Profit Pending untuk pembayaran hutang CICIL investors
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-white rounded border-2 border-purple-300">
+                <p className="text-sm font-semibold mb-3">Logika: Profit Pending akan digunakan untuk:</p>
+                <ol className="space-y-2 text-sm">
+                  <li><span className="font-semibold">1.</span> Bayar hutang investor CICIL (prioritas utama)</li>
+                  <li><span className="font-semibold">2.</span> Top-up Kas Utama untuk operasional bulan depan</li>
+                  <li><span className="font-semibold">3.</span> Alokasi Simpan Uang (strategic fund)</li>
+                  <li><span className="font-semibold">4.</span> Profit share ke investor LUNAS (sisa)</li>
+                </ol>
+              </div>
+
+              <div className="bg-white p-4 rounded border">
+                <p className="text-xs text-gray-600 mb-2">Profit Pending:</p>
+                <p className="text-2xl font-bold text-blue-600 mb-4">{formatCurrency(profitPending)}</p>
+                <p className="text-xs text-gray-600">Akan dikurangi untuk bayar hutang sebesar:</p>
+                <p className="text-xl font-bold text-red-600">{formatCurrency(totalHutang)}</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={() => setStep(2)} variant="outline" className="flex-1">
+                  Kembali
+                </Button>
+                <Button onClick={autoDeductHutang} className="flex-1 bg-purple-600">
+                  Lanjut: Auto-Deduct
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 4: Show After-Hutang Amount */}
+        {step >= 4 && (
+          <Card className="border-orange-300 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-orange-600" /> Step 4: Hutang Sudah Dikurangi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Profit Awal</p>
+                  <p className="text-lg font-bold text-blue-600">{formatCurrency(profitPending)}</p>
+                </div>
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Bayar Hutang</p>
+                  <p className="text-lg font-bold text-red-600">- {formatCurrency(totalHutang)}</p>
+                </div>
+                <div className="p-3 bg-white rounded border border-green-300">
+                  <p className="text-xs text-gray-600 font-semibold">Sisa Profit</p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(profitAfterHutang)}</p>
+                </div>
+              </div>
+
+              {Object.keys(hutangAllocations).length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-sm mb-2">Hutang yang dibayar:</h3>
+                  <div className="space-y-1">
+                    {Object.entries(hutangAllocations).map(([invId, alloc]) => (
+                      <div key={invId} className="flex justify-between text-sm bg-white p-2 rounded">
+                        <span>{alloc.investorName}</span>
+                        <span className="font-semibold text-red-600">{formatCurrency(alloc.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 4 && (
+                <Button onClick={() => setStep(5)} className="w-full bg-blue-600">
+                  Lanjut ke Step 5: User Choice
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 5: User Choice */}
+        {step >= 5 && (
+          <Card className="border-indigo-300 bg-indigo-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Step 5: Pilih Strategi Alokasi
+              </CardTitle>
+              <CardDescription>
+                Bagaimana cara mengalokasikan sisa profit {formatCurrency(profitAfterHutang)}?
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div
+                  onClick={() => handleUserChoice('full_profit')}
+                  className={`p-4 rounded border-2 cursor-pointer transition ${
+                    userChoice === 'full_profit'
+                      ? 'border-indigo-600 bg-white'
+                      : 'border-gray-300 bg-gray-50 hover:border-indigo-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      checked={userChoice === 'full_profit'}
+                      onChange={() => handleUserChoice('full_profit')}
+                      className="w-5 h-5"
+                    />
+                    <div>
+                      <p className="font-semibold">💰 Full Profit Allocation</p>
+                      <p className="text-sm text-gray-600">Alokasikan seluruh sisa profit {formatCurrency(profitAfterHutang)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleUserChoice('available_kas')}
+                  className={`p-4 rounded border-2 cursor-pointer transition ${
+                    userChoice === 'available_kas'
+                      ? 'border-indigo-600 bg-white'
+                      : 'border-gray-300 bg-gray-50 hover:border-indigo-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      checked={userChoice === 'available_kas'}
+                      onChange={() => handleUserChoice('available_kas')}
+                      className="w-5 h-5"
+                    />
+                    <div>
+                      <p className="font-semibold">🛡️ Limited to Available Kas</p>
+                      <p className="text-sm text-gray-600">
+                        Alokasikan hanya sebatas Kas Utama yang tersedia ({formatCurrency(Math.min(profitAfterHutang, kasUtama))})
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleUserChoice('custom')}
+                  className={`p-4 rounded border-2 cursor-pointer transition ${
+                    userChoice === 'custom'
+                      ? 'border-indigo-600 bg-white'
+                      : 'border-gray-300 bg-gray-50 hover:border-indigo-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      checked={userChoice === 'custom'}
+                      onChange={() => handleUserChoice('custom')}
+                      className="w-5 h-5"
+                    />
+                    <div>
+                      <p className="font-semibold">⚙️ Custom Amount</p>
+                      <p className="text-sm text-gray-600">Tentukan jumlah alokasi sendiri</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {step === 5 && (
+                <Button onClick={() => setStep(6)} className="w-full bg-indigo-600">
+                  Lanjut ke Step 6: Top-up Kas Utama
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 6: Kas Utama Top-up */}
+        {step >= 6 && (
+          <Card className="border-green-300 bg-green-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Step 6: Top-up Kas Utama
+              </CardTitle>
+              <CardDescription>
+                Berapa nominal top-up untuk operasional bulan depan? (dari sisa profit)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-white rounded border">
+                <p className="text-xs text-gray-600 mb-1">Sisa Profit untuk Top-up:</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(availableForAllocation)}</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={useKasTopup} onChange={(e) => setUseKasTopup(e.target.checked)} className="w-4 h-4" />
+                  <div>
+                    <p className="font-semibold">Gunakan Kas Utama untuk menutup kekurangan (Opsi B)</p>
+                    <p className="text-xs text-gray-500">Jika dipilih, kas utama akan digunakan untuk menutup shortfall hingga buffer aman.</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-600">Catatan buffer: sisakan minimal Rp {formatCurrency(100000)} di Kas Utama</div>
+
+              <div>
+                <Label>Nominal Top-up Kas Utama (Rp)</Label>
+                <Input
+                  type="number"
+                  value={kasTopup}
+                  onChange={(e) => setKasTopup(e.target.value)}
+                  placeholder="0"
+                  max={availableForAllocation}
+                  disabled={step > 6}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Maks: {formatCurrency(availableForAllocation)}
+                </p>
+              </div>
+
+              </div>
+
+              {step === 6 && (
+                <div className="flex gap-2">
+                  <Button onClick={() => setStep(5)} variant="outline" className="flex-1">
+                    Kembali
+                  </Button>
+                  <Button onClick={handleKasTopup} className="flex-1 bg-green-600">
+                    Lanjut ke Step 7: Simpan Uang
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 7: Simpan Uang Allocation */}
+        {step >= 7 && (
+          <Card className="border-yellow-300 bg-yellow-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Step 7: Alokasi Simpan Uang
+              </CardTitle>
+              <CardDescription>
+                Alokasikan dana strategis (untuk investasi, darurat, dll) dengan alasan jelas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-white rounded border">
+                <p className="text-xs text-gray-600 mb-1">Tersedia setelah top-up kas:</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {formatCurrency(
+                    availableForAllocation - (parseFloat(kasTopup) || 0)
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <Label>Nominal Simpan Uang (Rp)</Label>
+                <Input
+                  type="number"
+                  value={simpanAmount}
+                  onChange={(e) => setSimpanAmount(e.target.value)}
+                  placeholder="0"
+                  max={availableForAllocation - (parseFloat(kasTopup) || 0)}
+                  disabled={step > 7}
+                />
+              </div>
+
+              <div>
+                <Label>Alasan Simpan Uang</Label>
+                <Select value={simpanReason || ''} onValueChange={(val) => setSimpanReason(val || '')} disabled={step > 7}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih alasan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="emergency_fund">Dana Darurat</SelectItem>
+                    <SelectItem value="expansion">Ekspansi / Investasi</SelectItem>
+                    <SelectItem value="reserve">Cadangan Operasional</SelectItem>
+                    <SelectItem value="seasonal">Persiapan Musiman</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {simpanReason === 'custom' && (
+                <div>
+                  <Label>Jelaskan Alasan</Label>
+                  <Textarea
+                    value={simpanReason}
+                    onChange={(e) => setSimpanReason(e.target.value)}
+                    placeholder="Jelaskan alasan simpan uang..."
+                    disabled={step > 7}
+                  />
+                </div>
+              )}
+
+              {step === 7 && (
+                <div className="flex gap-2">
+                  <Button onClick={() => setStep(6)} variant="outline" className="flex-1">
+                    Kembali
+                  </Button>
+                  <Button onClick={handleSimpanAllocation} className="flex-1 bg-yellow-600">
+                    Lanjut ke Step 8: Hitung Profit Share
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 8: Summary & Save */}
+        {step >= 8 && (
+          <Card className="border-blue-400 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-blue-600" /> Step 8: Review & Simpan
+              </CardTitle>
+              <CardDescription>Tinjau ringkasan alokasi laba sebelum menyimpan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Summary sections */}
+              <div>
+                <h3 className="font-semibold mb-3 text-sm">📊 Ringkasan Alokasi:</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm bg-white p-2 rounded">
+                    <span>Profit Pending Awal</span>
+                    <span className="font-semibold text-blue-600">{formatCurrency(profitPending)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm bg-white p-2 rounded">
+                    <span>Dikurangi: Bayar Hutang</span>
+                    <span className="font-semibold text-red-600">- {formatCurrency(totalHutang)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm bg-white p-2 rounded">
+                    <span>Dikurangi: Kas Top-up</span>
+                    <span className="font-semibold">- {formatCurrency(parseFloat(kasTopup) || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm bg-white p-2 rounded">
+                    <span>Dikurangi: Simpan Uang</span>
+                    <span className="font-semibold">- {formatCurrency(parseFloat(simpanAmount) || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm bg-white p-2 rounded border-t-2 border-purple-300 mt-2">
+                    <span className="font-semibold">SISA untuk Profit Share:</span>
+                    <span className="font-bold text-purple-600">
+                      {formatCurrency(
+                        profitPending -
+                          totalHutang -
+                          (parseFloat(kasTopup) || 0) -
+                          (parseFloat(simpanAmount) || 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hutang allocations */}
+              {Object.keys(hutangAllocations).length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 text-sm">💳 Pembayaran Hutang:</h3>
+                  <div className="space-y-1">
+                    {Object.entries(hutangAllocations).map(([invId, alloc]) => (
+                      <div key={invId} className="flex justify-between text-sm bg-white p-2 rounded">
+                        <span>{alloc.investorName}</span>
+                        <span className="font-semibold text-red-600">{formatCurrency(alloc.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button onClick={() => setStep(7)} variant="outline" className="flex-1">
+                  Kembali
+                </Button>
+                <Button
+                  onClick={calculateAndSaveAllocation}
+                  disabled={saving}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Save className="w-4 h-4 mr-1" />
+                  {saving ? 'Menyimpan...' : 'Simpan Alokasi Laba'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

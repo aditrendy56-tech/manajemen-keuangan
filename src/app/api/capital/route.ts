@@ -69,6 +69,33 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
     });
 
+    // Auto-initialize/update financial_accounts for dual-bucket system
+    const supabase = getSupabaseServer();
+    const { data: existingFinancial } = await supabase
+      .from('financial_accounts')
+      .select('kas_utama_balance')
+      .eq('outlet_id', outlet_id)
+      .single();
+
+    if (!existingFinancial) {
+      // Create new financial_accounts record with this capital entry
+      await supabase.from('financial_accounts').insert({
+        outlet_id,
+        kas_utama_balance: Number(amount),
+        profit_pending_balance: 0,
+        simpan_uang_balance: 0,
+      });
+    } else {
+      // Update existing kas_utama_balance by adding new capital amount
+      const newBalance = (existingFinancial.kas_utama_balance || 0) + Number(amount);
+      await supabase.from('financial_accounts')
+        .update({
+          kas_utama_balance: newBalance,
+          kas_utama_last_updated: new Date().toISOString(),
+        })
+        .eq('outlet_id', outlet_id);
+    }
+
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

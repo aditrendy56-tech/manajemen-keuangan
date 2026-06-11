@@ -9,6 +9,7 @@ import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
 import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { DualBucketFinancialDisplay } from '@/components/dashboard/DualBucketFinancialDisplay';
 
 // Channel Detail Card Component
 function ChannelDetailCard({
@@ -254,89 +255,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* 💰 SECTION 2: FINANCIAL BUCKETS */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4">💰 Financial Buckets Anda</h2>
-        <p className="text-sm text-gray-600 mb-4">Empat tempat uang Anda berada dalam bisnis roti bakar:</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* BUCKET 1: Kas Operasional */}
-          <Card className="border-l-4 border-l-green-500 bg-green-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-green-700">💵 Kas Operasional (Real)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <span className="text-3xl font-bold text-green-700">
-                  Rp {(timeFilter === 'today' ? metrics.today_available_cash || 0 : metrics.cumulative_available_cash || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-green-200">
-                <p className="font-semibold mb-1">📌 Uang tunai siap pakai</p>
-                <p>Modal + Alokasi Profit - Pengeluaran</p>
-                <p className="mt-1">💡 Gunakan untuk operasional harian: gaji, sewa, utilitas, dll.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* BUCKET 2: Cash dari Penjualan */}
-          <Card className="border-l-4 border-l-blue-500 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-blue-700">💸 Cash dari Penjualan (Real)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <span className="text-3xl font-bold text-blue-700">
-                  Rp {(timeFilter === 'today' ? metrics.today_pendapatan_bersih || 0 : metrics.cumulative_pendapatan_bersih || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-blue-200">
-                <p className="font-semibold mb-1">📌 Uang yang masuk dari penjualan</p>
-                <p>Kotor - HPP - Platform Fee</p>
-                <p className="mt-1">💡 Uang bersih setelah biaya produksi & platform.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* BUCKET 3: Profit Analysis */}
-          <Card className="border-l-4 border-l-orange-500 bg-orange-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-orange-700">📊 Profit Analysis (Estimate)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <span className="text-3xl font-bold text-orange-700">
-                  Rp {(timeFilter === 'today' ? metrics.today_profit || 0 : metrics.cumulative_profit || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-orange-200">
-                <p className="font-semibold mb-1">📌 Profit setelah operasional</p>
-                <p>Pendapatan Bersih - Operasional</p>
-                <p className="mt-1">💡 Profit yang bisa dialokasikan ke investor/modal.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* BUCKET 4: Surplus/Deficit */}
-          <Card className="border-l-4 border-l-purple-500 bg-purple-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-purple-700">📈 Surplus/Deficit (Buffer)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <span className={`text-3xl font-bold ${(timeFilter === 'today' ? metrics.today_surplus_deficit || 0 : metrics.cumulative_surplus_deficit || 0) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                  Rp {(timeFilter === 'today' ? metrics.today_surplus_deficit || 0 : metrics.cumulative_surplus_deficit || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div className="text-xs text-gray-700 bg-white p-2 rounded border border-purple-200">
-                <p className="font-semibold mb-1">📌 Buffer kas vs profit</p>
-                <p>Kas Operasional - Profit</p>
-                <p className="mt-1">💡 Positif = aman. Negatif = kurang kas untuk buffer.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      {/* 💰 SECTION 2: DUAL-BUCKET FINANCIAL SYSTEM (PHASE 3) */}
+      <DualBucketFinancialDisplay outletId={outletId} />
 
       {/* PHASE 2: Cash Inflow Breakdown by Channel */}
       <div>
