@@ -1,152 +1,489 @@
-# 🔧 REFACTOR PLAN - Funding Source Tracking & Expense Simplification
+# 🏗️ COMPREHENSIVE SYSTEM REFACTOR - Dual-Bucket Cash Management + Hutang Priority Alokasi Laba
 
-**Status:** ✅ IMPLEMENTATION COMPLETE + ✅ SIMPLIFIED (2026-06-09)  
+**Status:** 🔧 PLANNING PHASE (2026-06-11)  
+**Version:** 2.0 - MAJOR SYSTEM REDESIGN  
+**Previous Version:** 1.0 Simplified (2026-06-09)  
 **Date Started:** 2026-06-06  
-**Date Completed Phase 1:** 2026-06-07  
-**Date Completed Phase 2:** 2026-06-09 (Removed unused funding_source field)  
-**Owner:** User  
-**Objective:** 
-- ✅ Phase 1: Implement per-transaction funding source tracking (Modal vs Kas)
-- ✅ Phase 2: Removed unused field - simplified to category-based tracking only
-
-**Testing Status:** ⏳ NOT YET COMPREHENSIVELY TESTED
-- All code compiles without errors ✅
-- No TypeScript or linting errors ✅
-- Will test with real data during production usage 🧪
-- Manual smoke test guide prepared: [SMOKE_TESTING_GUIDE.md](SMOKE_TESTING_GUIDE.md)
-
-**MAJOR UPDATE (2026-06-09):**
-- ✅ Removed `funding_source` field from ExpenseForm (was unused in calculations)
-- ✅ Removed `funded_by_investor_id` field from ExpenseForm
-- ✅ Simplified to: **Category selection is the source of truth** (bahan/operasional/peralatan)
-- ✅ Updated Dashboard with visual 2-bucket money system (Kas + Profit) with clear explanations
+**Date of Major Redesign:** 2026-06-11  
+**Owner:** User + Development Team  
+**Priority:** CRITICAL - Business Logic Foundation
 
 ---
 
-## 📋 ARCHITECTURE DECISION (FINALIZED) - SIMPLIFIED 2026-06-09
+## 📊 EXECUTIVE SUMMARY
 
-### Final Financial Model - 2-Bucket System
+**What Changed:**
+This is a COMPLETE SYSTEM REDESIGN from simplified expense tracking (v1.0) to **enterprise-grade financial management system** with proper business logic for investment management.
 
+**Key Evolution:**
 ```
-✅ KAS (Money Available for Spending):
-   ├─ From: Modal Injection / Capital Input
-   ├─ From: Profit Allocation (reserve fund)
-   └─ Used for: Operasional expenses (daily costs)
-
-✅ PROFIT (Accounting Metric, NOT actual money):
-   ├─ Formula: Penjualan Gross - Operasional Expenses
-   ├─ Only: Operasional category affects profit calculation
-   ├─ NOT included: Bahan (materials) & Peralatan (equipment) costs
-   └─ Can be: NEGATIVE (when operasional > sales)
-
-✅ DECISION: Removed funding_source field from ExpenseForm
-   ├─ REASON: Field was unused in profit/allocation calculations
-   ├─ SIMPLIFIED: Category selection is the only source of truth
-   ├─ LOGIC: 
-   │   ├─ Category=operasional → affects profit calculation
-   │   ├─ Category=bahan → asset tracking, no profit impact
-   │   └─ Category=peralatan → asset tracking, no profit impact
-   └─ BENEFIT: Simpler form, clearer logic, no confusion
+v1.0 (Simplified):          v2.0 (Redesigned):
+- Single Kas bucket    →    - Dual bucket (Kas Utama + Profit Pending)
+- Manual allocation    →    - Auto-split sales (60-40)
+- No hutang check      →    - Hutang PRIORITY (checked first)
+- All investors equal  →    - Investor differentiation (LUNAS/CICIL/BELUM)
+- Basic forms          →    - Smart validation + real-time feedback
+- NO Simpan Uang      →    - Strategic fund tracking
+- NO Kasir Dari       →    - Expense source tracking
 ```
 
-### Simplified Business Logic
+**Why Now?**
+During profit allocation discussion, discovered current system CANNOT fairly handle:
+- Investor hutang management
+- Profit sharing differentiation
+- Clear cash vs accounting profit separation
+- Strategic fund allocation
+
+**Result:**
+Designed NEW system that matches business best practices while maintaining current data integrity.
+
+---
+
+## 🔄 DETAILED CHANGES - ADD / MODIFY / DELETE
+
+---
+
+## 🎯 PROBLEM STATEMENT - WHY REDESIGN?
+
+### Issues with v1.0 System:
+
+1. **No Hutang Priority:**
+   - Investor bayar modal, tapi profit dibagi ke semua
+   - Tidak ada enforcement: bayar hutang dulu, baru dapat profit
+   - Logic salah: investor cicil dapat profit padahal modal belum kembali
+
+2. **Single Kas Bucket Problem:**
+   - Sales langsung masuk Kas Utama
+   - Operasional ambil dari Kas
+   - Profit "calculated" tapi tidak ada di kas
+   - Confusion: Profit Rp 9M tapi kas hanya Rp 6.5M
+   - User: "Duit mana? Kemana profit?"
+
+3. **No Strategic Fund:**
+   - Tidak ada tempat untuk "simpan" untuk kebutuhan besar
+   - Semua uang untuk operasional atau dibagi
+   - Sulit grow (no emergency fund)
+
+4. **Expense Tracking Limited:**
+   - Hanya category, tidak clear from mana
+   - Kasir tidak bisa pilih: dari Kas Utama atau Simpan Uang
+   - No real-time balance check per bucket
+
+5. **Investor Status Not Differentiated:**
+   - Investor LUNAS vs CICIL diperlakukan sama
+   - Business logic says: LUNAS dapat profit, CICIL tidak
+   - System tidak enforce
+
+---
+
+## 🏗️ NEW ARCHITECTURE (v2.0) - DUAL-BUCKET + HUTANG PRIORITY
+
+### Redesigned Financial Model
 
 ```
-MONTHLY FLOW (Simplified):
+KAS UTAMA (Operational Cash):
+├─ Real-time balance
+├─ Source: 60% dari sales (auto-split)
+├─ Used for: Daily operations (beli bahan, gaji, dll)
+├─ Feature: Real-time deduct saat expense
+├─ Tracking: kas_source = 'kas_utama' di expenses
+└─ Display: Dashboard Section 2 Card 1
 
-1. INPUTS:
-   ├─ Capital: Investor modal injection → goes to KAS
-   ├─ Sales: Penjualan from outlets → gross revenue
-   └─ Expenses: 
-       ├─ Operasional (kategori operasional) → affects profit
-       ├─ Materials (kategori bahan) → asset only, no profit impact
-       └─ Equipment (kategori peralatan) → asset only, no profit impact
+PROFIT PENDING (Locked for Allocation):
+├─ Real-time balance (accumulated dari 40% sales)
+├─ Source: 40% dari sales (auto-split)
+├─ Used for: Alokasi Laba bulanan (hutang, kas topup, simpan, share)
+├─ Feature: LOCKED - tidak bisa pakai untuk operasional
+├─ Status: Pending di database (tidak langsung ke investor)
+└─ Display: Dashboard Section 2 Card 2 (warning: yellow)
 
-2. CALCULATIONS:
-   ├─ Profit = Penjualan Gross - Operasional Expenses (only)
-   ├─ Kas = Capital Injected + Profit Reserve Allocated
-   └─ Can track depreciation/usage separately if needed
+SIMPAN UANG (Strategic Reserve Fund):
+├─ Real-time balance
+├─ Source: Manual allocation dari profit pending (user input)
+├─ Used for: Emergency, growth investment, equipment
+├─ Tracking: Terpisah table (simpan_uang_allocations)
+├─ Feature: Terpisah expense tracking (kas_source = 'simpan_uang')
+├─ History: Full audit trail (amount, reason, date)
+└─ Display: Dashboard Section 2 Card 3 + NEW Tab
 
-3. SETTLEMENT (Flexible based on actual cash):
-   ├─ Operating Expenses (paid from kas penjualan first)
-   ├─ Balik Modal (partial/full, as cash available)
-   ├─ Kas Reserve Allocation (for next month operasional)
-   └─ PROFIT SHARING (only when modal 100% returned)
+INVESTOR HUTANG:
+├─ Tracking: capital_entries - capital_repayments
+├─ Status: LUNAS ✓ / CICIL ⚠️ / BELUM ❌
+├─ Priority: Check FIRST dalam alokasi profit
+├─ Auto-deduct: Profit pending automatically bayar hutang
+└─ Display: Dashboard Section 2 Card 4 (warning: red if ada)
+```
 
-4. DASHBOARD VISUALIZATION:
-   ├─ 💵 Dompet Kas: Shows available cash
-   ├─ 📊 Laba Hari Ini: Shows profit metric  
-   └─ 💎 Total Aset: Shows kas + profit combined
+### New Workflow Flow
+
+```
+DAILY:
+├─ Sales Rp 500k masuk
+├─ AUTO-SPLIT:
+│  ├─ Rp 300k (60%) → Kas Utama
+│  └─ Rp 200k (40%) → Profit Pending
+│
+└─ Kasir beli bahan dari Kas Utama
+   └─ System deduct from kas_source='kas_utama'
+
+MONTHLY (Alokasi Laba - NEW FLOW):
+├─ STEP 1: Check Hutang Outstanding
+│  ├─ Calculate per investor
+│  └─ Show: LUNAS ✓ / CICIL ⚠️ / BELUM ❌
+│
+├─ STEP 2: Auto-deduct Hutang dari Profit Pending
+│  ├─ Profit Pending - Hutang = Available
+│  └─ Auto-create capital_repayments
+│
+├─ STEP 3: Ask User - How to allocate?
+│  └─ "Profit Rp 9M tapi Kas Rp 6.5M"
+│     ├─ Option A: Allocate full profit (defer bayar)
+│     ├─ Option B: Allocate sesuai kas available
+│     └─ Option C: Custom split
+│
+├─ STEP 4: Input Kas Utama Top-up
+│  └─ Estimasi operasional bulan depan
+│
+├─ STEP 5: Input Simpan Uang
+│  ├─ Jumlah
+│  ├─ Reason/Tujuan
+│  └─ Create simpan_uang_allocations entry
+│
+├─ STEP 6: Calculate Profit Share
+│  ├─ LUNAS investor: dapat percentage share
+│  ├─ CICIL investor: dapat 0 (sudah dapat bayar balik)
+│  └─ BELUM investor: dapat 0
+│
+└─ STEP 7: Save & Summary
 ```
 
 ---
 
-## ⚠️ RATIONALE FOR SIMPLIFICATION
+## 📋 DETAILED IMPLEMENTATION - ADD / MODIFY / DELETE
 
-### Why Remove funding_source Field?
+### 1️⃣ DATABASE SCHEMA CHANGES
 
-**Problem:**
-- Field existed but was NEVER used in:
-  - Profit calculation (always: operasional expenses only)
-  - Allocation logic (no reference to funding_source)
-  - Any business calculation
+#### ADD (New Columns & Tables):
 
-**Solution:**
-- Category selection is sufficient source of truth:
-  - operasional → impacts profit
-  - bahan → asset only
-  - peralatan → asset only
-- Simpler form = fewer UI fields = less user confusion
-- Cleaner codebase = easier to maintain
-
-**Example:**
-```
-OLD (with funding_source): User sees 3 fields to choose
-├─ Category: [operasional] ✓
-├─ Funding Source: [dari kas / dari modal] ← UNUSED
-└─ If modal → Investor: [select] ← UNUSED
-
-NEW (simplified): User sees just category
-├─ Category: [operasional] ✓
-└─ Done - category determines everything
-```
-
----
-
-## 🗄️ DATABASE CHANGES (REQUIRED)
-
-### 1. Add Funding Source Columns to Expenses Table
-
-**Migration File:** `migrations/migration-funding-source-tracking.sql`
-
+**A. Expenses Table - ADD Column:**
 ```sql
--- Add funding source tracking to expenses table
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS 
-  funding_source VARCHAR(50) DEFAULT 'kas'
-  CHECK (funding_source IN ('kas', 'modal'));
+  kas_source VARCHAR(50) DEFAULT 'kas_utama'
+  CHECK (kas_source IN ('kas_utama', 'simpan_uang'));
 
-ALTER TABLE expenses ADD COLUMN IF NOT EXISTS 
-  funded_by_investor_id UUID REFERENCES investors(id) ON DELETE SET NULL;
-
--- Add comment for documentation
-COMMENT ON COLUMN expenses.funding_source IS 
-  'Track whether expense paid from sales revenue (kas) or investor capital (modal)';
-
-COMMENT ON COLUMN expenses.funded_by_investor_id IS 
-  'Links to investors table when funding_source=modal. NULL when funding_source=kas';
-
--- Ensure all existing expenses default to 'kas' (safe assumption)
-UPDATE expenses SET funding_source = 'kas' WHERE funding_source IS NULL;
+COMMENT ON COLUMN expenses.kas_source IS 
+  'Track whether expense paid from Kas Utama or Simpan Uang';
 ```
-
-**Impact:**
-- ✅ Setiap expense tahu: dari modal investor atau dari kas penjualan
-- ✅ Linked ke investor table (siapa yang inject modal)
-- ✅ Backward compatible (existing expenses set to 'kas')
+**Why:** Need to track which bucket funded expense (for real-time validation)
 
 ---
 
-### 2. Simplify Expense Categories (5 → 3)
+**B. Cash Accounts - NEW Table (or use existing):**
+```sql
+-- OPTION: Create centralized cash tracking
+CREATE TABLE IF NOT EXISTS financial_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id),
+  
+  kas_utama_balance DECIMAL(15,2) DEFAULT 0,
+  kas_utama_last_updated TIMESTAMP DEFAULT NOW(),
+  
+  profit_pending_balance DECIMAL(15,2) DEFAULT 0,
+  profit_pending_last_updated TIMESTAMP DEFAULT NOW(),
+  
+  simpan_uang_balance DECIMAL(15,2) DEFAULT 0,
+  simpan_uang_last_updated TIMESTAMP DEFAULT NOW(),
+  
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+**Why:** Real-time balance tracking untuk dashboard + validation
+
+---
+
+**C. Simpan Uang Allocations - NEW Table:**
+```sql
+CREATE TABLE IF NOT EXISTS simpan_uang_allocations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id),
+  
+  allocation_date DATE NOT NULL,
+  amount DECIMAL(15,2) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  
+  status VARCHAR(50) DEFAULT 'active'
+    CHECK (status IN ('active', 'reallocated', 'used')),
+  
+  reallocated_at TIMESTAMP,
+  reallocated_to TEXT,
+  reallocated_reason TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+**Why:** Full audit trail untuk simpan uang allocation
+
+---
+
+**D. Profit Pending Tracking - NEW Column (in cash_transactions or new table):**
+```sql
+-- Option 1: Add to cash_transactions
+ALTER TABLE cash_transactions ADD COLUMN IF NOT EXISTS
+  transaction_type VARCHAR(50) DEFAULT 'general'
+    CHECK (transaction_type IN ('general', 'auto_sales_split_kas', 'auto_sales_split_profit'));
+
+-- Option 2: Separate table for profit tracking
+CREATE TABLE IF NOT EXISTS profit_pending_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id),
+  
+  sale_id UUID REFERENCES sales(id),
+  amount DECIMAL(15,2) NOT NULL,
+  
+  split_type VARCHAR(50) DEFAULT 'auto_split'
+    CHECK (split_type IN ('auto_split', 'manual_allocation')),
+  
+  status VARCHAR(50) DEFAULT 'pending'
+    CHECK (status IN ('pending', 'allocated', 'distributed')),
+  
+  allocated_in_allocation_id UUID REFERENCES profit_allocations(id),
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+**Why:** Track profit pending accumulation untuk alokasi bulanan
+
+---
+
+#### MODIFY (Existing Tables):
+
+**A. Profit_allocations Table:**
+```sql
+ALTER TABLE profit_allocations 
+  ADD COLUMN IF NOT EXISTS profit_pending_amount DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS simpan_uang_amount DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS simpan_reason VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS kas_utama_topup DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS user_choice VARCHAR(50)
+    CHECK (user_choice IN ('full_profit', 'available_kas', 'custom'));
+  
+-- RENAME existing column for clarity
+ALTER TABLE profit_allocations 
+  RENAME COLUMN reserved_amount TO kas_utama_allocation;
+```
+**Why:** Track simpan uang separately + capture user allocation choice
+
+---
+
+**B. Capital_repayments Table:**
+```sql
+ALTER TABLE capital_repayments
+  ADD COLUMN IF NOT EXISTS allocated_from_profit_allocation_id UUID 
+    REFERENCES profit_allocations(id);
+
+COMMENT ON COLUMN capital_repayments.allocated_from_profit_allocation_id IS
+  'If repayment auto-created from profit allocation, link to allocation record';
+```
+**Why:** Trace when repayment came from auto-allocation
+
+---
+
+#### DELETE (Nothing):
+
+```
+No existing schema deletions - all backward compatible
+```
+
+---
+
+### 2️⃣ API ENDPOINT CHANGES
+
+#### ADD (New Endpoints):
+
+**A. POST /api/cash/split-sales (NEW - AUTO-TRIGGERED):**
+```
+Trigger: Automatic when sales created/updated
+Purpose: Split sales income 60% kas, 40% profit pending
+
+Request:
+{
+  sales_id: UUID,
+  amount: number,
+  outlet_id: UUID
+}
+
+Logic:
+├─ Calculate kas_utama_portion = amount * 0.60
+├─ Calculate profit_pending_portion = amount * 0.40
+├─ Update financial_accounts (both balances)
+├─ Create cash_transactions entries (tagged 'auto_sales_split_kas')
+├─ Create profit_pending_transactions entries (tagged 'auto_sales_split_profit')
+└─ Return: { kasUtamaAmount, profitPendingAmount }
+```
+
+---
+
+**B. GET /api/simpan-uang/history (NEW):**
+```
+Purpose: Show simpan uang allocation history
+
+Response:
+{
+  allocations: [
+    {
+      date: "2026-06-11",
+      amount: 2000000,
+      reason: "Emergency Fund Gerobak",
+      status: "active",
+      reallocatedAt: null
+    },
+    ...
+  ],
+  currentBalance: 5000000,
+  totalAllocated: 8000000
+}
+```
+
+---
+
+**C. GET /api/financial-summary (NEW - Enhanced version):**
+```
+Purpose: Dashboard real-time financial position
+
+Response:
+{
+  kasUtama: {
+    balance: 6500000,
+    lastUpdated: "2026-06-11T13:45:00Z"
+  },
+  profitPending: {
+    balance: 9000000,
+    lastUpdated: "2026-06-11T13:45:00Z",
+    status: "ready" | "pending" | "blocked"
+  },
+  simpanUang: {
+    balance: 2000000,
+    allocations: 3
+  },
+  investorHutang: {
+    totalOutstanding: 11000000,
+    perInvestor: [
+      { investor: "Owner", hutang: 0, status: "LUNAS" },
+      { investor: "Investor A", hutang: 3000000, status: "CICIL" },
+      ...
+    ]
+  },
+  totalCash: 8500000  // kasUtama + simpanUang, EXCLUSIVE profitPending
+}
+```
+
+---
+
+#### MODIFY (Existing Endpoints):
+
+**A. POST /api/sales (TRIGGER AUTO-SPLIT):**
+```
+BEFORE: Langsung add to kas (cash_transactions)
+
+AFTER:
+├─ Create sales record
+├─ Auto-trigger: POST /api/cash/split-sales
+│  ├─ 60% → kas_utama
+│  └─ 40% → profit_pending
+└─ Return sales + split confirmation
+```
+
+---
+
+**B. POST /api/profit-allocations (COMPLETE REDESIGN):**
+```
+BEFORE:
+{
+  total_profit: number,
+  reserve_amount: number,
+  distributed_amount: number,
+  notes: string
+}
+Logic: Simple allocation, NO hutang check
+
+AFTER:
+{
+  kasUtamaTopupAmount: number,
+  simpanUangAmount: number,
+  simpanReason: string,
+  userChoice: "full_profit" | "available_kas" | "custom",
+  customAmount?: number,
+  allocation_month: string  // "2026-06"
+}
+
+Logic (NEW):
+├─ STEP 1: Get profit_pending balance
+├─ STEP 2: Calculate hutang outstanding (query capital_repayments)
+├─ STEP 3: Check: profit_pending >= hutang?
+│  ├─ YES: Proceed
+│  └─ NO: Show warning, ask user
+├─ STEP 4: Auto-deduct hutang
+│  ├─ For each investor with hutang > 0:
+│  │  ├─ Calculate deduct amount
+│  │  ├─ Create capital_repayments entry (auto)
+│  │  └─ Transfer to investor account
+│  └─ Update profit_pending balance
+├─ STEP 5: Allocate kas_utama_topup
+│  └─ Add to financial_accounts.kas_utama_balance
+├─ STEP 6: Allocate simpan_uang
+│  ├─ Add to financial_accounts.simpan_uang_balance
+│  └─ Create simpan_uang_allocations entry
+├─ STEP 7: Calculate profit_share (LUNAS investor only)
+│  └─ remainder = profit_pending - hutang - kas_topup - simpan
+├─ STEP 8: Create allocation record
+│  └─ Save to profit_allocations
+└─ Return: { success: true, summary }
+```
+
+---
+
+**C. POST /api/expenses (ADD VALIDATION):**
+```
+BEFORE: Optional funding_source
+
+AFTER: 
+├─ ADD kas_source field (required) - 'kas_utama' | 'simpan_uang'
+├─ ADD validation: Check selected bucket balance
+│  ├─ If kas_source='kas_utama' → check kasUtama >= amount
+│  ├─ If kas_source='simpan_uang' → check simpanUang >= amount
+│  └─ Return error if insufficient
+├─ Update financial_accounts (deduct from appropriate bucket)
+└─ Tag transaction with kas_source
+```
+
+---
+
+**D. GET /api/cash/balance (MODIFY):**
+```
+BEFORE:
+{ balance: number }
+
+AFTER:
+{
+  kasUtama: number,
+  kasUtama_lastUpdated: timestamp,
+  profitPending: number,
+  profitPending_lastUpdated: timestamp,
+  simpanUang: number,
+  simpanUang_lastUpdated: timestamp,
+  totalCash: number,  // kasUtama + simpanUang (exclusive profitPending)
+  profitAllocationStatus: "ready" | "pending" | "blocked"
+}
+```
+
+---
+
+#### DELETE (Legacy Endpoints):
+
+```
+NONE - All backward compatible
+```
 
 **FROM (5 kategori):**
 ```
