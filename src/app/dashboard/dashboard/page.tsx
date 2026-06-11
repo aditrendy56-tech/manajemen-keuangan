@@ -228,7 +228,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Keuntungan
+              Profit
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -310,7 +310,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="text-xs text-gray-700 bg-white p-2 rounded border border-orange-200">
-                <p className="font-semibold mb-1">📌 Keuntungan setelah operasional</p>
+                <p className="font-semibold mb-1">📌 Profit setelah operasional</p>
                 <p>Pendapatan Bersih - Operasional</p>
                 <p className="mt-1">💡 Profit yang bisa dialokasikan ke investor/modal.</p>
               </div>
@@ -329,7 +329,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="text-xs text-gray-700 bg-white p-2 rounded border border-purple-200">
-                <p className="font-semibold mb-1">📌 Buffer kas vs keuntungan</p>
+                <p className="font-semibold mb-1">📌 Buffer kas vs profit</p>
                 <p>Kas Operasional - Profit</p>
                 <p className="mt-1">💡 Positif = aman. Negatif = kurang kas untuk buffer.</p>
               </div>
