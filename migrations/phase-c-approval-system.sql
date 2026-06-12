@@ -24,8 +24,7 @@ ALTER TABLE profit_allocations
 ADD COLUMN IF NOT EXISTS amended_from_allocation_id UUID REFERENCES profit_allocations(id);
 
 ALTER TABLE profit_allocations
-ADD COLUMN IF NOT EXISTS profit_share_breakdown JSONB
-  COMMENT 'Breakdown of profit shares per investor (LUNAS only): [{investor_id, investor_name, share_amount}]';
+ADD COLUMN IF NOT EXISTS profit_share_breakdown JSONB;
 
 -- Add comments
 COMMENT ON COLUMN profit_allocations.approval_status IS

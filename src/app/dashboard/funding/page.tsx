@@ -145,6 +145,29 @@ export default function FundingPage() {
     }
   }
 
+  async function handleApproveAllocation(allocationId: string, approvalNotes: string) {
+    try {
+      const res = await fetch(`/api/profit-allocations/${allocationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve',
+          approval_notes: approvalNotes,
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Gagal approve alokasi');
+      }
+      setApprovalModalOpen(false);
+      setSelectedAllocationForApproval(null);
+      await fetchAllData();
+    } catch (error: any) {
+      console.error('Approval error:', error);
+      alert('Error approving allocation: ' + error.message);
+    }
+  }
+
   // TAB 0: Kelola Role
   function TabKelolaRole() {
     const roleIcon = {
