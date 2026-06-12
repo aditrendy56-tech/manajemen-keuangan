@@ -102,90 +102,94 @@ export function ActiveSessionsTab({
   const activeSessions = sessions.filter((s) => s.status === 'open' && !s.is_locked);
 
   return (
-    <div className="space-y-6">
-      {/* Create Form */}
-      {!periodLocked ? (
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* LEFT: Active Sessions List (3 cols) */}
+      <div className="lg:col-span-3">
         <Card>
           <CardHeader>
-            <CardTitle>Buat Sesi Baru</CardTitle>
+            <CardTitle>Sesi Aktif ({activeSessions.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <SessionForm onSubmit={handleSubmit} loading={loading} />
+            {activeSessions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">Tidak ada sesi aktif</div>
+            ) : (
+              <div className="space-y-2">
+                {activeSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex justify-between items-center py-3 px-4 border rounded hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <p className="font-semibold">{session.date}</p>
+                      <p className="text-sm text-gray-500">
+                        Modal Awal: Rp {session.opening_cash?.toLocaleString('id-ID') || '0'}
+                      </p>
+                      {session.closing_cash && (
+                        <p className="text-sm text-gray-500">
+                          Modal Akhir: Rp {session.closing_cash.toLocaleString('id-ID')}
+                        </p>
+                      )}
+                      {session.total_revenue && (
+                        <p className="text-sm text-green-600 font-semibold">
+                          Revenue: Rp {session.total_revenue.toLocaleString('id-ID')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded text-sm font-semibold bg-green-100 text-green-800">
+                        🟢 Buka
+                      </span>
+                      <Link href={`/dashboard/sessions/${session.id}`}>
+                        <Button variant="outline" size="sm">
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-blue-600 hover:text-blue-800"
+                        onClick={() => handleCloseSession(session.id)}
+                        title="Tutup sesi"
+                      >
+                        <Power className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:text-red-800"
+                        onClick={() => handleDeleteSession(session.id)}
+                        title="Hapus sesi"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      ) : (
-        <Alert className="border-red-200 bg-red-50">
-          <AlertDescription className="text-red-800">
-            🔒 Periode sudah ditutup. Tidak bisa membuat sesi baru.
-          </AlertDescription>
-        </Alert>
-      )}
+      </div>
 
-      {/* Active Sessions List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sesi Aktif ({activeSessions.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeSessions.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Tidak ada sesi aktif</div>
-          ) : (
-            <div className="space-y-2">
-              {activeSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex justify-between items-center py-3 px-4 border rounded hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <p className="font-semibold">{session.date}</p>
-                    <p className="text-sm text-gray-500">
-                      Modal Awal: Rp {session.opening_cash?.toLocaleString('id-ID') || '0'}
-                    </p>
-                    {session.closing_cash && (
-                      <p className="text-sm text-gray-500">
-                        Modal Akhir: Rp {session.closing_cash.toLocaleString('id-ID')}
-                      </p>
-                    )}
-                    {session.total_revenue && (
-                      <p className="text-sm text-green-600 font-semibold">
-                        Revenue: Rp {session.total_revenue.toLocaleString('id-ID')}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded text-sm font-semibold bg-green-100 text-green-800">
-                      🟢 Buka
-                    </span>
-                    <Link href={`/dashboard/sessions/${session.id}`}>
-                      <Button variant="outline" size="sm">
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-blue-600 hover:text-blue-800"
-                      onClick={() => handleCloseSession(session.id)}
-                      title="Tutup sesi"
-                    >
-                      <Power className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 hover:text-red-800"
-                      onClick={() => handleDeleteSession(session.id)}
-                      title="Hapus sesi"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* RIGHT: Create Form Sidebar (1 col) */}
+      <div className="lg:col-span-1">
+        {!periodLocked ? (
+          <Card className="sticky top-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Buka Sesi Baru</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SessionForm onSubmit={handleSubmit} loading={loading} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Alert className="border-red-200 bg-red-50 sticky top-6">
+            <AlertDescription className="text-red-800 text-sm">
+              🔒 Periode sudah ditutup. Tidak bisa membuat sesi baru.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
     </div>
   );
 }
