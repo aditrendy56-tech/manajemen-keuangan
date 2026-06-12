@@ -14,6 +14,8 @@ import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransac
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
+import { ProfitAllocationHistory } from '@/components/tables/ProfitAllocationHistory';
+import { ProfitAllocationApprovalModal } from '@/components/modals/ProfitAllocationApprovalModal';
 
 interface FundingState {
   capitalEntries: CapitalEntry[];
@@ -29,6 +31,8 @@ interface FundingState {
 export default function FundingPage() {
   const { outletId } = useOutlet();
   const [activeTab, setActiveTab] = useState('kelola');
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [selectedAllocationForApproval, setSelectedAllocationForApproval] = useState<ProfitAllocation | null>(null);
   const [data, setData] = useState<FundingState>({
     capitalEntries: [],
     investors: [],
@@ -2218,11 +2222,12 @@ export default function FundingPage() {
       <CashBalanceDashboard outletId={outletId} refreshTrigger={refreshBalance} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="kelola">🧑 Kelola Role</TabsTrigger>
           <TabsTrigger value="modal">📥 Modal Masuk</TabsTrigger>
           <TabsTrigger value="alokasi">💰 Alokasi Laba</TabsTrigger>
           <TabsTrigger value="repayment">📤 Pembayaran</TabsTrigger>
+          <TabsTrigger value="riwayat">📋 Riwayat Alokasi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="kelola" className="space-y-4">
@@ -2240,7 +2245,82 @@ export default function FundingPage() {
         <TabsContent value="repayment" className="space-y-4">
           {<TabRepayment />}
         </TabsContent>
+
+        <TabsContent value="riwayat" className="space-y-4">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">📋 Riwayat Alokasi Laba</h2>
+              <p className="text-gray-600">Lihat history alokasi laba dan kelola approval workflow</p>
+            </div>
+
+            {data.loading ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-gray-500">
+                  Loading...
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-gray-600">Total Alokasi</p>
+                      <p className="text-2xl font-bold text-blue-600">{data.profitAllocations.length}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-gray-600">Total Profit</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(
+                          data.profitAllocations.reduce(
+                            (sum: number, a: any) => sum + (parseFloat(a.profit_pending_amount) || 0),
+                            0
+                          )
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-gray-600">Draft</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {data.profitAllocations.filter((a: any) => a.approval_status === 'draft').length}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-gray-600">Approved</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {data.profitAllocations.filter((a: any) => a.approval_status === 'approved').length}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* History Component */}
+                <ProfitAllocationHistory
+                  allocations={data.profitAllocations}
+                  onApprove={(allocation) => {
+                    setSelectedAllocationForApproval(allocation);
+                    setApprovalModalOpen(true);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* Approval Modal */}
+      <ProfitAllocationApprovalModal
+        open={approvalModalOpen}
+        onOpenChange={setApprovalModalOpen}
+        allocation={selectedAllocationForApproval}
+        onApprove={handleApproveAllocation}
+      />
     </div>
   );
 }
