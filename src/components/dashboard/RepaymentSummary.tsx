@@ -50,8 +50,8 @@ export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentS
         const result = await response.json();
         setData(result);
       } catch (err: any) {
-        console.error('Error loading repayment summary:', err);
-        setError(err.message || 'Failed to load data');
+        // Silently fail - data may not be available yet
+        setError('Data tidak tersedia');
       } finally {
         setLoading(false);
       }
@@ -71,10 +71,11 @@ export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentS
   }
 
   if (error) {
+    // Fail silently - don't show error to user for this non-critical dashboard card
     return (
       <Card>
         <CardContent className="pt-6">
-          <div className="text-center text-red-500 text-sm">{error}</div>
+          <div className="text-center text-gray-400 text-sm">Data pembayaran tidak tersedia</div>
         </CardContent>
       </Card>
     );
