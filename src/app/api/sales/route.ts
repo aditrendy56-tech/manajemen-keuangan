@@ -326,11 +326,8 @@ export async function POST(request: NextRequest) {
           unit_price: item.unit_price,
           subtotal: item.quantity * item.unit_price,
           cost_price: costPrice,
-          hpp_amount: hppAmount,
-          gross_profit: lineProfit,
-          profit_margin_percent: item.quantity * item.unit_price > 0 
-            ? (lineProfit / (item.quantity * item.unit_price)) * 100 
-            : 0,
+          // NOTE: hpp_amount, gross_profit, profit_margin_percent are GENERATED ALWAYS columns
+          // They are automatically calculated by the database, so we don't insert them
         };
       });
 
