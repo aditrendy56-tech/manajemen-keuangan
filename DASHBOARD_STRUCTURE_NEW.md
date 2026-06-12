@@ -10,6 +10,7 @@ Dashboard akan diubah dengan:
 1. **Global Toggle Button** (Hari Ini / Total) → Control semua section sekaligus
 2. **Section 1:** Replace "Top Product" → "Jumlah Item Terjual" (toggle-aware)
 3. **Section 3:** Penjualan per Channel dengan expandable detail (Collapsed by default)
+4. **Section 3B (planned):** Tab / panel Analisis Fee untuk membandingkan calculated total vs net revenue per channel
 4. **Section 4:** Cash Flow Tracking (toggle-aware)
 5. **Section 5:** Pengeluaran per Kategori dengan expandable detail Hari Ini only
 

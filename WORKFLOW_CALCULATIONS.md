@@ -61,8 +61,9 @@ Morning
 [Record Sales] → Product + Quantity + Channel (offline/shopeefood/gofood)
   ├─ Price lookup (channel-specific)
   ├─ Calculate gross amount (price × qty)
-  ├─ Apply platform fee (if online)
-  └─ Net amount to outlet cash
+  ├─ For online sales: capture net_revenue from app as real cash input
+  ├─ Compare calculated_total vs net_revenue for fee analysis
+  └─ Save net amount to outlet cash, keep calculated amount for comparison
   ↓
 [Mid-day Expenses] → (optional) Catat pengeluaran harian
   ├─ Food supplies
@@ -78,10 +79,12 @@ Evening
 ```
 
 **Key Calculations in Sales:**
-- **Gross Amount** = `unit_price × quantity`
-- **Platform Fee** = `gross_amount × fee_percent` (if shopeefood/gofood)
-- **Net Amount** = `gross_amount - platform_fee`
-- **Channel Revenue** = Sum of net amounts by channel
+- **Calculated Total** = `unit_price × quantity`
+- **Net Revenue (real cash)** = user input from marketplace payout / app settlement
+- **Fee / Potongan** = `calculated_total - net_revenue`
+- **Fee Percentage** = `fee_amount / calculated_total × 100%`
+- **Channel Revenue** = Sum of real `net_revenue` by channel
+- **Analisis Fee Tab** = compare calculated total vs real net revenue for monitoring fee health
 
 ---
 

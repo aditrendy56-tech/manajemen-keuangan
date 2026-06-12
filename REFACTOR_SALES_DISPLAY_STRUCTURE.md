@@ -38,6 +38,7 @@ Display sales transactions in a **hierarchical report structure** grouped by:
 3. **SHOPEEFOOD section** (Online platform - with fee breakdown 20%)
 4. **Refund section** (Dedicated, below all sales)
 5. **Grand Total** (Summary of all)
+6. **Analisis Fee** (planned) = per-channel comparison of gross vs net revenue
 
 **Example Desired Display:**
 

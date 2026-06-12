@@ -178,7 +178,7 @@ STATUS: Tracked sebagai asset, TIDAK dikurangi dari profit hari ini
 
 ---
 
-### 🔴 PLATFORM FEE SYSTEM (Clarified 2026-06-10)
+### 🔴 PLATFORM FEE SYSTEM (Clarified 2026-06-10) / ONLINE SALES DESIGN (2026-06-13)
 
 **What is Platform Fee?**
 - **Biaya marketplace** untuk ShopeeFood & GoFood
@@ -240,8 +240,9 @@ Profit Dashboard (Estimate):
 **Key Insight:**
 - Platform fee **BUKAN expense** di kategori pengeluaran
 - Fee sudah terdeduct di `net_amount` saat penjualan dicatat
-- Dashboard tidak perlu show fee terpisah (cuma gross vs bersih)
-- Fee adalah **INTERNAL COST**, customer membayar langsung ke platform
+- Untuk desain online sales yang baru, `net_revenue` menjadi angka real yang dipakai di dashboard, laporan, dan cash flow
+- `calculated_total` dan `fee_amount` tetap disimpan untuk visual comparison dan analisis fee
+- Tab **Analisis Fee** akan menampilkan per-channel gap, fee amount, dan warning bila fee terlihat tidak sehat
 
 ---
 
@@ -311,7 +312,9 @@ Why different?
 - ✅ Multi-outlet support dengan selector outlet
 - ✅ Daily session management (buka/tutup sesi)
 - ✅ Sales entry dengan 3 channel (Offline/ShopeeFood/GoFood)
-- ✅ Auto-kalkulasi platform fee per channel
+- ✅ Online sales akan memakai `net_revenue` sebagai angka real yang masuk kas
+- ✅ Item tracking tetap dipertahankan untuk visual comparison dan analisis fee
+- ✅ Tab Analisis Fee akan membantu memantau fee/potongan marketplace
 - ✅ Payment methods: Cash, QRIS, Split
 - ✅ Expense entry dengan 3 kategori (Bahan/Operasional/Peralatan)
 - ✅ Expense kategori tooltip dengan penjelasan impact
