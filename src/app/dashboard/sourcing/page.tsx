@@ -95,7 +95,7 @@ export default function SourcingPage() {
                     {data.equipment.map((item: any) => (
                       <tr key={item.id} className="border-b hover:bg-orange-50">
                         <td className="p-2 text-gray-800 font-medium">
-                          {item.description}
+                          {item.equipment_name || item.description}
                         </td>
                         <td className="text-right p-2 font-semibold text-orange-600">
                           {formatCurrency(item.amount)}

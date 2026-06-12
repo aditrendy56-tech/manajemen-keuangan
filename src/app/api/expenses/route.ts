@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
       funding_source,
       funded_by_investor_id,
       kas_source,  // NEW: Specify bucket (kas_utama | simpan_uang)
+      equipment_name,  // NEW: Equipment name for peralatan category
     } = body;
 
     console.log('[POST /api/expenses] Received:', { 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       supplier_id,
     });
 
-    if (!outlet_id || !date || !category || !description || !amount) {
+    if (!outlet_id || !date || !category || !description || amount === null || amount === undefined || amount === '') {
       return NextResponse.json(
         { error: 'Missing required fields: outlet_id, date, category, description, amount' },
         { status: 400 }
@@ -220,6 +221,12 @@ export async function POST(request: NextRequest) {
       insertData.delivery_date = delivery_date || null;
       insertData.quality = quality || null;
       insertData.invoice_number = invoice_number || null;
+    }
+
+    // Add equipment fields if kategori = peralatan
+    // NOTE: equipment_name column must exist in DB after running migration-equipment-name.sql
+    if (category === 'peralatan' && equipment_name) {
+      insertData.equipment_name = equipment_name;
     }
 
     let expenseResult = await (getSupabaseServer().from('expenses') as any)

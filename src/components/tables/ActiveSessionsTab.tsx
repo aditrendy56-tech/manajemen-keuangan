@@ -31,27 +31,43 @@ export function ActiveSessionsTab({
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(data: any) {
+    console.log('[ActiveSessionsTab] handleSubmit called with:', data);
     setLoading(true);
     try {
+      const payload = {
+        outlet_id: outletId,
+        ...data,
+      };
+      console.log('[ActiveSessionsTab] Sending POST to /api/sessions:', payload);
+      
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outlet_id: outletId,
-          ...data,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.log('[ActiveSessionsTab] Response status:', response.status);
 
       if (response.ok) {
         const newSession = await response.json();
-        onSessionCreated(newSession);
+        console.log('[ActiveSessionsTab] Created session:', newSession);
+        
+        // API now returns session directly
+        if (newSession && newSession.id) {
+          onSessionCreated(newSession);
+          alert('✅ Sesi berhasil dibuat!');
+        } else {
+          console.error('[ActiveSessionsTab] Invalid session response:', newSession);
+          alert('⚠️ Sesi dibuat tapi response tidak valid');
+        }
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.message}`);
+        const errorData = await response.json();
+        console.error('[ActiveSessionsTab] Error response:', errorData);
+        alert(`❌ Error: ${errorData.error || errorData.message || 'Gagal membuat sesi'}`);
       }
     } catch (error) {
-      console.error('Error creating session:', error);
-      alert('Gagal membuat sesi');
+      console.error('[ActiveSessionsTab] Error creating session:', error);
+      alert(`❌ Gagal membuat sesi: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }
@@ -179,7 +195,11 @@ export function ActiveSessionsTab({
               <CardTitle className="text-lg">Buka Sesi Baru</CardTitle>
             </CardHeader>
             <CardContent>
-              <SessionForm onSubmit={handleSubmit} loading={loading} />
+              <SessionForm 
+                onSubmit={handleSubmit} 
+                loading={loading}
+                existingDates={activeSessions.map((s) => s.date)}
+              />
             </CardContent>
           </Card>
         ) : (

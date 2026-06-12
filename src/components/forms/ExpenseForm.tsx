@@ -20,6 +20,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
   const { outletId } = useOutlet();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [category, setCategory] = useState<string | null>('operasional');
+  const [equipmentName, setEquipmentName] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('0');
   const [notes, setNotes] = useState('');
@@ -36,23 +37,42 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
       return;
     }
 
+    // VALIDATION: Amount must be greater than 0
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('Jumlah harus lebih dari 0');
+      return;
+    }
+
+    // VALIDATION: Equipment name required for peralatan category
+    if (category === 'peralatan' && (!equipmentName || equipmentName.trim().length < 3)) {
+      alert('Nama alat harus minimal 3 karakter untuk kategori Peralatan');
+      return;
+    }
+
     try {
       const formData: any = {
         date,
         category,
         description: description.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
         settlement_date: settlementDate || null,
         notes,
       };
 
+      // Add equipment_name for peralatan category
+      if (category === 'peralatan') {
+        formData.equipment_name = equipmentName.trim();
+      }
+
       await onSubmit(formData);
       
       // Reset form setelah submit sukses
       setDate(new Date().toISOString().split('T')[0]);
       setCategory('operasional');
+      setEquipmentName('');
       setDescription('');
       setAmount('0');
       setNotes('');
@@ -101,6 +121,20 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
               </Select>
             </div>
           </div>
+
+          {category === 'peralatan' && (
+            <div className="pt-1 bg-blue-50 p-3 rounded border border-blue-200">
+              <Label htmlFor="equipment_name">Nama Alat/Peralatan *</Label>
+              <Input
+                id="equipment_name"
+                value={equipmentName}
+                onChange={(e) => setEquipmentName(e.target.value)}
+                placeholder="Contoh: Mixer Roti, Oven 60 Liter, dll (minimal 3 karakter)"
+                required
+              />
+              <p className="text-xs text-blue-600 mt-1">Nama ini akan ditampilkan di halaman Manajemen Bahan tab Alat</p>
+            </div>
+          )}
 
           <div className="pt-1">
             <Label htmlFor="description">Deskripsi *</Label>

@@ -16,6 +16,7 @@ interface SessionFormProps {
   onDateChange?: (date: string) => void;
   disableSubmit?: boolean;
   duplicateWarning?: boolean;
+  existingDates?: string[]; // NEW: List of dates that already have open sessions
 }
 
 export function SessionForm({ 
@@ -24,20 +25,39 @@ export function SessionForm({
   onDateChange,
   disableSubmit = false,
   duplicateWarning = false,
+  existingDates = [],
 }: SessionFormProps) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [openingCash, setOpeningCash] = useState('0');
   const [notes, setNotes] = useState('');
+  const [isDuplicateDate, setIsDuplicateDate] = useState(false);
 
   useEffect(() => {
     onDateChange?.(date);
-  }, [date, onDateChange]);
+    // Check if date already has open session
+    setIsDuplicateDate(existingDates.includes(date));
+  }, [date, onDateChange, existingDates]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Validate opening cash
+    const parsedCash = parseFloat(openingCash);
+    if (isNaN(parsedCash) || parsedCash < 0) {
+      alert('Modal awal harus angka positif atau 0');
+      return;
+    }
+    
+    // Check duplicate date
+    if (isDuplicateDate) {
+      alert('⚠️ Sesi untuk tanggal ini sudah terbuka. Tutup sesi lama atau ubah tanggal.');
+      return;
+    }
+    
+    console.log('[SessionForm] handleSubmit called with date:', date);
     await onSubmit({
       date,
-      opening_cash: parseFloat(openingCash),
+      opening_cash: parsedCash,
       notes,
     });
   }
@@ -49,7 +69,7 @@ export function SessionForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {duplicateWarning && (
+          {(duplicateWarning || isDuplicateDate) && (
             <Alert className="border-yellow-300 bg-yellow-50">
               <AlertDescription className="text-yellow-800">
                 ⚠️ Sesi untuk tanggal ini sudah terbuka. Tutup sesi lama atau ubah tanggal.
@@ -86,12 +106,12 @@ export function SessionForm({
             />
           </div>
           <Button 
-            disabled={loading || disableSubmit} 
+            disabled={loading || disableSubmit || isDuplicateDate} 
             type="submit" 
-            className="w-full bg-orange-600 hover:bg-orange-700"
-            title={disableSubmit ? "Tutup sesi lama terlebih dahulu" : ""}
+            className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
+            title={isDuplicateDate ? "Tanggal ini sudah ada sesi terbuka" : disableSubmit ? "Tutup sesi lama terlebih dahulu" : ""}
           >
-            {loading ? 'Memproses...' : 'Buka Sesi'}
+            {loading ? 'Memproses...' : isDuplicateDate ? 'Tanggal Sudah Ada' : 'Buka Sesi'}
           </Button>
         </form>
       </CardContent>

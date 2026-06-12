@@ -10,11 +10,14 @@ import { AlertTriangle } from 'lucide-react';
 
 interface ValidationWarning {
   errorType: string;
-  availableCash: number;
-  requestedAmount: number;
-  shortfall: number;
-  message: string;
+  availableCash?: number;
+  available?: number;
+  requestedAmount?: number;
+  requested?: number;
+  shortfall?: number;
+  message?: string;
   pendingData?: any;
+  kas_source?: string;
 }
 
 export default function ExpensesPage() {
@@ -81,23 +84,24 @@ export default function ExpensesPage() {
         const errorData = await response.json();
         console.log('[Expenses] Error response data:', JSON.stringify(errorData, null, 2));
         
-        // Handle KAS_TIDAK_CUKUP warning (soft warning, allow override)
-        if (errorData.errorType === 'KAS_TIDAK_CUKUP' && !forceOverride) {
-          console.log('[Expenses] Detected KAS_TIDAK_CUKUP, showing warning');
+        // Handle KAS_TIDAK_CUKUP or BUCKET_INSUFFICIENT warning (soft warning, allow override)
+        if ((errorData.errorType === 'KAS_TIDAK_CUKUP' || errorData.errorType === 'BUCKET_INSUFFICIENT') && !forceOverride) {
+          console.log('[Expenses] Detected budget warning:', errorData.errorType);
           setWarning({
             errorType: errorData.errorType,
-            availableCash: errorData.availableCash,
-            requestedAmount: errorData.requestedAmount,
+            availableCash: errorData.availableCash || errorData.available,
+            requestedAmount: errorData.requestedAmount || errorData.requested,
             shortfall: errorData.shortfall,
-            message: errorData.message,
+            message: errorData.error || errorData.message || 'Kas tidak cukup untuk pengeluaran ini',
             pendingData: data,
+            kas_source: errorData.kas_source,
           });
           setLoading(false);
           return;
         }
         
         // Hard error - show and don't allow override
-        console.error('[Expenses] Hard error, not KAS_TIDAK_CUKUP:', errorData);
+        console.error('[Expenses] Hard error:', errorData);
         throw new Error(errorData.message || errorData.error || 'Failed to save expense');
       }
 
@@ -156,11 +160,12 @@ export default function ExpensesPage() {
               <div>
                 <strong>⚠️ Peringatan Kas Tidak Cukup!</strong>
                 <p className="mt-1 text-sm">{warning.message}</p>
+                {warning.kas_source && <p className="mt-1 text-xs text-gray-600">Bucket: {warning.kas_source}</p>}
               </div>
               <div className="bg-white p-3 rounded border border-yellow-200 space-y-1 text-sm">
-                <div>Kas Tersedia: <strong>Rp {warning.availableCash.toLocaleString('id-ID')}</strong></div>
-                <div>Yang Diminta: <strong>Rp {warning.requestedAmount.toLocaleString('id-ID')}</strong></div>
-                <div className="text-red-600">Kurang: <strong>Rp {warning.shortfall.toLocaleString('id-ID')}</strong></div>
+                <div>Kas Tersedia: <strong>Rp {(warning.availableCash || warning.available || 0).toLocaleString('id-ID')}</strong></div>
+                <div>Yang Diminta: <strong>Rp {(warning.requestedAmount || warning.requested || 0).toLocaleString('id-ID')}</strong></div>
+                <div className="text-red-600">Kurang: <strong>Rp {(warning.shortfall || 0).toLocaleString('id-ID')}</strong></div>
               </div>
               <div className="space-y-2 pt-2">
                 <p className="text-xs">Apakah Anda akan melakukan injeksi modal atau penjualan untuk cover pengeluaran ini?</p>
