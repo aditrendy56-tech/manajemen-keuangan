@@ -8,10 +8,12 @@
 
 1. [System Overview](#system-overview)
 2. [Core Workflows](#core-workflows)
-3. [Financial Calculations](#financial-calculations)
-4. [Data Flow Architecture](#data-flow-architecture)
-5. [Business Rules & Validations](#business-rules--validations)
-6. [Calculation Examples](#calculation-examples)
+3. [Period Close Workflow (Phase A)](#period-close-workflow-phase-a)
+4. [UI Workflows (Phase B)](#ui-workflows-phase-b)
+5. [Financial Calculations](#financial-calculations)
+6. [Data Flow Architecture](#data-flow-architecture)
+7. [Business Rules & Validations](#business-rules--validations)
+8. [Calculation Examples](#calculation-examples)
 
 ---
 
@@ -262,6 +264,176 @@ User Input → Pengeluaran Form (kategori='peralatan')
 **Key Calculations:**
 - **Kas Tersedia** = `SUM(inflows) - SUM(outflows)`
 - **Status** = IF kas >= 100k THEN "healthy" ELSE IF kas >= 0 THEN "warning" ELSE "critical"
+
+---
+
+## Period Close Workflow (Phase A)
+
+### System Architecture: Tutup Buku + Adaptive Allocation
+
+**Period Definition:**
+- Duration: 6th of month → 5th of next month (monthly)
+- Status: Active → Closed (immutable after close)
+- Locking: After tutup buku, all sessions in period become read-only (is_locked = true)
+
+### Workflow: Tutup Buku (Period Close)
+
+```
+End of Period (5th of month)
+  ↓
+[Trigger Tutup Buku]
+  ├─ Button available only on 5th (last day of period)
+  ├─ Show current period info (2026-06-06 → 2026-07-05)
+  ├─ Show sessions count + total revenue
+  └─ Display allocation split (60% Kas Utama / 40% Profit Pending)
+  ↓
+[3-Step Confirmation Modal]
+  ├─ Step 1: Review Period Summary
+  │   ├─ Period: 2026-06 (Jun 6 - Jul 5)
+  │   ├─ Sessions: 15
+  │   ├─ Total Revenue: Rp 2.500.000
+  │   └─ Expected Operational Cost: Rp 1.500.000 (60%)
+  │
+  ├─ Step 2: View Variance Calculation
+  │   ├─ Allocated Buffer: 60% × Rp 2.500.000 = Rp 1.500.000
+  │   ├─ Actual Spending: Rp 1.400.000 (tracked expenses)
+  │   ├─ Variance: Rp 100.000 (surplus)
+  │   ├─ Variance %: 6.7% (100k / 1.5m)
+  │   └─ Interpretation: "Operasional lebih efisien dari proyeksi. Surplus dapat dialokasikan ke profit."
+  │
+  └─ Step 3: Confirm & Lock Period
+      ├─ Lock all sessions in period (is_locked = true)
+      ├─ Create buku_closings record
+      ├─ Mark period as 'closed'
+      ├─ Auto-create next period (2026-07-06 → 2026-08-05)
+      └─ Show confirmation: "Periode berhasil ditutup"
+  ↓
+[Data State After Close]
+  ├─ All daily_sessions → is_locked = true
+  ├─ buku_closings → record created with variance data
+  ├─ periods → status = 'closed'
+  ├─ New period created → status = 'active'
+  └─ Historical view → Sessions visible but read-only
+```
+
+### Allocation Logic
+
+**Baseline (Months 1-3):**
+- Kas Utama: 60% (operational reserve)
+- Profit Pending: 40% (profit & investment repayment)
+
+**Adaptive (After Month 3):**
+- Data-driven flip based on variance
+- If variance > 5% surplus → Flip to 40% Kas Utama / 60% Profit Pending
+- If variance < -5% deficit → Flip to 70% Kas Utama / 30% Profit Pending
+
+---
+
+## UI Workflows (Phase B)
+
+### Sessions Page Redesign: Active + Historical Tabs
+
+```
+User Opens /dashboard/sessions
+  ↓
+[Page Renders with Period Context]
+  ├─ PeriodInfoBanner (top)
+  │   ├─ Display: "Period: 2026-06 (Jun 6 - Jul 5, 2026)"
+  │   ├─ Allocation: "60% Kas Utama • 40% Profit Pending"
+  │   ├─ Lock Status: 🟢 Aktif / 🔴 Terkunci
+  │   └─ Tutup Buku Button (enabled on 5th only, if period active)
+  │
+  ├─ Tab 1: Active Sessions (default)
+  │   ├─ Show: Only sessions from CURRENT active period
+  │   ├─ Status: is_locked = false
+  │   ├─ Actions Available:
+  │   │   ├─ ✏️ Edit (update revenue, expenses)
+  │   │   ├─ 🔒 Close Session (status = 'closed')
+  │   │   └─ 🗑️ Delete (if status = 'open')
+  │   ├─ Columns: Date, Status, Revenue, Modal Awal, Modal Akhir, Actions
+  │   └─ Create New Session Form (only editable if period not locked)
+  │
+  └─ Tab 2: Historical Sessions
+      ├─ Show: Sessions from PREVIOUS closed periods
+      ├─ Status: is_locked = true
+      ├─ Read-Only: Click to view details, but NO edit/delete
+      ├─ Columns: Date, Status, Revenue, Modal Awal, Modal Akhir, Period Info
+      └─ Shows lock icon + lock timestamp
+```
+
+### Tutup Buku Modal: 3-Step Workflow
+
+```
+Step 1: Review Period Summary
+  ├─ Display period dates: Jun 6, 2026 → Jul 5, 2026
+  ├─ Count sessions: 15 sessions
+  ├─ Calculate total revenue: Rp 2.500.000
+  ├─ Show allocation breakdown: 60% = Rp 1.500.000 (Kas Utama)
+  └─ [Next] button → proceed to Step 2
+
+Step 2: Variance Analysis
+  ├─ Allocated Buffer: Rp 1.500.000 (60%)
+  ├─ Actual Operational Spending: Rp 1.400.000 (from expenses)
+  ├─ Variance: Rp 100.000 (surplus)
+  ├─ Variance %: +6.7%
+  ├─ Interpretation Box:
+  │   └─ "✅ Operasional lebih efisien dari proyeksi. Surplus Rp 100.000 dapat dialokasikan ke profit pengganti, investasi, atau kas cadangan."
+  ├─ [Back] button → return to Step 1
+  └─ [Next] button → proceed to Step 3 (confirm)
+
+Step 3: Confirm & Proceed
+  ├─ Summary:
+  │   ├─ Period: 2026-06
+  │   ├─ Sessions Locked: 15
+  │   ├─ Next Period Auto-Created: 2026-07 (Jul 6 - Aug 5)
+  │   └─ Status: Ready to lock
+  ├─ Checkbox: "Saya setuju untuk mengunci periode ini"
+  ├─ Warning: "Setelah dikonfirmasi, Anda tidak bisa edit sesi lama. Tapi bisa lihat di tab Historical."
+  ├─ [Back] button → return to Step 2
+  └─ [Confirm Tutup Buku] button → execute tutup_buku action
+      └─ Show loading state
+      └─ On success: "✅ Periode ditutup. Sesi terkunci. Periode baru sudah dibuat."
+      └─ Redirect to Sessions page → show Historical tab with new data
+```
+
+### Session Lock Enforcement (UI + API)
+
+**Visual Indicators:**
+- Active session: 🟢 Buka (green badge)
+- Closed session: 🔴 Tutup (gray badge)
+- Locked session: 🔒 Terkunci (red badge + strikethrough)
+
+**Edit Behavior:**
+```
+IF session.is_locked = true:
+  ├─ Disable all edit fields
+  ├─ Gray out action buttons (Edit, Close, Delete)
+  ├─ Show tooltip: "Sesi terkunci karena periode sudah ditutup"
+  ├─ Show lock info: "Terkunci pada: 2026-07-05 12:30 oleh: system"
+  └─ View-only mode enabled
+ELSE:
+  ├─ Enable all edit fields
+  ├─ Show edit/delete buttons
+  └─ Normal CRUD operations allowed
+```
+
+**API Validation:**
+```
+POST /api/sessions (create):
+  ├─ Check: period.is_locked = false
+  ├─ If locked: Return 403 "Periode sudah ditutup"
+  └─ If open: Create session + auto-link to period_id
+
+PATCH /api/sessions/[id] (update):
+  ├─ Check: session.is_locked = false
+  ├─ If locked: Return 403 "Sesi terkunci karena periode sudah ditutup"
+  └─ If not locked: Allow update
+
+DELETE /api/sessions/[id]:
+  ├─ Check: session.is_locked = false
+  ├─ If locked: Return 403 "Sesi terkunci karena periode sudah ditutup"
+  └─ If not locked: Allow deletion
+```
 
 ---
 

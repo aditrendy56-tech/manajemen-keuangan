@@ -1,181 +1,146 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SessionForm } from '@/components/forms/SessionForm';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { DailySession } from '@/types';
-import Link from 'next/link';
-import { ArrowRight, Trash2, Power } from 'lucide-react';
 import { useOutlet } from '@/lib/context/OutletContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PeriodInfoBanner } from '@/components/layout/PeriodInfoBanner';
+import { TutupBukuModal } from '@/components/modals/TutupBukuModal';
+import { ActiveSessionsTab } from '@/components/tables/ActiveSessionsTab';
+import { HistoricalSessionsTab } from '@/components/tables/HistoricalSessionsTab';
+
+interface Period {
+  id: string;
+  outlet_id: string;
+  period_month: string;
+  period_start_date: string;
+  period_end_date: string;
+  status: 'active' | 'closed';
+  is_locked: boolean;
+}
 
 export default function SessionsPage() {
   const { outletId, setSessionId } = useOutlet();
   const [sessions, setSessions] = useState<DailySession[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [period, setPeriod] = useState<Period | null>(null);
   const [fetching, setFetching] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [tutupBukuModalOpen, setTutupBukuModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('active');
 
   useEffect(() => {
-    fetchSessions();
+    fetchData();
   }, [outletId]);
 
-  async function fetchSessions() {
+  async function fetchData() {
     try {
       setFetching(true);
-      const response = await fetch(`/api/sessions?outlet_id=${outletId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(Array.isArray(data) ? data : []);
+
+      // Fetch current period
+      const periodRes = await fetch(`/api/periods?outlet_id=${outletId}&status=active&limit=1`);
+      if (periodRes.ok) {
+        const periodData = await periodRes.json();
+        if (periodData.periods && periodData.periods.length > 0) {
+          setPeriod(periodData.periods[0]);
+        }
+      }
+
+      // Fetch all sessions
+      const sessionsRes = await fetch(`/api/sessions?outlet_id=${outletId}`);
+      if (sessionsRes.ok) {
+        const sessionsData = await sessionsRes.json();
+        setSessions(sessionsData.sessions ? sessionsData.sessions : []);
       }
     } catch (error) {
-      console.error('Error fetching sessions:', error);
-      setSessions([]);
+      console.error('Error fetching data:', error);
     } finally {
       setFetching(false);
     }
   }
 
-  async function handleSubmit(data: any) {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outlet_id: outletId,
-          ...data,
-        }),
-      });
-
-      if (response.ok) {
-        const newSession = await response.json();
-        setSessionId(newSession.id);
-        setSessions([newSession, ...sessions]);
-      }
-    } catch (error) {
-      console.error('Error creating session:', error);
-    } finally {
-      setLoading(false);
-    }
+  function handleSessionCreated(session: DailySession) {
+    setSessions([session, ...sessions]);
+    setSessionId(session.id);
   }
 
-  async function handleCloseSession(sessionId: string) {
-    if (!confirm('Tutup sesi ini? Anda tidak bisa edit data setelah sesi ditutup.')) return;
-    
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
-      });
-
-      if (response.ok) {
-        setSessions(sessions.map(s => s.id === sessionId ? { ...s, status: 'closed' } : s));
-      }
-    } catch (error) {
-      console.error('Error closing session:', error);
-    }
+  function handleSessionUpdated(updatedSession: DailySession) {
+    setSessions(
+      sessions.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+    );
   }
 
-  async function handleDeleteSession(sessionId: string) {
-    if (!confirm('Hapus sesi ini? Ini tidak bisa dibatalkan.')) return;
-
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setSessions(sessions.filter(s => s.id !== sessionId));
-      }
-    } catch (error) {
-      console.error('Error deleting session:', error);
-    }
+  function handleTutupBukuSuccess() {
+    // Show success message
+    alert('✅ Periode berhasil ditutup. Sesi terkunci dan periode baru sudah dibuat.');
+    // Refresh data
+    fetchData();
+    // Switch to historical tab
+    setActiveTab('historical');
   }
 
-  // Check if selected date already has an OPEN session
-  const hasOpenSessionForDate = sessions.some(s => s.date === selectedDate && s.status === 'open');
+  if (fetching) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Sesi Harian</h1>
+          <p className="text-gray-600">Memuat...</p>
+        </div>
+        <div className="animate-pulse h-32 bg-gray-200 rounded"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Sesi Harian</h1>
-        <p className="text-gray-600">Kelola sesi harian untuk setiap outlet</p>
+        <p className="text-gray-600">Kelola sesi harian dan tutup buku periode</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Daftar Sesi</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {sessions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">Tidak ada data sesi</div>
-              ) : (
-                <div className="space-y-2">
-                  {sessions.map((session) => (
-                    <div key={session.id} className="flex justify-between items-center py-3 px-4 border rounded hover:bg-gray-50">
-                      <div className="flex-1">
-                        <p className="font-semibold">{session.date}</p>
-                        <p className="text-sm text-gray-500">Modal Awal: Rp {session.opening_cash.toLocaleString('id-ID')}</p>
-                        {session.closing_cash && (
-                          <p className="text-sm text-gray-500">Modal Akhir: Rp {session.closing_cash.toLocaleString('id-ID')}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-3 py-1 rounded text-sm font-semibold ${
-                            session.status === 'open'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {session.status === 'open' ? '🟢 Buka' : '🔴 Tutup'}
-                        </span>
-                        <Link href={`/dashboard/sessions/${session.id}`}>
-                          <Button variant="outline" size="sm">
-                            <ArrowRight className="w-4 h-4" />
-                          </Button>
-                        </Link>
-                        {session.status === 'open' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-blue-600 hover:text-blue-800"
-                            onClick={() => handleCloseSession(session.id)}
-                            title="Tutup sesi"
-                          >
-                            <Power className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDeleteSession(session.id)}
-                          title="Hapus sesi"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div>
-          <SessionForm 
-            onSubmit={handleSubmit} 
-            loading={loading}
-            onDateChange={setSelectedDate}
-            disableSubmit={hasOpenSessionForDate}
-            duplicateWarning={hasOpenSessionForDate}
+      {/* Period Info Banner */}
+      <PeriodInfoBanner 
+        outletId={outletId}
+        onTutupBukuClick={() => period && setTutupBukuModalOpen(true)}
+      />
+
+      {/* Tutup Buku Modal */}
+      {period && (
+        <TutupBukuModal
+          open={tutupBukuModalOpen}
+          onOpenChange={setTutupBukuModalOpen}
+          periodId={period.id}
+          periodMonth={period.period_month}
+          outletId={outletId}
+          onSuccess={handleTutupBukuSuccess}
+        />
+      )}
+
+      {/* Tabs: Active & Historical */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="active">
+            🟢 Sesi Aktif ({sessions.filter((s) => !s.is_locked).length})
+          </TabsTrigger>
+          <TabsTrigger value="historical">
+            🔒 Historis ({sessions.filter((s) => s.is_locked).length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active">
+          <ActiveSessionsTab
+            outletId={outletId}
+            periodId={period?.id || ''}
+            periodLocked={period?.is_locked || false}
+            sessions={sessions}
+            onSessionCreated={handleSessionCreated}
+            onSessionUpdated={handleSessionUpdated}
+            onRefresh={fetchData}
           />
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="historical">
+          <HistoricalSessionsTab sessions={sessions} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

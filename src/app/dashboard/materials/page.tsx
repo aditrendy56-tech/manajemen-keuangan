@@ -59,8 +59,8 @@ export default function MaterialsPage() {
         }
 
         const sessions = await response.json();
-        const todaySession = Array.isArray(sessions)
-          ? sessions.find((s: any) => s.date === today && s.status === 'open')
+        const todaySession = sessions.sessions && Array.isArray(sessions.sessions)
+          ? sessions.sessions.find((s: any) => s.date === today && s.status === 'open')
           : null;
 
         if (todaySession) {

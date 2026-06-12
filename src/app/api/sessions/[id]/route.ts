@@ -20,6 +20,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
+    const supabase = getSupabaseServer();
+
+    // Check if session is locked
+    const { data: session, error: sessionError } = await supabase
+      .from('daily_sessions')
+      .select('id, is_locked')
+      .eq('id', sessionId)
+      .single();
+
+    if (sessionError) throw sessionError;
+    if (!session) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    if (session.is_locked) {
+      return NextResponse.json(
+        {
+          error: 'Sesi terkunci karena periode sudah ditutup (tutup buku). Tidak bisa diedit.',
+        },
+        { status: 403 }
+      );
+    }
+
     const updateData: any = {};
     if (status) {
       updateData.status = status;
@@ -28,7 +51,7 @@ export async function PATCH(
       }
     }
 
-    const { data, error } = await getSupabaseServer()
+    const { data, error } = await supabase
       .from('daily_sessions')
       .update(updateData)
       .eq('id', sessionId)
@@ -41,7 +64,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      success: true,
+      session: data,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -62,13 +88,23 @@ export async function DELETE(
 
     const { data: session, error: sessionError } = await supabase
       .from('daily_sessions')
-      .select('id, outlet_id, date')
+      .select('id, outlet_id, date, is_locked')
       .eq('id', sessionId)
       .single();
 
     if (sessionError) throw sessionError;
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Check if session is locked (period closed)
+    if (session.is_locked) {
+      return NextResponse.json(
+        {
+          error: 'Sesi terkunci karena periode sudah ditutup (tutup buku). Tidak bisa dihapus.',
+        },
+        { status: 403 }
+      );
     }
 
     const dayStart = `${session.date}T00:00:00`;
@@ -192,6 +228,10 @@ export async function DELETE(
       },
       { status: 200 }
     );
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

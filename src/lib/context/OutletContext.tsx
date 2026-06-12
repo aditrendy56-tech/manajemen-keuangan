@@ -50,11 +50,11 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
             console.log('[OutletContext] Loading sessions for outlet:', preferredOutletId);
             const sessionRes = await fetch(`/api/sessions?outlet_id=${preferredOutletId}`);
             console.log('[OutletContext] /api/sessions response:', sessionRes.status);
-            const sessions = sessionRes.ok ? await sessionRes.json() : [];
-            console.log('[OutletContext] Loaded sessions:', sessions.length, JSON.stringify(sessions, null, 2));
-            if (Array.isArray(sessions) && sessions.length > 0) {
+            const sessionsData = sessionRes.ok ? await sessionRes.json() : {};
+            console.log('[OutletContext] Loaded sessions:', sessionsData.sessions?.length || 0, JSON.stringify(sessionsData, null, 2));
+            if (sessionsData.sessions && Array.isArray(sessionsData.sessions) && sessionsData.sessions.length > 0) {
               // Get the first open session, or just the first one
-              const openSession = sessions.find((s: any) => s.status === 'open') || sessions[0];
+              const openSession = sessionsData.sessions.find((s: any) => s.status === 'open') || sessionsData.sessions[0];
               console.log('[OutletContext] Selected session:', openSession?.id);
               if (openSession?.id) {
                 setSessionId(openSession.id);

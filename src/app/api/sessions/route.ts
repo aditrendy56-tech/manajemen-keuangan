@@ -7,21 +7,39 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const outletId = searchParams.get('outlet_id');
+    const periodId = searchParams.get('period_id'); // Optional: filter by period
     const limit = searchParams.get('limit') || '20';
+    const showHistorical = searchParams.get('show_historical') === 'true'; // Optional: show locked sessions
 
     if (!outletId) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
     }
 
-    const { data, error } = await getSupabaseServer().from('daily_sessions')
+    let query = getSupabaseServer()
+      .from('daily_sessions')
       .select('*')
       .eq('outlet_id', outletId)
       .order('date', { ascending: false })
       .limit(parseInt(limit));
 
+    if (periodId) {
+      query = query.eq('period_id', periodId);
+    }
+
+    // By default, only show unlocked (active) sessions
+    if (!showHistorical) {
+      query = query.eq('is_locked', false);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      success: true,
+      sessions: data || [],
+      count: data?.length || 0,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -39,8 +57,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseServer();
+
     // Check if session already exists for this date with OPEN status
-    const { data: existing } = await getSupabaseServer().from('daily_sessions')
+    const { data: existing } = await supabase.from('daily_sessions')
       .select('id')
       .eq('outlet_id', outlet_id)
       .eq('date', date)
@@ -54,15 +74,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const insertData = { outlet_id, date, opening_cash, status: 'open' };
-    const { data, error } = await (getSupabaseServer().from('daily_sessions') as any)
+    // Find the current period for this outlet
+    const { data: period } = await supabase
+      .from('periods')
+      .select('id, is_locked')
+      .eq('outlet_id', outlet_id)
+      .eq('status', 'active')
+      .single();
+
+    // Check if period is locked
+    if (period?.is_locked) {
+      return NextResponse.json(
+        { 
+          error: 'Periode sudah ditutup (tutup buku). Tidak bisa membuat sesi baru.',
+          period_id: period.id,
+        },
+        { status: 403 }
+      );
+    }
+
+    const insertData = {
+      outlet_id,
+      date,
+      opening_cash,
+      status: 'open',
+      period_id: period?.id, // Auto-assign to current period
+    };
+
+    const { data, error } = await (supabase.from('daily_sessions') as any)
       .insert([insertData])
       .select()
       .single();
 
     if (error) throw error;
 
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      session: data,
+    }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

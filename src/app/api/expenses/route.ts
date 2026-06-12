@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const outletId = searchParams.get('outlet_id');
     const sessionId = searchParams.get('session_id');
-    const limit = searchParams.get('limit') || '20';
+    const periodId = searchParams.get('period_id');
+    const category = searchParams.get('category');
+    const limit = searchParams.get('limit') || '100';
 
     if (!outletId) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
@@ -25,12 +27,23 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         raw_materials:raw_material_id (id, name, unit),
-        suppliers:supplier_id (id, name)
+        suppliers:supplier_id (id, name),
+        sessions:session_id (id, date, period_id)
       `)
       .eq('outlet_id', outletId);
 
     if (sessionId) {
       query = query.eq('session_id', sessionId);
+    }
+
+    // Filter by period_id if provided (for tutup buku variance calculation)
+    if (periodId) {
+      query = query.eq('sessions.period_id', periodId);
+    }
+
+    // Filter by category if provided (e.g., 'operasional', 'bahan', 'peralatan')
+    if (category) {
+      query = query.eq('category', category);
     }
 
     const { data, error } = await query
