@@ -64,6 +64,40 @@ export function ReportsTable({ report }: ReportsTableProps) {
               </div>
             )}
 
+            {report.online_fee_analysis && report.online_fee_analysis.online_sales_count > 0 && (
+              <div className="my-4 pt-4 border-t-2">
+                <div className="mb-2 text-sm font-semibold text-slate-700">Analisis Fee Online</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border bg-amber-50 p-3 text-sm text-amber-950">
+                    <div>Total calculated total</div>
+                    <div className="text-lg font-semibold">Rp {report.online_fee_analysis.total_calculated_total.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div className="rounded-lg border bg-amber-50 p-3 text-sm text-amber-950">
+                    <div>Total fee amount</div>
+                    <div className="text-lg font-semibold">Rp {report.online_fee_analysis.total_fee_amount.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div className="rounded-lg border bg-amber-50 p-3 text-sm text-amber-950">
+                    <div>Total fee percentage</div>
+                    <div className="text-lg font-semibold">{report.online_fee_analysis.total_fee_percentage.toFixed(2)}%</div>
+                  </div>
+                  <div className="rounded-lg border bg-amber-50 p-3 text-sm text-amber-950">
+                    <div>Total net revenue</div>
+                    <div className="text-lg font-semibold">Rp {report.online_fee_analysis.total_net_revenue.toLocaleString('id-ID')}</div>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  {Object.entries(report.online_fee_analysis.by_channel).map(([channel, data]) => (
+                    data.sales_count > 0 ? (
+                      <div key={channel} className="flex items-center justify-between rounded border bg-white px-3 py-2">
+                        <span className="capitalize">{channel}</span>
+                        <span>Rp {data.net_revenue.toLocaleString('id-ID')} · {data.fee_amount.toLocaleString('id-ID')} fee · {data.fee_percentage.toFixed(2)}%</span>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              </div>
+            )}
+
             {(report.pending_sales_amount !== undefined || report.pending_expenses_amount !== undefined) && (
               <div className="my-4 pt-4 border-t-2">
                 <div className="flex justify-between items-center py-2 border-b">

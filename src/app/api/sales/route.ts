@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { calculatePlatformFee, calculatePlatformFeeServer } from '@/lib/calculations/platform-fees';
+import { calculatePlatformFee, calculatePlatformFeeServer, calculateSaleAnalysis } from '@/lib/calculations/platform-fees';
 import { recordCashTransaction } from '@/lib/cash/ledger';
 import { splitSalesTransaction } from '@/lib/cash/dual-bucket-v2';
 import { resolveSessionForTransaction } from '@/lib/sessions';
@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
       payment_method,
       payment_entries,
       gross_amount,
+      net_revenue,
       items,
       payment_status,
       settlement_date,
@@ -158,8 +159,13 @@ export async function POST(request: NextRequest) {
     if (String(payment_method || '').toLowerCase() === 'split' && normalizedEntries.length === 0) {
       return NextResponse.json({ error: 'Split payment membutuhkan payment_entries' }, { status: 400 });
     }
+
+    const itemTotal = Array.isArray(items)
+      ? items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0)
+      : 0;
+
+    const effectiveGrossAmount = Number(gross_amount || itemTotal || 0);
     const splitAmount = normalizedEntries.reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0);
-    const effectiveGrossAmount = Number(gross_amount || 0);
 
     if (normalizedEntries.length > 0 && Math.abs(splitAmount - effectiveGrossAmount) > 0.01) {
       return NextResponse.json(
@@ -172,11 +178,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Split payment membutuhkan minimal 2 payment_entries' }, { status: 400 });
     }
 
-    const platform_fee = await calculatePlatformFeeServer(normalizedPlatform || normalizedChannelType, effectiveGrossAmount, outlet_id);
-    const net_amount = effectiveGrossAmount - platform_fee;
+    const isOnlineChannel = normalizedChannelType === 'online' || ['shopeefood', 'gofood'].includes(String(normalizedPlatform || ''));
+    const rawNetRevenue = Number(net_revenue ?? 0);
+
+    const { calculated_total, net_revenue: realNetRevenue, fee_amount, fee_percentage } = calculateSaleAnalysis(
+      effectiveGrossAmount,
+      isOnlineChannel ? rawNetRevenue : effectiveGrossAmount,
+    );
+
+    const platform_fee = isOnlineChannel && rawNetRevenue > 0
+      ? fee_amount
+      : await calculatePlatformFeeServer(normalizedPlatform || normalizedChannelType, effectiveGrossAmount, outlet_id);
+    const net_amount = isOnlineChannel && rawNetRevenue > 0
+      ? realNetRevenue
+      : effectiveGrossAmount - platform_fee;
 
     const inferredPaymentMethod =
       payment_method || (normalizedEntries.length > 1 ? 'split' : normalizedEntries[0]?.payment_method || 'cash');
+    const overallPaymentStatus = normalizedEntries.length > 0
+      ? (normalizedEntries.every((entry: any) => String(entry.payment_status || '').toLowerCase() === 'settled') ? 'settled' : 'pending')
+      : (payment_status || (inferredPaymentMethod === 'cash' ? 'settled' : 'pending'));
+
     const normalizedPaymentEntries =
       normalizedEntries.length > 0
         ? normalizedEntries.map((entry: any) => ({
@@ -205,10 +227,13 @@ export async function POST(request: NextRequest) {
       channel_type: normalizedChannelType,
       platform: normalizedPlatform,
       payment_method: inferredPaymentMethod,
-      gross_amount: effectiveGrossAmount,
+      gross_amount: calculated_total,
+      calculated_total,
+      fee_amount,
+      fee_percentage,
       platform_fee,
       net_amount,
-      payment_status: payment_status || overallPaymentStatus,
+      payment_status: overallPaymentStatus,
       settlement_date: settlement_date || null,
       payment_entries: normalizedPaymentEntries,
       payment_reference: payment_reference || null,
@@ -222,8 +247,27 @@ export async function POST(request: NextRequest) {
 
     let { data: saleData, error: saleError } = saleResult;
 
-    if (saleError && String(saleError.message || '').toLowerCase().includes('channel_type')) {
-      const { channel_type: _channelType, platform: _platform, payment_status: _paymentStatus, settlement_date: _settlementDate, payment_reference: _paymentReference, ...legacySaleInsertData } = saleInsertData as any;
+    // Fallback: if calculated_total/fee_amount/fee_percentage columns don't exist yet, try without them
+    if (saleError && (String(saleError.message || '').toLowerCase().includes('calculated_total') || 
+                      String(saleError.message || '').toLowerCase().includes('fee_amount') ||
+                      String(saleError.message || '').toLowerCase().includes('fee_percentage'))) {
+      console.warn('[POST /api/sales] Fallback: Online fee analysis columns may not exist, retrying without them...', saleError.message);
+      const { calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...legacySaleData } = saleInsertData as any;
+      saleResult = await (getSupabaseServer().from('sales') as any)
+        .insert([legacySaleData])
+        .select()
+        .single();
+      ({ data: saleData, error: saleError } = saleResult);
+    }
+    // Fallback: if newer columns don't exist, also try without channel_type/platform
+    else if (saleError && String(saleError.message || '').toLowerCase().includes('channel_type')) {
+      saleResult = await (getSupabaseServer().from('sales') as any)
+        .insert([legacySaleData])
+        .select()
+        .single();
+      ({ data: saleData, error: saleError } = saleResult);
+    } else if (saleError && String(saleError.message || '').toLowerCase().includes('channel_type')) {
+      const { channel_type: _channelType, platform: _platform, payment_status: _paymentStatus, settlement_date: _settlementDate, payment_reference: _paymentReference, calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...legacySaleInsertData } = saleInsertData as any;
       saleResult = await (getSupabaseServer().from('sales') as any)
         .insert([legacySaleInsertData])
         .select()

@@ -64,6 +64,40 @@ export async function GET(request: NextRequest) {
     const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
     const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
     const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
+    const onlineSales = (sales || []).filter((sale: any) => sale.channel_type === 'online' || sale.platform === 'shopeefood' || sale.platform === 'gofood');
+    const totalCalculatedTotal = onlineSales.reduce((sum: number, sale: any) => sum + Number(sale.calculated_total ?? sale.gross_amount ?? 0), 0) || 0;
+    const totalFeeAmount = onlineSales.reduce((sum: number, sale: any) => {
+      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
+      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+      return sum + feeAmount;
+    }, 0) || 0;
+    const totalFeePercentage = totalCalculatedTotal > 0 ? (totalFeeAmount / totalCalculatedTotal) * 100 : 0;
+    const totalNetRevenue = onlineSales.reduce((sum: number, sale: any) => sum + Number(sale.net_amount || 0), 0) || 0;
+    const byChannel = {
+      shopeefood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
+      gofood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
+    };
+
+    onlineSales.forEach((sale: any) => {
+      const channel = sale.platform === 'shopeefood' || sale.channel === 'shopeefood' ? 'shopeefood' : 'gofood';
+      if (!byChannel[channel]) return;
+
+      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
+      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+      const feePercentage = calculatedTotal > 0 ? (feeAmount / calculatedTotal) * 100 : 0;
+
+      byChannel[channel].calculated_total += calculatedTotal;
+      byChannel[channel].fee_amount += feeAmount;
+      byChannel[channel].fee_percentage += feePercentage;
+      byChannel[channel].net_revenue += Number(sale.net_amount || 0);
+      byChannel[channel].sales_count += 1;
+    });
+
+    Object.values(byChannel).forEach((channelData) => {
+      channelData.fee_percentage = channelData.calculated_total > 0
+        ? (channelData.fee_amount / channelData.calculated_total) * 100
+        : 0;
+    });
     const settled_cash_inflow = cashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
       0
@@ -113,6 +147,14 @@ export async function GET(request: NextRequest) {
       pending_sales_amount,
       pending_expenses_amount,
       cash_basis_profit: settled_cash_inflow - settled_cash_outflow,
+      online_fee_analysis: {
+        total_calculated_total: totalCalculatedTotal,
+        total_fee_amount: totalFeeAmount,
+        total_fee_percentage: totalFeePercentage,
+        total_net_revenue: totalNetRevenue,
+        online_sales_count: onlineSales.length,
+        by_channel: byChannel,
+      },
     };
 
     // Revenue by channel

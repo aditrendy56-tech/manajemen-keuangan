@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
+import { calculateSaleAnalysis } from '@/lib/calculations/platform-fees';
 
 interface ItemRow {
   id: string;
@@ -40,6 +41,7 @@ export function BatchSaleForm({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
   const [settlementDate, setSettlementDate] = useState('');
+  const [netRevenue, setNetRevenue] = useState('');
   const [paymentEntries, setPaymentEntries] = useState<Array<{
     id: string;
     payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
@@ -154,6 +156,11 @@ export function BatchSaleForm({
   }
 
   const grossAmount = items.reduce((sum, it) => sum + it.quantity * Number(it.unit_price || 0), 0);
+  const platformFeeRate = platform === 'shopeefood' ? 0.2 : platform === 'gofood' ? 0.25 : 0;
+  const fallbackNetRevenue = grossAmount - grossAmount * platformFeeRate;
+  const explicitNetRevenue = netRevenue.trim() !== '' ? Number(netRevenue || 0) : fallbackNetRevenue;
+  const analysis = calculateSaleAnalysis(grossAmount, channelType === 'online' ? explicitNetRevenue : grossAmount);
+  const feeGapPercentage = analysis.fee_percentage;
   const splitPaymentTotal = paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -187,6 +194,10 @@ export function BatchSaleForm({
         channel: channelType === 'offline' ? 'offline' : platform || 'offline',
         payment_method: paymentMode === 'split' ? 'split' : paymentMethod,
         gross_amount: normalizedGrossAmount,
+        net_revenue: channelType === 'online' ? explicitNetRevenue : normalizedGrossAmount,
+        calculated_total: analysis.calculated_total,
+        fee_amount: analysis.fee_amount,
+        fee_percentage: analysis.fee_percentage,
         payment_status: paymentMode === 'split' ? (paymentEntries.every((entry) => entry.payment_status === 'settled') ? 'settled' : 'pending') : paymentStatus,
         settlement_date: paymentMode === 'split' ? null : settlementDate || null,
         items: items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, unit_price: it.unit_price })),
@@ -274,6 +285,19 @@ export function BatchSaleForm({
                     <SelectItem value="gofood">GoFood</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {channelType === 'online' && (
+              <div className="space-y-2">
+                <Label>Pendapatan Bersih dari Aplikasi (Rp)</Label>
+                <CurrencyInput
+                  value={netRevenue}
+                  onChange={(e) => setNetRevenue(e.target.value)}
+                  placeholder="Masukkan uang real yang masuk ke kas"
+                  showVisual={true}
+                />
+                <p className="text-xs text-slate-500">Nilai ini dipakai sebagai uang real untuk dashboard dan cash flow. Gap antara total item dan angka ini akan tampil sebagai analisis fee.</p>
               </div>
             )}
 
@@ -411,6 +435,21 @@ export function BatchSaleForm({
                 <Input type="date" value={settlementDate} onChange={(e) => setSettlementDate(e.target.value)} />
               </div>
             </div>
+
+            {channelType === 'online' && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <p className="font-semibold">Analisis Fee Online</p>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div>Calculated total: <strong>Rp {analysis.calculated_total.toLocaleString('id-ID')}</strong></div>
+                  <div>Net revenue: <strong>Rp {analysis.net_revenue.toLocaleString('id-ID')}</strong></div>
+                  <div>Fee amount: <strong>Rp {analysis.fee_amount.toLocaleString('id-ID')}</strong></div>
+                  <div>Fee percentage: <strong>{analysis.fee_percentage.toFixed(2)}%</strong></div>
+                </div>
+                {Math.abs(feeGapPercentage) > 15 && (
+                  <p className="mt-3 rounded-lg border border-amber-300 bg-white/80 p-2 text-amber-800">⚠️ Gap fee di atas 15%. Cek potongan / promo / biaya marketplace sebelum lanjut.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

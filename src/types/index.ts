@@ -115,6 +115,9 @@ export interface Sale {
   platform?: 'shopeefood' | 'gofood' | null;
   payment_method: 'cash' | 'qris' | 'split';
   gross_amount: number;
+  calculated_total?: number | null;
+  fee_amount?: number | null;
+  fee_percentage?: number | null;
   platform_fee: number;
   net_amount: number;
   // HPP Tracking (PHASE 3)
@@ -317,6 +320,10 @@ export interface SaleFormData {
     notes?: string | null;
   }>;
   items: { product_id: string; quantity: number }[];
+  net_revenue?: number;
+  calculated_total?: number;
+  fee_amount?: number;
+  fee_percentage?: number;
   notes?: string;
 }
 
@@ -338,6 +345,20 @@ export interface ProfitLossReport {
   gross_revenue: number;
   platform_fees: number;
   net_revenue: number;
+  online_fee_analysis?: {
+    total_calculated_total: number;
+    total_fee_amount: number;
+    total_fee_percentage: number;
+    total_net_revenue: number;
+    online_sales_count: number;
+    by_channel: Record<string, {
+      calculated_total: number;
+      fee_amount: number;
+      fee_percentage: number;
+      net_revenue: number;
+      sales_count: number;
+    }>;
+  };
   total_expenses: number;
   expenses_by_category: Record<string, number>;
   gross_profit: number;

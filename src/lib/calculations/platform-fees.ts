@@ -23,6 +23,28 @@ export function calculateNetAmount(
   return grossAmount - platformFee;
 }
 
+export function calculateSaleAnalysis(
+  calculatedTotal: number,
+  netRevenue: number,
+): {
+  calculated_total: number;
+  net_revenue: number;
+  fee_amount: number;
+  fee_percentage: number;
+} {
+  const safeCalculatedTotal = Number(calculatedTotal || 0);
+  const safeNetRevenue = Number(netRevenue ?? safeCalculatedTotal);
+  const feeAmount = safeCalculatedTotal - safeNetRevenue;
+  const feePercentage = safeCalculatedTotal > 0 ? (feeAmount / safeCalculatedTotal) * 100 : 0;
+
+  return {
+    calculated_total: safeCalculatedTotal,
+    net_revenue: safeNetRevenue,
+    fee_amount: feeAmount,
+    fee_percentage: feePercentage,
+  };
+}
+
 import { getSupabaseServer } from '@/lib/supabase/server';
 
 export async function calculatePlatformFeeServer(
