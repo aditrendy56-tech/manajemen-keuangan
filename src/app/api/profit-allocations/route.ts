@@ -31,14 +31,16 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/profit-allocations (v2.0)
+ * POST /api/profit-allocations (v3.0 - Phase 3)
  * 
- * New logic with hutang-priority:
+ * Updated logic with hutang-priority + employee allocation:
  * 1. Auto-deduct hutang from profit_pending
  * 2. Create capital_repayments for hutang payments
- * 3. Top-up Kas Utama
- * 4. Allocate Simpan Uang with reason
- * 5. Calculate profit share (LUNAS only)
+ * 3. Auto-deduct employee allocation from remaining profit (NEW in v3.0)
+ * 4. Create employee_allocations records (NEW in v3.0)
+ * 5. Top-up Kas Utama
+ * 6. Allocate Simpan Uang with reason
+ * 7. Calculate profit share (LUNAS only)
  * 
  * Request:
  * {
@@ -48,6 +50,8 @@ export async function GET(request: NextRequest) {
  *   profit_pending_amount: number,
  *   profit_after_hutang: number,
  *   hutang_payments: Record<investor_id, {investorName, amount}>,
+ *   employee_mode: 'exclude' | 'include',
+ *   employee_allocations: Array<{employee_id, allocation_amount, allocation_type}>,
  *   kas_utama_topup: number,
  *   simpan_uang_amount: number,
  *   simpan_reason: string,
@@ -65,6 +69,8 @@ export async function POST(request: NextRequest) {
       profit_pending_amount,
       profit_after_hutang,
       hutang_payments,  // Record<investor_id, {investorName, amount}>
+      employee_mode,    // NEW: 'exclude' | 'include'
+      employee_allocations,  // NEW: Array<{employee_id, allocation_amount, allocation_type}>
       kas_utama_topup,
       use_kas_utama_topup,
       simpan_uang_amount,
@@ -92,12 +98,20 @@ export async function POST(request: NextRequest) {
     const BUFFER_KAS_UTAMA = 100000; // Minimum buffer to keep in kas_utama after any top-up usage
 
     // ===== STEP 1: Create profit_allocation record =====
+    // Calculate total employee allocation
+    const totalEmployeeAllocation = employee_mode === 'include' && employee_allocations
+      ? employee_allocations.reduce((sum: number, alloc: any) => sum + parseFloat(alloc.allocation_amount || 0), 0)
+      : 0;
+
     const allocationRecord = {
       outlet_id,
       allocation_date,
       allocation_month,
       profit_pending_amount: parseFloat(profit_pending_amount),
       profit_after_hutang: parseFloat(profit_after_hutang),
+      employee_mode: employee_mode || 'exclude',  // NEW: track if employees were included
+      total_employee_allocation: totalEmployeeAllocation,  // NEW: total amount for employees
+      karyawan_allocations: employee_mode === 'include' ? employee_allocations : null,  // NEW: detailed employee allocations
       kas_utama_topup: parseFloat(kas_utama_topup) || 0,
       simpan_uang_amount: parseFloat(simpan_uang_amount) || 0,
       simpan_reason: simpan_reason || null,
@@ -122,6 +136,7 @@ export async function POST(request: NextRequest) {
     let successResults: any = {
       allocation_id: allocationId,
       hutang_payments_created: 0,
+      employee_allocations_created: 0,  // NEW: track employee allocations
       simpan_uang_allocated: 0,
       kas_topup_recorded: 0,
       warnings: [],
@@ -199,20 +214,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ===== STEP 3: Allocate Simpan Uang =====
+    // ===== STEP 3: Create employee allocations (NEW in v3.0) =====
+    if (employee_mode === 'include' && employee_allocations && employee_allocations.length > 0) {
+      const employeeAllocationRecords = employee_allocations.map((alloc: any) => ({
+        profit_allocation_id: allocationId,
+        employee_id: alloc.employee_id,
+        outlet_id,
+        allocation_amount: parseFloat(alloc.allocation_amount),
+        allocation_type: alloc.allocation_type || 'gaji',
+        allocation_month,
+        status: 'pending',
+        allocation_reason: `Allocated from profit ${allocation_month}`,
+        notes: alloc.notes || null,
+      }));
+
+      const { data: empAllocData, error: empAllocError } = await (supabase
+        .from('employee_allocations') as any)
+        .insert(employeeAllocationRecords)
+        .select();
+
+      if (empAllocError) {
+        console.warn('[POST /api/profit-allocations] Warning: Could not create employee allocations:', empAllocError);
+        successResults.warnings.push('Failed to create some employee allocation records');
+      } else {
+        successResults.employee_allocations_created = empAllocData?.length || 0;
+      }
+    }
+
+    // ===== STEP 4: Allocate Simpan Uang =====
     if (parseFloat(simpan_uang_amount) > 0 && simpan_reason) {
-      const { error: simpanError } = await supabase
-        .from('simpan_uang_allocations')
-        .insert({
-          outlet_id,
-          allocation_month,
-          amount: parseFloat(simpan_uang_amount),
-          reason: simpan_reason,
-          status: 'active',
-          created_at: new Date().toISOString(),
-          created_by: 'system',
-          notes: `Phase 2.0 allocation for ${allocation_month}`,
-        });
+      const simpanData: any = {
+        outlet_id,
+        allocation_month,
+        amount: parseFloat(simpan_uang_amount),
+        reason: simpan_reason,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        created_by: 'system',
+        notes: `Phase 2.0 allocation for ${allocation_month}`,
+      };
+      const { error: simpanError } = await (supabase
+        .from('simpan_uang_allocations') as any)
+        .insert(simpanData);
 
       if (simpanError) {
         console.warn('[POST /api/profit-allocations] Warning: Could not create simpan_uang_allocation:', simpanError);
@@ -222,13 +265,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ===== STEP 4: Update financial_accounts with kas top-up & simpan uang =====
+    // ===== STEP 5: Update financial_accounts with kas top-up & simpan uang =====
     try {
       const simpanAmount = parseFloat(simpan_uang_amount) || 0;
 
       // Determine totals for deduction from profit_pending
       const sumRepayments = totalRepaymentsRequested;
-      const profitDeducted = Math.min(currentProfitPending, sumRepayments + simpanAmount);
+      const sumEmployeeAllocation = totalEmployeeAllocation;  // NEW: include employee allocation
+      const profitDeducted = Math.min(currentProfitPending, sumRepayments + sumEmployeeAllocation + simpanAmount);
 
       // Kas topup is an outflow from kas_utama when used to cover shortfall
       const kasTopupUsed = use_kas_utama_topup ? kasTopupAmount : 0;
@@ -237,20 +281,19 @@ export async function POST(request: NextRequest) {
       const newSimpanUang = parseFloat(new Decimal(((currentBalance as any)?.simpan_uang_balance || 0) + simpanAmount).toFixed(2));
       const newProfitPending = Math.max(0, parseFloat(new Decimal(((currentBalance as any)?.profit_pending_balance || 0) - profitDeducted).toFixed(2)));
 
-      const { error: updateError } = await supabase
-        .from('financial_accounts')
-        .upsert(
-          {
-            outlet_id,
-            kas_utama_balance: newKasUtama,
-            kas_utama_last_updated: new Date().toISOString(),
-            simpan_uang_balance: newSimpanUang,
-            simpan_uang_last_updated: new Date().toISOString(),
-            profit_pending_balance: newProfitPending,
-            profit_pending_last_updated: new Date().toISOString(),
-          },
-          { onConflict: 'outlet_id' }
-        );
+      const updateData: any = {
+        outlet_id,
+        kas_utama_balance: newKasUtama,
+        kas_utama_last_updated: new Date().toISOString(),
+        simpan_uang_balance: newSimpanUang,
+        simpan_uang_last_updated: new Date().toISOString(),
+        profit_pending_balance: newProfitPending,
+        profit_pending_last_updated: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await (supabase
+        .from('financial_accounts') as any)
+        .upsert(updateData, { onConflict: 'outlet_id' });
 
       if (updateError) {
         console.warn('[POST /api/profit-allocations] Warning: Could not update financial_accounts:', updateError);

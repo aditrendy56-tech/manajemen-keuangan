@@ -31,11 +31,34 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, date, amount, source, notes, investor_id, source_type, category, items } = body;
+    const { 
+      outlet_id, date, amount, source, notes, investor_id, source_type, category, items,
+      hutang_status = 'cicilan',
+      cicilan_amount,
+      cicilan_start_date,
+      cicilan_months,
+      hutang_status_set_by
+    } = body;
 
     if (!outlet_id || !date || !amount) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate hutang_status
+    if (!['full_payment', 'cicilan'].includes(hutang_status)) {
+      return NextResponse.json(
+        { error: 'Invalid hutang_status. Must be full_payment or cicilan' },
+        { status: 400 }
+      );
+    }
+
+    // If cicilan, cicilan_amount is required
+    if (hutang_status === 'cicilan' && !cicilan_amount) {
+      return NextResponse.json(
+        { error: 'cicilan_amount required when hutang_status is cicilan' },
         { status: 400 }
       );
     }
@@ -49,7 +72,13 @@ export async function POST(request: NextRequest) {
       investor_id,
       source_type,
       category,
-      items: items || null
+      items: items || null,
+      hutang_status,
+      cicilan_amount: hutang_status === 'cicilan' ? cicilan_amount : null,
+      cicilan_start_date: hutang_status === 'cicilan' ? cicilan_start_date : null,
+      cicilan_months: hutang_status === 'cicilan' ? cicilan_months : null,
+      hutang_status_set_at: new Date().toISOString(),
+      hutang_status_set_by: hutang_status_set_by || 'system'
     };
     const { data, error } = await (getSupabaseServer().from('capital_entries') as any)
       .insert([insertData])
@@ -65,7 +94,7 @@ export async function POST(request: NextRequest) {
       source_type: 'capital_entry',
       source_id: data.id,
       amount: Number(amount),
-      description: `Modal masuk${source ? ` - ${source}` : ''}`,
+      description: `Modal masuk${source ? ` - ${source}` : ''} (${hutang_status})`,
       notes: notes || null,
     });
 

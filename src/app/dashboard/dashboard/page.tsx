@@ -10,6 +10,8 @@ import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { DualBucketFinancialDisplay } from '@/components/dashboard/DualBucketFinancialDisplay';
+import { KasUtamaTracking } from '@/components/dashboard/KasUtamaTracking';
+import { RepaymentSummary } from '@/components/dashboard/RepaymentSummary';
 
 // Channel Detail Card Component
 function ChannelDetailCard({
@@ -257,6 +259,19 @@ export default function DashboardPage() {
 
       {/* 💰 SECTION 2: DUAL-BUCKET FINANCIAL SYSTEM (PHASE 3) */}
       <DualBucketFinancialDisplay outletId={outletId} />
+
+      {/* 💰 SECTION 2.5: KAS UTAMA TRACKING BREAKDOWN (PHASE 2) */}
+      {outletId && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-lg font-semibold mb-4">📊 Tracking Kas Utama</h2>
+          <KasUtamaTracking outletId={outletId} />
+        </div>
+      )}
+
+      {/* 📤 PHASE 4: REPAYMENT SUMMARY */}
+      {outletId && (
+        <RepaymentSummary outletId={outletId} />
+      )}
 
       {/* PHASE 2: Cash Inflow Breakdown by Channel */}
       <div>

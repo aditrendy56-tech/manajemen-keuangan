@@ -359,6 +359,10 @@ export default function FundingPage() {
       amount: '',
       source_id: '',
       notes: '',
+      hutang_status: 'cicilan' as 'full_payment' | 'cicilan',
+      cicilan_amount: '',
+      cicilan_start_date: new Date().toISOString().split('T')[0],
+      cicilan_months: '',
     });
     const [saving, setSaving] = useState(false);
 
@@ -381,6 +385,12 @@ export default function FundingPage() {
         alert('Pilih sumber dana terlebih dahulu');
         return;
       }
+
+      // Validate cicilan fields if hutang_status is cicilan
+      if (formData.hutang_status === 'cicilan' && !formData.cicilan_amount) {
+        alert('Cicilan amount harus diisi jika status CICILAN');
+        return;
+      }
       
       setSaving(true);
       try {
@@ -395,6 +405,11 @@ export default function FundingPage() {
             source_type: selectedSource.source_type || 'investor',
             investor_id: selectedSource.id,
             notes: formData.notes,
+            hutang_status: formData.hutang_status,
+            cicilan_amount: formData.hutang_status === 'cicilan' ? parseFloat(formData.cicilan_amount) : null,
+            cicilan_start_date: formData.hutang_status === 'cicilan' ? formData.cicilan_start_date : null,
+            cicilan_months: formData.hutang_status === 'cicilan' ? parseInt(formData.cicilan_months) || null : null,
+            hutang_status_set_by: 'dashboard'
           }),
         });
         if (!response.ok) throw new Error('Failed to create capital entry');
@@ -403,6 +418,10 @@ export default function FundingPage() {
           amount: '',
           source_id: '',
           notes: '',
+          hutang_status: 'cicilan',
+          cicilan_amount: '',
+          cicilan_start_date: new Date().toISOString().split('T')[0],
+          cicilan_months: '',
         });
         await fetchAllData();
       } catch (error) {
@@ -545,6 +564,95 @@ export default function FundingPage() {
                   {selectedSource.notes && <p className="text-gray-600 text-xs mt-1">💬 {selectedSource.notes}</p>}
                 </div>
               )}
+
+              {/* HUTANG STATUS SECTION */}
+              <div className="border-t pt-4">
+                <Label className="font-semibold">💰 Tipe Pembayaran Hutang *</Label>
+                <div className="flex gap-4 mt-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="full_payment"
+                      name="hutang_status"
+                      value="full_payment"
+                      checked={formData.hutang_status === 'full_payment'}
+                      onChange={(e) => setFormData({ ...formData, hutang_status: e.target.value as 'full_payment' | 'cicilan' })}
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="full_payment" className="cursor-pointer text-sm">
+                      💵 Full Payment (Bayar sekaligus)
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="cicilan"
+                      name="hutang_status"
+                      value="cicilan"
+                      checked={formData.hutang_status === 'cicilan'}
+                      onChange={(e) => setFormData({ ...formData, hutang_status: e.target.value as 'full_payment' | 'cicilan' })}
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="cicilan" className="cursor-pointer text-sm">
+                      📅 Cicilan (Bayar berkala)
+                    </label>
+                  </div>
+                </div>
+
+                {/* Show cicilan fields if CICILAN selected */}
+                {formData.hutang_status === 'cicilan' && (
+                  <div className="space-y-4 mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div>
+                      <Label>Cicilan Bulanan (Rp) *</Label>
+                      <Input
+                        type="number"
+                        value={formData.cicilan_amount}
+                        onChange={(e) => setFormData({ ...formData, cicilan_amount: e.target.value })}
+                        placeholder="Jumlah cicilan per bulan"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Total modal: Rp {parseFloat(formData.amount).toLocaleString('id-ID') || '0'}</p>
+                    </div>
+
+                    <div>
+                      <Label>Mulai Cicilan</Label>
+                      <Input
+                        type="date"
+                        value={formData.cicilan_start_date}
+                        onChange={(e) => setFormData({ ...formData, cicilan_start_date: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Total Bulan Cicilan (opsional)</Label>
+                      <Input
+                        type="number"
+                        value={formData.cicilan_months}
+                        onChange={(e) => setFormData({ ...formData, cicilan_months: e.target.value })}
+                        placeholder="Contoh: 12 bulan"
+                        min="1"
+                      />
+                    </div>
+
+                    <div className="text-xs bg-white p-2 rounded border border-yellow-200">
+                      <p className="font-semibold text-yellow-800">💡 Catatan Cicilan:</p>
+                      <ul className="list-disc list-inside text-gray-700 space-y-1 mt-1">
+                        <li>Cicilan bersifat rencana, bisa disesuaikan saat Alokasi Laba</li>
+                        <li>Hutang akan muncul di Step 2 Alokasi Laba dengan status CICIL</li>
+                        <li>Repayment akan tercatat di tabel capital_repayments</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {formData.hutang_status === 'full_payment' && (
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">
+                      ✓ Modal ini akan ditandai sebagai FULL PAYMENT. Tidak akan muncul di Alokasi Laba.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div>
                 <Label>Catatan</Label>
@@ -751,7 +859,7 @@ export default function FundingPage() {
   // ========== TAB 2: ALOKASI LABA v2.0 - NEW DESIGN WITH HUTANG PRIORITY ==========
   function TabAllokasiLaba() {
     // ===== STATES =====
-    const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1); // Step tracker
+    const [step, setStep] = useState<number>(1); // Step tracker (1-8, 2.5=employee allocation)
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -762,7 +870,7 @@ export default function FundingPage() {
 
     // Step 2-3: Hutang calculation
     const [investorHutang, setInvestorHutang] = useState<
-      Record<string, { total: number; status: 'lunas' | 'cicil' | 'belum' }>
+      Record<string, { outstanding: number; status: 'lunas' | 'cicil' | 'belum' | 'full_payment'; total_modal: number; total_repaid: number }>
     >({});
     const [totalHutang, setTotalHutang] = useState(0);
     const [hutangWarning, setHutangWarning] = useState(false);
@@ -772,6 +880,15 @@ export default function FundingPage() {
     const [hutangAllocations, setHutangAllocations] = useState<
       Record<string, { investorName: string; amount: number }>
     >({});
+
+    // Step 2.5: Employee allocation (NEW - Phase 3)
+    const [employeeMode, setEmployeeMode] = useState<'exclude' | 'include'>('exclude');
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [employeeAllocations, setEmployeeAllocations] = useState<
+      Record<string, { allocation_amount: number; allocation_type: 'gaji' | 'bonus' | 'thr' | 'bonus_produksi' }>
+    >({});
+    const [totalEmployeeAllocation, setTotalEmployeeAllocation] = useState(0);
+    const [profitAfterEmployee, setProfitAfterEmployee] = useState(0);
 
     // Step 5: User choice
     const [userChoice, setUserChoice] = useState<'full_profit' | 'available_kas' | 'custom'>('full_profit');
@@ -812,31 +929,50 @@ export default function FundingPage() {
         setProfitAfterHutang(balance.profit_pending || 0);
 
         // Calculate hutang per investor
-        const hutangMap: Record<string, { total: number; status: 'lunas' | 'cicil' | 'belum' }> = {};
+        const hutangMap: Record<string, { outstanding: number; status: 'lunas' | 'cicil' | 'belum' | 'full_payment'; total_modal: number; total_repaid: number }> = {};
         let totalHutangAmount = 0;
 
+        console.log('[DEBUG] data.investors:', data.investors);
+        
         for (const investor of data.investors) {
           try {
-            // Fetch investor's hutang status
-            const hutangRes = await fetch(`/api/investors/${investor.id}/hutang-status`);
+            console.log(`[DEBUG] Fetching hutang for ${investor.name} (${investor.id})`);
+            const hutangRes = await fetch(`/api/investors/${investor.id}?hutang-status=true`);
             if (hutangRes.ok) {
               const hutang = await hutangRes.json();
+              console.log(`[DEBUG] Hutang response for ${investor.id}:`, hutang);
               hutangMap[investor.id] = hutang;
               if (hutang.status === 'cicil') {
-                totalHutangAmount += hutang.total;
+                totalHutangAmount += hutang.outstanding;
               }
+            } else {
+              console.warn(`[DEBUG] Hutang API returned error status ${hutangRes.status} for ${investor.id}`);
             }
           } catch (err) {
-            console.warn('Could not fetch hutang for investor:', investor.id);
+            console.warn('[DEBUG] Could not fetch hutang for investor:', investor.id, err);
           }
         }
 
-        setInvestorHutang(hutangMap);
+        console.log('[DEBUG] Final hutangMap:', hutangMap);
+        console.log('[DEBUG] Final totalHutangAmount:', totalHutangAmount);
+        
+        setInvestorHutang(hutangMap as any);
         setTotalHutang(totalHutangAmount);
 
         // WARN if profit_pending < total hutang
         if (balance.profit_pending < totalHutangAmount) {
           setHutangWarning(true);
+        }
+
+        // Fetch employees (NEW - Phase 3)
+        try {
+          const empRes = await fetch(`/api/employees?outlet_id=${outletId}&status=active`);
+          if (empRes.ok) {
+            const empData = await empRes.json();
+            setEmployees(empData.employees || []);
+          }
+        } catch (err) {
+          console.warn('Could not fetch employees:', err);
         }
 
         setStep(2);
@@ -857,7 +993,7 @@ export default function FundingPage() {
       for (const investor of data.investors) {
         const hutang = investorHutang[investor.id];
         if (hutang && hutang.status === 'cicil') {
-          const toPay = Math.min(hutang.total, remainingProfit);
+          const toPay = Math.min(hutang.outstanding, remainingProfit);
           if (toPay > 0) {
             allocations[investor.id] = { investorName: investor.name, amount: toPay };
             remainingProfit -= toPay;
@@ -867,7 +1003,7 @@ export default function FundingPage() {
 
       setHutangAllocations(allocations);
       setProfitAfterHutang(remainingProfit);
-      setStep(5);
+      setStep(2.5); // NEW: Go to employee allocation step
     }
 
     // ===== STEP 5: Handle user choice =====
@@ -926,6 +1062,13 @@ export default function FundingPage() {
       try {
         const month = new Date().toISOString().substring(0, 7); // YYYY-MM
 
+        // Convert employee allocations to array format
+        const employeeAllocArray = Object.entries(employeeAllocations).map(([empId, alloc]: any) => ({
+          employee_id: empId,
+          allocation_amount: alloc.allocation_amount,
+          allocation_type: alloc.allocation_type,
+        }));
+
         // Build allocation record
         const allocationRecord = {
           outlet_id: outletId,
@@ -935,6 +1078,10 @@ export default function FundingPage() {
           // Hutang payments (auto)
           hutang_payments: hutangAllocations,
           total_hutang_paid: Object.values(hutangAllocations).reduce((sum, h) => sum + h.amount, 0),
+          
+          // Employee allocation (NEW - Phase 3)
+          employee_mode: employeeMode,
+          employee_allocations: employeeAllocArray,
           
           // Kas top-up
           kas_utama_topup: parseFloat(kasTopup) || 0,
@@ -950,7 +1097,7 @@ export default function FundingPage() {
           user_choice: userChoice,
           
           // Tracking
-          notes: `Phase 2.0: Hutang priority allocation with ${data.investors.length} investors`,
+          notes: `Phase 3.0: Hutang + Karyawan allocation with ${data.investors.length} investors and ${employeeAllocArray.length} employees`,
         };
 
         const response = await fetch('/api/profit-allocations', {
@@ -965,11 +1112,14 @@ export default function FundingPage() {
         }
 
         // Success
-        alert('✅ Alokasi laba berhasil disimpan dengan hutang-priority logic!');
+        alert('✅ Alokasi laba Phase 3 berhasil disimpan (Hutang + Karyawan)!');
         await fetchAllData();
         setStep(1);
         
         // Reset forms
+        setEmployeeMode('exclude');
+        setEmployeeAllocations({});
+        setTotalEmployeeAllocation(0);
         setKasTopup('');
         setSimpanAmount('');
         setSimpanReason('');
@@ -1087,8 +1237,8 @@ export default function FundingPage() {
                           {icon} {investor.name}
                         </span>
                         <span className={`font-semibold ${color}`}>{hutang.status.toUpperCase()}</span>
-                        {hutang.total > 0 && (
-                          <span className="text-gray-600">{formatCurrency(hutang.total)}</span>
+                        {hutang.outstanding > 0 && (
+                          <span className="text-gray-600">{formatCurrency(hutang.outstanding)}</span>
                         )}
                       </div>
                     );
@@ -1146,6 +1296,170 @@ export default function FundingPage() {
           </Card>
         )}
 
+        {/* STEP 2.5: Alokasi Karyawan (NEW - Phase 3) */}
+        {step === 2.5 && (
+          <Card className="border-green-300 bg-green-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-green-600" /> Step 2.5: Alokasi Karyawan
+              </CardTitle>
+              <CardDescription>
+                Pilih apakah ingin mengalokasikan profit ke karyawan untuk gaji/bonus
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Employee Mode Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="emp_exclude"
+                    checked={employeeMode === 'exclude'}
+                    onChange={() => {
+                      setEmployeeMode('exclude');
+                      setEmployeeAllocations({});
+                      setTotalEmployeeAllocation(0);
+                    }}
+                    className="w-5 h-5"
+                  />
+                  <label htmlFor="emp_exclude" className="cursor-pointer flex-1">
+                    <span className="font-semibold">Tidak ada alokasi ke karyawan</span>
+                    <p className="text-sm text-gray-600">Skip langkah ini, lanjut ke tahap berikutnya</p>
+                  </label>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    id="emp_include"
+                    checked={employeeMode === 'include'}
+                    onChange={() => setEmployeeMode('include')}
+                    className="w-5 h-5 mt-1"
+                  />
+                  <label htmlFor="emp_include" className="cursor-pointer flex-1">
+                    <span className="font-semibold">✓ Alokasikan ke karyawan</span>
+                    <p className="text-sm text-gray-600">Pilih karyawan dan tentukan alokasi gaji/bonus</p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Employee Allocation Form */}
+              {employeeMode === 'include' && (
+                <div className="bg-white p-4 rounded border-2 border-green-300">
+                  {employees.length === 0 ? (
+                    <p className="text-sm text-gray-600 italic">Tidak ada karyawan aktif</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {employees.map((emp) => (
+                        <div key={emp.id} className="p-3 bg-gray-50 rounded border">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="font-semibold text-sm">{emp.name}</p>
+                              <p className="text-xs text-gray-600">{emp.role}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div>
+                              <label className="text-xs font-semibold block mb-1">Alokasi (Rp)</label>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                value={employeeAllocations[emp.id]?.allocation_amount || ''}
+                                onChange={(e) => {
+                                  const amount = parseInt(e.target.value) || 0;
+                                  setEmployeeAllocations((prev) => ({
+                                    ...prev,
+                                    [emp.id]: {
+                                      ...prev[emp.id],
+                                      allocation_amount: amount,
+                                      allocation_type: prev[emp.id]?.allocation_type || 'gaji',
+                                    },
+                                  }));
+                                }}
+                                className="text-sm"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-semibold block mb-1">Tipe Alokasi</label>
+                              <Select
+                                value={employeeAllocations[emp.id]?.allocation_type || 'gaji'}
+                                onValueChange={(value: any) => {
+                                  setEmployeeAllocations((prev) => ({
+                                    ...prev,
+                                    [emp.id]: {
+                                      ...prev[emp.id],
+                                      allocation_amount: prev[emp.id]?.allocation_amount || 0,
+                                      allocation_type: value,
+                                    },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="text-sm">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="gaji">Gaji Bulanan</SelectItem>
+                                  <SelectItem value="bonus">Bonus</SelectItem>
+                                  <SelectItem value="thr">THR</SelectItem>
+                                  <SelectItem value="bonus_produksi">Bonus Produksi</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Total Employee Allocation Summary */}
+                  {Object.keys(employeeAllocations).length > 0 && (
+                    <div className="mt-4 pt-4 border-t-2 border-green-300">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-sm">Total Alokasi Karyawan:</span>
+                        <span className="text-lg font-bold text-green-600">
+                          {formatCurrency(
+                            Object.values(employeeAllocations).reduce(
+                              (sum: number, alloc: any) => sum + (alloc.allocation_amount || 0),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2">
+                        Akan dikurangi dari sisa profit setelah pembayaran hutang
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex gap-2">
+                <Button onClick={() => setStep(3)} variant="outline" className="flex-1">
+                  Kembali
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Calculate total employee allocation
+                    const total = Object.values(employeeAllocations).reduce(
+                      (sum: number, alloc: any) => sum + (alloc.allocation_amount || 0),
+                      0
+                    );
+                    setTotalEmployeeAllocation(total);
+                    setProfitAfterEmployee(profitAfterHutang - total);
+                    setStep(4);
+                  }}
+                  className="flex-1 bg-blue-600"
+                >
+                  Lanjut ke Step 4: Tinjau Alokasi
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* STEP 4: Show After-Hutang Amount */}
         {step >= 4 && (
           <Card className="border-orange-300 bg-orange-50">
@@ -1155,7 +1469,7 @@ export default function FundingPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white rounded border">
                   <p className="text-xs text-gray-600">Profit Awal</p>
                   <p className="text-lg font-bold text-blue-600">{formatCurrency(profitPending)}</p>
@@ -1164,10 +1478,19 @@ export default function FundingPage() {
                   <p className="text-xs text-gray-600">Bayar Hutang</p>
                   <p className="text-lg font-bold text-red-600">- {formatCurrency(totalHutang)}</p>
                 </div>
-                <div className="p-3 bg-white rounded border border-green-300">
-                  <p className="text-xs text-gray-600 font-semibold">Sisa Profit</p>
-                  <p className="text-lg font-bold text-green-600">{formatCurrency(profitAfterHutang)}</p>
+              </div>
+
+              {/* Show employee allocation if any */}
+              {totalEmployeeAllocation > 0 && (
+                <div className="p-3 bg-white rounded border">
+                  <p className="text-xs text-gray-600">Alokasi Karyawan</p>
+                  <p className="text-lg font-bold text-purple-600">- {formatCurrency(totalEmployeeAllocation)}</p>
                 </div>
+              )}
+
+              <div className="p-3 bg-white rounded border border-green-400">
+                <p className="text-xs text-gray-600 font-semibold">Sisa Profit Untuk Alokasi</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(profitAfterEmployee || profitAfterHutang)}</p>
               </div>
 
               {Object.keys(hutangAllocations).length > 0 && (
@@ -1180,6 +1503,26 @@ export default function FundingPage() {
                         <span className="font-semibold text-red-600">{formatCurrency(alloc.amount)}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Show employee allocations if any */}
+              {Object.keys(employeeAllocations).length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-sm mb-2">Alokasi Karyawan:</h3>
+                  <div className="space-y-1">
+                    {Object.entries(employeeAllocations).map(([empId, alloc]: any) => {
+                      const employee = employees.find((e) => e.id === empId);
+                      return (
+                        <div key={empId} className="flex justify-between text-sm bg-white p-2 rounded">
+                          <span>{employee?.name}</span>
+                          <span className="font-semibold text-purple-600">
+                            {alloc.allocation_type} : {formatCurrency(alloc.allocation_amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1498,7 +1841,7 @@ export default function FundingPage() {
     );
   }
 
-  // TAB 3: Pembayaran Kembali
+  // TAB 3: Pembayaran Kembali (Phase 4 - Enhanced dengan Alokasi Laba tracking)
   function TabRepayment() {
     const [formData, setFormData] = useState({
       investor_id: '',
@@ -1508,8 +1851,28 @@ export default function FundingPage() {
       notes: '',
       repayment_type: 'lunas' as 'lunas' | 'cicil',
       remaining_modal: '',
+      // Phase 4 fields
+      profit_allocation_id: '',
+      cicilan_number: undefined as number | undefined,
+      capital_entry_id: '',
     });
     const [saving, setSaving] = useState(false);
+    const [allocatedData, setAllocatedData] = useState<any>(null);
+    const [loadingAllocated, setLoadingAllocated] = useState(false);
+
+    // Fetch allocated cicilan when investor changes
+    useEffect(() => {
+      if (formData.investor_id && outletId) {
+        setLoadingAllocated(true);
+        fetch(`/api/capital-repayments/allocated?investor_id=${formData.investor_id}&outlet_id=${outletId}`)
+          .then(r => r.json())
+          .then(data => setAllocatedData(data))
+          .catch(err => console.error('Error fetching allocated:', err))
+          .finally(() => setLoadingAllocated(false));
+      } else {
+        setAllocatedData(null);
+      }
+    }, [formData.investor_id, outletId]);
 
     async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
@@ -1529,6 +1892,10 @@ export default function FundingPage() {
             ...formData,
             amount: parseFloat(formData.amount),
             remaining_modal: formData.repayment_type === 'cicil' ? parseFloat(formData.remaining_modal) : null,
+            // Phase 4 fields
+            profit_allocation_id: formData.profit_allocation_id || null,
+            cicilan_number: formData.cicilan_number || null,
+            capital_entry_id: formData.capital_entry_id || null,
           }),
         });
         if (!response.ok) throw new Error('Failed to create repayment');
@@ -1540,10 +1907,15 @@ export default function FundingPage() {
           notes: '',
           repayment_type: 'lunas',
           remaining_modal: '',
+          profit_allocation_id: '',
+          cicilan_number: undefined,
+          capital_entry_id: '',
         });
+        setAllocatedData(null);
         await fetchAllData();
       } catch (error) {
         console.error('Error:', error);
+        alert('Gagal menyimpan pembayaran');
       } finally {
         setSaving(false);
       }
@@ -1567,12 +1939,13 @@ export default function FundingPage() {
         <Card>
           <CardHeader>
             <CardTitle>Input Pembayaran Kembali Modal</CardTitle>
+            <CardDescription>📋 Phase 4 - Tercatat otomatis ke repayment_tracking</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>📥 Investor/Owner dengan Modal Masuk *</Label>
-                <Select value={formData.investor_id || ''} onValueChange={(val) => setFormData({ ...formData, investor_id: val || '' })}>
+                <Select value={formData.investor_id || ''} onValueChange={(val) => setFormData({ ...formData, investor_id: val || '', profit_allocation_id: '', cicilan_number: undefined, capital_entry_id: '' })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih investor/owner yang sudah input modal">
                       {formData.investor_id && (() => {
@@ -1631,6 +2004,54 @@ export default function FundingPage() {
                     <p className="text-gray-600">Sisa</p>
                     <p className="font-semibold text-red-600">{formatCurrency(remaining)}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Phase 4: Show Allocated Cicilan */}
+              {allocatedData?.allocations && allocatedData.allocations.length > 0 && (
+                <div className="bg-green-50 border border-green-200 p-3 rounded">
+                  <p className="font-semibold text-sm mb-2">✅ Alokasi Cicilan Tersedia (dari Alokasi Laba)</p>
+                  <div className="space-y-2">
+                    {allocatedData.allocations.map((alloc: any) => (
+                      <div key={alloc.allocation_id} className="border rounded p-2 bg-white">
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="radio"
+                            name="allocation"
+                            value={alloc.allocation_id}
+                            checked={formData.profit_allocation_id === alloc.allocation_id}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                profit_allocation_id: e.target.value,
+                                capital_entry_id: alloc.cicilan_info?.capital_entry_id || '',
+                              });
+                            }}
+                          />
+                          <span className="text-sm font-semibold">
+                            {alloc.allocation_date} • {formatCurrency(alloc.allocated_cicilan)}
+                          </span>
+                          <Badge variant={parseFloat(alloc.available_for_payment) > 0 ? 'default' : 'secondary'}>
+                            Tersedia: {formatCurrency(alloc.available_for_payment)}
+                          </Badge>
+                        </div>
+                        {alloc.cicilan_schedule_items && alloc.cicilan_schedule_items.length > 0 && (
+                          <div className="ml-6 text-xs text-gray-600">
+                            {alloc.cicilan_schedule_items.map((cs: any, idx: number) => (
+                              <div key={idx} className="flex gap-2">
+                                <span>Cicilan {cs.cicilan_number}:</span>
+                                <span className={cs.status === 'paid' ? 'line-through text-green-600' : 'text-orange-600'}>
+                                  {formatCurrency(cs.cicilan_amount)}
+                                </span>
+                                <Badge variant="outline" className="text-xs">{cs.status}</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-green-700 mt-2">💡 Pilih alokasi untuk membayar dari alokasi laba investor</p>
                 </div>
               )}
 
@@ -1732,7 +2153,7 @@ export default function FundingPage() {
                 />
               </div>
 
-              <Button type="submit" disabled={saving} className="w-full bg-orange-600 hover:bg-orange-700">
+              <Button type="submit" disabled={saving || loadingAllocated} className="w-full bg-orange-600 hover:bg-orange-700">
                 {saving ? 'Menyimpan...' : 'Simpan Pembayaran'}
               </Button>
             </form>
