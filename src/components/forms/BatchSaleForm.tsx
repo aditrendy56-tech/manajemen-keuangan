@@ -16,8 +16,33 @@ interface ItemRow {
   unit_price: number;
 }
 
+interface SalePayload {
+  session_id: string | null;
+  outlet_id: string | null;
+  channel_type: 'offline' | 'online';
+  platform: string | null;
+  channel: string;
+  payment_method: string;
+  gross_amount: number;
+  net_revenue: number;
+  calculated_total: number;
+  fee_amount: number;
+  fee_percentage: number;
+  payment_status: string;
+  settlement_date: string | null;
+  items: Array<{ product_id?: string | null; quantity: number; unit_price: number }>;
+  payment_entries: Array<{
+    payment_method: string;
+    amount: number;
+    payment_status: string;
+    settlement_date: string | null;
+    payment_reference: string | null;
+    notes: string | null;
+  }>;
+}
+
 interface BatchSaleFormProps {
-  onSubmit: (payload: any) => Promise<void>;
+  onSubmit: (payload: SalePayload) => Promise<void>;
   sessionId?: string | null;
   outletId?: string | null;
   initialChannelType?: 'offline' | 'online';
@@ -25,8 +50,6 @@ interface BatchSaleFormProps {
   initialPaymentMethod?: 'cash' | 'qris' | 'split';
   inline?: boolean;
 }
-
-type ActiveTab = 'offline' | 'shopeefood' | 'gofood';
 
 export function BatchSaleForm({
   onSubmit,
@@ -37,18 +60,47 @@ export function BatchSaleForm({
   initialPaymentMethod = 'cash',
   inline = false,
 }: BatchSaleFormProps) {
+  type ActiveTab = 'offline' | 'shopeefood' | 'gofood';
+
   const [activeTab, setActiveTab] = useState<ActiveTab>(
-    initialChannelType === 'online' && initialPlatform === 'shopeefood'
-      ? 'shopeefood'
-      : initialChannelType === 'online' && initialPlatform === 'gofood'
+    initialChannelType === 'online'
+      ? initialPlatform === 'gofood'
         ? 'gofood'
-        : 'offline'
+        : 'shopeefood'
+      : 'offline'
   );
+  const isOnline = activeTab !== 'offline';
+  const platform = activeTab === 'offline' ? null : activeTab;
   const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(initialPaymentMethod === 'split' ? 'split' : 'single');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
-  const [settlementDate, setSettlementDate] = useState('');
   const [netRevenue, setNetRevenue] = useState('');
+
+  const defaultPaymentEntry = {
+    id: 'payment-entry-default',
+    payment_method: 'cash' as const,
+    amount: '0',
+    payment_status: 'settled' as const,
+    settlement_date: '',
+    payment_reference: '',
+    notes: '',
+  };
+
+  function createDefaultPaymentEntry() {
+    const entryId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : 'payment-entry-default';
+    return {
+      id: entryId,
+      payment_method: 'cash' as const,
+      amount: '0',
+      payment_status: 'settled' as const,
+      settlement_date: '',
+      payment_reference: '',
+      notes: '',
+    };
+  }
+
   const [paymentEntries, setPaymentEntries] = useState<Array<{
     id: string;
     payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
@@ -57,17 +109,7 @@ export function BatchSaleForm({
     settlement_date: string;
     payment_reference: string;
     notes: string;
-  }>>([
-    {
-      id: String(Date.now()),
-      payment_method: 'cash',
-      amount: '0',
-      payment_status: 'settled',
-      settlement_date: '',
-      payment_reference: '',
-      notes: '',
-    },
-  ]);
+  }>>([defaultPaymentEntry]);
   const [items, setItems] = useState<ItemRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,13 +130,10 @@ export function BatchSaleForm({
     loadProducts();
   }, [outletId]);
 
-  const isOnline = activeTab === 'shopeefood' || activeTab === 'gofood';
-  const platform = activeTab === 'shopeefood' ? 'shopeefood' : activeTab === 'gofood' ? 'gofood' : null;
-
   function getProductPrice(product: { price?: number; price_offline?: number; price_shopeefood?: number; price_gofood?: number }) {
     const basePrice = product.price_offline ?? product.price ?? 0;
-    if (activeTab === 'shopeefood') return product.price_shopeefood ?? basePrice;
-    if (activeTab === 'gofood') return product.price_gofood ?? basePrice;
+    if (platform === 'shopeefood') return product.price_shopeefood ?? basePrice;
+    if (platform === 'gofood') return product.price_gofood ?? basePrice;
     return basePrice;
   }
 
@@ -133,14 +172,21 @@ export function BatchSaleForm({
   }
 
   const grossAmount = items.reduce((sum, it) => sum + it.quantity * Number(it.unit_price || 0), 0);
-  const platformFeeRate = platform === 'shopeefood' ? 0.2 : platform === 'gofood' ? 0.25 : 0;
-  const fallbackNetRevenue = grossAmount - grossAmount * platformFeeRate;
   const explicitNetRevenue = netRevenue.trim() !== '' ? Number(netRevenue || 0) : 0;
-  const analysis = isOnline && explicitNetRevenue > 0 
+  const analysis = isOnline && explicitNetRevenue > 0
     ? calculateSaleAnalysis(grossAmount, explicitNetRevenue)
     : calculateSaleAnalysis(grossAmount, grossAmount);
   const feeGapPercentage = analysis.fee_percentage;
   const splitPaymentTotal = paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  function handleTabChange(nextTab: ActiveTab) {
+    setActiveTab(nextTab);
+    setItems([]);
+    setNetRevenue('');
+    setPaymentEntries([createDefaultPaymentEntry()]);
+    setPaymentMode('single');
+    setPaymentMethod('qris');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -183,7 +229,7 @@ export function BatchSaleForm({
         fee_amount: analysis.fee_amount,
         fee_percentage: analysis.fee_percentage,
         payment_status: paymentMode === 'split' ? (paymentEntries.every((entry) => entry.payment_status === 'settled') ? 'settled' : 'pending') : paymentStatus,
-        settlement_date: paymentMode === 'split' ? null : settlementDate || null,
+        settlement_date: null,
         items: items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, unit_price: it.unit_price })),
         payment_entries:
           paymentMode === 'split'
@@ -200,7 +246,7 @@ export function BatchSaleForm({
                   payment_method: paymentMethod,
                   amount: normalizedGrossAmount,
                   payment_status: paymentStatus,
-                  settlement_date: settlementDate || null,
+                  settlement_date: null,
                   payment_reference: null,
                   notes: null,
                 },
@@ -210,17 +256,7 @@ export function BatchSaleForm({
       // reset
       setItems([]);
       setNetRevenue('');
-      setPaymentEntries([
-        {
-          id: String(Date.now()),
-          payment_method: 'cash',
-          amount: '0',
-          payment_status: 'settled',
-          settlement_date: '',
-          payment_reference: '',
-          notes: '',
-        },
-      ]);
+      setPaymentEntries([createDefaultPaymentEntry()]);
     } finally {
       setLoading(false);
     }
@@ -230,7 +266,7 @@ export function BatchSaleForm({
     offline: { label: 'Offline', icon: '🏪' },
     shopeefood: { label: 'ShopeeFood', icon: '🍱' },
     gofood: { label: 'GoFood', icon: '🍽️' },
-  };
+  } as const;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -246,27 +282,24 @@ export function BatchSaleForm({
             </div>
           </div>
 
-          {/* TAB BUTTONS */}
-          <div className="flex gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
-            {(Object.entries(tabConfig) as Array<[ActiveTab, typeof tabConfig['offline']]>).map(([tab, config]) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab);
-                  setItems([]);
-                  setNetRevenue('');
-                }}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  activeTab === tab
-                    ? 'bg-white text-orange-600 ring-1 ring-orange-200'
-                    : 'bg-transparent text-slate-600 hover:text-orange-600'
-                }`}
-              >
-                <span>{config.icon}</span>
-                <span>{config.label}</span>
-              </button>
-            ))}
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(tabConfig) as Array<[ActiveTab, (typeof tabConfig)[ActiveTab]]>).map(([tab, config]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => handleTabChange(tab)}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                    activeTab === tab
+                      ? 'bg-orange-600 text-white ring-2 ring-orange-200'
+                      : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-orange-50 hover:text-orange-700'
+                  }`}
+                >
+                  <span className="mr-2">{config.icon}</span>
+                  {config.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-4 bg-white p-4">
@@ -326,7 +359,7 @@ export function BatchSaleForm({
                     <div key={entry.id} className="flex gap-2 items-center text-xs">
                       <Select
                         value={entry.payment_method}
-                        onValueChange={(v) => setPaymentEntries(prev => prev.map(e => e.id === entry.id ? { ...e, payment_method: v as any } : e))}
+                        onValueChange={(v) => setPaymentEntries(prev => prev.map((e) => e.id === entry.id ? { ...e, payment_method: v as 'cash' | 'qris' | 'bank_transfer' | 'pending' } : e))}
                       >
                         <SelectTrigger className="w-20 h-8">
                           <SelectValue />
@@ -510,7 +543,7 @@ export function BatchSaleForm({
 
       {/* SUBMIT BUTTON */}
       <Button type="submit" disabled={loading || items.length === 0} className="w-full bg-orange-600 hover:bg-orange-700 h-10 font-semibold">
-        {loading ? 'Menyimpan...' : `Simpan ${tabConfig[activeTab].label}`}
+        {loading ? 'Menyimpan...' : `Simpan ${platform ? (platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood') : 'Offline'}`}
       </Button>
     </form>
   );
