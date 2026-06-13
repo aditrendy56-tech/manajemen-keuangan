@@ -247,32 +247,53 @@ export async function POST(request: NextRequest) {
 
     let { data: saleData, error: saleError } = saleResult;
 
-    // Fallback: if calculated_total/fee_amount/fee_percentage columns don't exist yet, try without them
-    if (saleError && (String(saleError.message || '').toLowerCase().includes('calculated_total') || 
-                      String(saleError.message || '').toLowerCase().includes('fee_amount') ||
-                      String(saleError.message || '').toLowerCase().includes('fee_percentage'))) {
-      console.warn('[POST /api/sales] Fallback: Online fee analysis columns may not exist, retrying without them...', saleError.message);
-      const { calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...legacySaleData } = saleInsertData as any;
-      saleResult = await (getSupabaseServer().from('sales') as any)
-        .insert([legacySaleData])
-        .select()
-        .single();
-      ({ data: saleData, error: saleError } = saleResult);
-    }
-    // Fallback: if newer columns don't exist, also try without channel_type/platform
-    else if (saleError && String(saleError.message || '').toLowerCase().includes('channel_type')) {
-      saleResult = await (getSupabaseServer().from('sales') as any)
-        .insert([legacySaleData])
-        .select()
-        .single();
-      ({ data: saleData, error: saleError } = saleResult);
-    } else if (saleError && String(saleError.message || '').toLowerCase().includes('channel_type')) {
-      const { channel_type: _channelType, platform: _platform, payment_status: _paymentStatus, settlement_date: _settlementDate, payment_reference: _paymentReference, calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...legacySaleInsertData } = saleInsertData as any;
-      saleResult = await (getSupabaseServer().from('sales') as any)
-        .insert([legacySaleInsertData])
-        .select()
-        .single();
-      ({ data: saleData, error: saleError } = saleResult);
+    const fallbackWithoutFeeColumns = (() => {
+      const { calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...withoutFeeColumns } = saleInsertData as any;
+      return withoutFeeColumns;
+    })();
+
+    const fallbackWithoutChannelColumns = (() => {
+      const {
+        channel_type: _channelType,
+        platform: _platform,
+        payment_status: _paymentStatus,
+        settlement_date: _settlementDate,
+        payment_reference: _paymentReference,
+        calculated_total: _ct,
+        fee_amount: _fa,
+        fee_percentage: _fp,
+        ...withoutChannelColumns
+      } = saleInsertData as any;
+      return withoutChannelColumns;
+    })();
+
+    if (saleError) {
+      const errorText = String(saleError.message || '').toLowerCase();
+      const fallbackStrategies = [
+        {
+          shouldTry: errorText.includes('calculated_total') || errorText.includes('fee_amount') || errorText.includes('fee_percentage'),
+          label: 'Online fee analysis columns',
+          payload: fallbackWithoutFeeColumns,
+        },
+        {
+          shouldTry: errorText.includes('channel_type') || errorText.includes('platform'),
+          label: 'channel_type/platform columns',
+          payload: fallbackWithoutChannelColumns,
+        },
+      ].filter((strategy) => strategy.shouldTry);
+
+      for (const strategy of fallbackStrategies) {
+        console.warn(`[POST /api/sales] Fallback: ${strategy.label} may not exist, retrying without them...`, saleError.message);
+        saleResult = await (getSupabaseServer().from('sales') as any)
+          .insert([strategy.payload])
+          .select()
+          .single();
+        ({ data: saleData, error: saleError } = saleResult);
+
+        if (!saleError) {
+          break;
+        }
+      }
     }
 
     console.log('[POST /api/sales] Response:', { data: saleData, error: saleError });

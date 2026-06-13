@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const params = req.nextUrl.searchParams;
     const outletId = params.get('outlet_id');
     if (!outletId) return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
-    const { data, error } = await getSupabaseServer().from('allocation_runs').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await (getSupabaseServer() as any).from('allocation_runs').select('*').eq('outlet_id', outletId).order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (err: any) {
@@ -25,10 +25,10 @@ export async function POST(req: NextRequest) {
     // load rule
     let rule = null;
     if (rule_id) {
-      const { data: r } = await getSupabaseServer().from('allocation_rules').select('*').eq('id', rule_id).limit(1).single();
+      const { data: r } = await (getSupabaseServer() as any).from('allocation_rules').select('*').eq('id', rule_id).limit(1).single();
       rule = r;
     } else {
-      const { data: r } = await getSupabaseServer().from('allocation_rules').select('*').eq('outlet_id', outlet_id).order('created_at', { ascending: true }).limit(1);
+      const { data: r } = await (getSupabaseServer() as any).from('allocation_rules').select('*').eq('outlet_id', outlet_id).order('created_at', { ascending: true }).limit(1);
       rule = (r && r[0]) || null;
     }
 

@@ -45,7 +45,7 @@ export function calculateSalesSplit(grossAmount: number, platformFee: number = 0
     gross_amount: grossAmount,
     kas_utama_amount: parseFloat(kasUtama.toFixed(2)),
     profit_pending_amount: parseFloat(profitPending.toFixed(2)),
-    platform_fee,
+    platform_fee: platformFee,
   };
 }
 
@@ -307,7 +307,7 @@ export async function getProfitPendingForMonth(
     }
     
     const total = (data || [])
-      .reduce((sum, row) => sum + new Decimal(row.amount || 0).toNumber(), 0);
+      .reduce((sum: number, row: any) => sum + new Decimal(row.amount || 0).toNumber(), 0);
     
     return {
       total: parseFloat(total.toFixed(2)),
@@ -339,7 +339,7 @@ export async function getOutstandingHutang(
     if (capitalError) throw capitalError;
     
     const totalModalAmount = (capitalData || [])
-      .reduce((sum, row) => sum + new Decimal(row.amount || 0).toNumber(), 0);
+      .reduce((sum: number, row: any) => sum + new Decimal(row.amount || 0).toNumber(), 0);
     
     if (totalModalAmount === 0) {
       return { total: 0, status: 'belum' };
@@ -355,7 +355,7 @@ export async function getOutstandingHutang(
     if (repaymentError) throw repaymentError;
     
     const totalRepaidAmount = (repaymentData || [])
-      .reduce((sum, row) => sum + new Decimal(row.amount || 0).toNumber(), 0);
+      .reduce((sum: number, row: any) => sum + new Decimal(row.amount || 0).toNumber(), 0);
     
     const outstanding = new Decimal(totalModalAmount)
       .minus(totalRepaidAmount)

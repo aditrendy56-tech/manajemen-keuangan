@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Refund amount cannot exceed original amount' }, { status: 400 });
     }
 
-    const baseUpdateData = {
+    const baseUpdateData: Record<string, any> = {
       payment_status: payment_status || existing.payment_status,
       settlement_date: settlement_date || existing.settlement_date || null,
       payment_reference: payment_reference ?? existing.payment_reference ?? null,
@@ -95,7 +95,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       refund_reference: refund_reference ?? existing.refund_reference ?? null,
     };
 
-    const updatePayload = requestedStatus === 'refunded' ? refundUpdateData : baseUpdateData;
+    const updatePayload: Record<string, any> = requestedStatus === 'refunded'
+      ? refundUpdateData
+      : baseUpdateData;
     let updated;
     let updateError;
 

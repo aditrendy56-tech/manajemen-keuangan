@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     const today_pendapatan_bersih = today_gross_revenue - today_total_hpp - today_total_platform_fee;
 
     // STEP 5: Calculate Operational Expenses (ONLY category='operasional')
-    const today_operational_expenses = (expenses || []).filter(e => {
+    const today_operational_expenses = (expenses || []).filter((e: any) => {
       const cat = (e.category || '').toLowerCase();
       return cat === 'operasional';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     const today_profit = today_pendapatan_bersih - today_operational_expenses;
 
     // Backward compat: track inventory_purchases (not deducted from profit)
-    const today_inventory_purchases = (expenses || []).filter(e => {
+    const today_inventory_purchases = (expenses || []).filter((e: any) => {
       const cat = (e.category || '').toLowerCase();
       return cat === 'bahan' || cat === 'peralatan';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
@@ -260,7 +260,7 @@ export async function GET(request: NextRequest) {
     const cumulative_pendapatan_bersih = cumulative_gross_revenue - cumulative_total_hpp - cumulative_total_platform_fee;
 
     // STEP 5: Calculate Cumulative Operational Expenses
-    const cumulative_operational_expenses = (allExpenses || []).filter(e => {
+    const cumulative_operational_expenses = (allExpenses || []).filter((e: any) => {
       const cat = (e.category || '').toLowerCase();
       return cat === 'operasional';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
@@ -269,7 +269,7 @@ export async function GET(request: NextRequest) {
     const cumulative_profit = cumulative_pendapatan_bersih - cumulative_operational_expenses;
 
     // Backward compat: cumulative inventory_purchases
-    const cumulative_inventory_purchases = (allExpenses || []).filter(e => {
+    const cumulative_inventory_purchases = (allExpenses || []).filter((e: any) => {
       const cat = (e.category || '').toLowerCase();
       return cat === 'bahan' || cat === 'peralatan';
     }).reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
@@ -289,7 +289,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Top Products (Today)
-    const topProducts = [] as DashboardMetrics['top_products'];
+    const topProducts: NonNullable<DashboardMetrics['top_products']> = [];
     if (saleIds.length > 0) {
       const { data: saleItems } = await getSupabaseServer().from('sale_items')
         .select('sale_id, product_id, quantity, subtotal, products(name)')
@@ -348,6 +348,7 @@ export async function GET(request: NextRequest) {
     const weekly_profit = Array.from(dailyTotals.entries()).map(([day, totals]) => ({
       date: day,
       profit: totals.revenue - totals.operasional,
+      gross_revenue: totals.revenue,
     }));
 
     // ===== NEW: DETAILED DATA FOR EXPANDABLE CARDS =====
@@ -356,7 +357,7 @@ export async function GET(request: NextRequest) {
 
     // Daily expense breakdown (operasional only)
     const daily_expenses_detailed = (expenses || [])
-      .filter(e => (e.category || '').toLowerCase() === 'operasional')
+      .filter((e: any) => (e.category || '').toLowerCase() === 'operasional')
       .map((e: any) => ({
         description: e.description || 'Operasional',
         amount: getRecognizedExpenseAmount(e),
@@ -417,7 +418,7 @@ export async function GET(request: NextRequest) {
 
     // TODAY's profit allocation
     const today_profit_allocated_to_kas = (profitAllocations || [])
-      .filter(pa => pa.allocation_date === date)
+      .filter((pa: any) => pa.allocation_date === date)
       .reduce((sum: number, pa: any) => sum + (pa.reserve_amount || 0), 0) || 0;
 
     // CUMULATIVE profit allocation
@@ -426,11 +427,11 @@ export async function GET(request: NextRequest) {
 
     // Separate expense sources (Kas vs Modal)
     const expense_from_kas = (expenses || [])
-      .filter(e => (e.funding_source || 'kas') === 'kas')
+      .filter((e: any) => (e.funding_source || 'kas') === 'kas')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
 
     const expense_from_modal = (expenses || [])
-      .filter(e => (e.funding_source || 'kas') === 'modal')
+      .filter((e: any) => (e.funding_source || 'kas') === 'modal')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
 
     // NEW: Available for distribution = Net Revenue - Modal needs
@@ -441,7 +442,7 @@ export async function GET(request: NextRequest) {
 
     // NEW: Calculate KAS OPERASIONAL (CUMULATIVE)
     const cumulative_available_cash = cash_from_modal + cumulative_profit_allocated_to_kas - (allExpenses || [])
-      .filter(e => (e.funding_source || 'kas') === 'kas')
+      .filter((e: any) => (e.funding_source || 'kas') === 'kas')
       .reduce((sum: number, e: any) => sum + getRecognizedExpenseAmount(e), 0) || 0;
 
     // NEW: Calculate SURPLUS/DEFICIT (TODAY)

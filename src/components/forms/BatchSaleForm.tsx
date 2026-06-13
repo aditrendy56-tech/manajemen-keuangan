@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { calculateSaleAnalysis } from '@/lib/calculations/platform-fees';
+import { CustomPricingTab } from '@/components/forms/CustomPricingTab';
 
 interface ItemRow {
   id: string;
@@ -19,7 +20,7 @@ interface ItemRow {
 interface SalePayload {
   session_id: string | null;
   outlet_id: string | null;
-  channel_type: 'offline' | 'online';
+  channel_type: 'offline' | 'online' | 'custom';
   platform: string | null;
   channel: string;
   payment_method: string;
@@ -45,7 +46,7 @@ interface BatchSaleFormProps {
   onSubmit: (payload: SalePayload) => Promise<void>;
   sessionId?: string | null;
   outletId?: string | null;
-  initialChannelType?: 'offline' | 'online';
+  initialChannelType?: 'offline' | 'online' | 'custom';
   initialPlatform?: 'shopeefood' | 'gofood' | '';
   initialPaymentMethod?: 'cash' | 'qris' | 'split';
   inline?: boolean;
@@ -74,6 +75,7 @@ export function BatchSaleForm({
   const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTab());
   
   const isOnline = activeTab === 'shopeefood' || activeTab === 'gofood';
+  const isCustomTab = activeTab === 'custom';
   const platform = activeTab === 'shopeefood' ? 'shopeefood' : activeTab === 'gofood' ? 'gofood' : null;
   const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(activeTab === 'split' ? 'split' : 'single');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(activeTab === 'offline_qris' ? 'qris' : 'cash');
@@ -235,13 +237,15 @@ export function BatchSaleForm({
         }
       }
 
-      const payload = {
+      const channelType: SalePayload['channel_type'] = isOnline ? 'online' : isCustomTab ? 'custom' : 'offline';
+
+      const payload: SalePayload = {
         session_id: sessionId || null,
         outlet_id: outletId || null,
-        channel_type: isOnline ? 'online' : (activeTab === 'custom' ? 'custom' : 'offline'),
+        channel_type: channelType,
         platform: platform,
-        channel: platform || activeTab === 'custom' ? 'custom' : (activeTab === 'split' ? 'split' : 'offline'),
-        payment_method: activeTab === 'split' ? 'split' : (activeTab === 'offline_qris' ? 'qris' : 'cash'),
+        channel: platform ?? (activeTab === 'custom' ? 'custom' : activeTab === 'split' ? 'split' : 'offline'),
+        payment_method: activeTab === 'split' ? 'split' : paymentMethod,
         gross_amount: normalizedGrossAmount,
         net_revenue: isOnline ? explicitNetRevenue : normalizedGrossAmount,
         calculated_total: analysis.calculated_total,
@@ -324,115 +328,131 @@ export function BatchSaleForm({
             </div>
           </div>
 
-          <div className="space-y-4 bg-white p-4">
-            {/* PAYMENT SETTINGS (top section) */}
-            <div>
-              <p className="mb-3 text-xs font-semibold uppercase text-slate-600">Pengaturan Pembayaran</p>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <div>
-                  <Label className="text-xs">Mode Pembayaran</Label>
-                  <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="single">Satu Metode</SelectItem>
-                      <SelectItem value="split">Split Payment</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {paymentMode === 'single' && (
-                  <>
-                    <div>
-                      <Label className="text-xs">Metode</Label>
-                      <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="qris">QRIS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Status</Label>
-                      <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="settled">Settled</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-              </div>
+          {isCustomTab ? (
+            <div className="space-y-4 bg-white p-4">
+              <CustomPricingTab
+                sessionId={sessionId ?? ''}
+                outletId={outletId ?? ''}
+                onSubmit={() => {
+                  setItems([]);
+                  setNetRevenue('');
+                  setPaymentEntries([createDefaultPaymentEntry()]);
+                }}
+              />
             </div>
+          ) : (
+            <div className="space-y-4 bg-white p-4">
+              {/* PAYMENT SETTINGS (top section) */}
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase text-slate-600">Pengaturan Pembayaran</p>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <Label className="text-xs">Mode Pembayaran</Label>
+                    <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single">Satu Metode</SelectItem>
+                        <SelectItem value="split">Split Payment</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {paymentMode === 'split' && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                <p className="text-xs font-medium text-blue-900 mb-2">Split Payment</p>
-                <div className="space-y-2 max-h-48 overflow-auto">
-                  {paymentEntries.map((entry) => (
-                    <div key={entry.id} className="flex gap-2 items-center text-xs">
-                      <Select
-                        value={entry.payment_method}
-                        onValueChange={(v) => setPaymentEntries(prev => prev.map((e) => e.id === entry.id ? { ...e, payment_method: v as 'cash' | 'qris' | 'bank_transfer' | 'pending' } : e))}
-                      >
-                        <SelectTrigger className="w-20 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="qris">QRIS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={entry.amount}
-                        onChange={(e) => setPaymentEntries(prev => prev.map(en => en.id === entry.id ? { ...en, amount: e.target.value } : en))}
-                        className="flex-1 h-8"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPaymentEntries(prev => prev.filter(e => e.id !== entry.id))}
-                        className="px-2 text-red-600"
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  ))}
+                  {paymentMode === 'single' && (
+                    <>
+                      <div>
+                        <Label className="text-xs">Metode</Label>
+                        <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">Cash</SelectItem>
+                            <SelectItem value="qris">QRIS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Status</Label>
+                        <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="settled">Settled</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPaymentEntries(prev => [...prev, {
-                    id: String(Date.now()),
-                    payment_method: 'cash',
-                    amount: '0',
-                    payment_status: 'settled',
-                    settlement_date: '',
-                    payment_reference: '',
-                    notes: '',
-                  }])}
-                  className="mt-2 w-full text-xs h-8"
-                >
-                  Tambah Pembayaran
-                </Button>
               </div>
-            )}
-          </div>
+
+              {paymentMode === 'split' && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-xs font-medium text-blue-900 mb-2">Split Payment</p>
+                  <div className="space-y-2 max-h-48 overflow-auto">
+                    {paymentEntries.map((entry) => (
+                      <div key={entry.id} className="flex gap-2 items-center text-xs">
+                        <Select
+                          value={entry.payment_method}
+                          onValueChange={(v) => setPaymentEntries(prev => prev.map((e) => e.id === entry.id ? { ...e, payment_method: v as 'cash' | 'qris' | 'bank_transfer' | 'pending' } : e))}
+                        >
+                          <SelectTrigger className="w-20 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">Cash</SelectItem>
+                            <SelectItem value="qris">QRIS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={entry.amount}
+                          onChange={(e) => setPaymentEntries(prev => prev.map(en => en.id === entry.id ? { ...en, amount: e.target.value } : en))}
+                          className="flex-1 h-8"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPaymentEntries(prev => prev.filter(e => e.id !== entry.id))}
+                          className="px-2 text-red-600"
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentEntries(prev => [...prev, {
+                      id: String(Date.now()),
+                      payment_method: 'cash',
+                      amount: '0',
+                      payment_status: 'settled',
+                      settlement_date: '',
+                      payment_reference: '',
+                      notes: '',
+                    }])}
+                    className="mt-2 w-full text-xs h-8"
+                  >
+                    Tambah Pembayaran
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
+      {!isCustomTab && (
+        <>
       {/* SEARCH & SELECT PRODUCTS */}
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <div>
@@ -563,10 +583,13 @@ export function BatchSaleForm({
         </div>
       )}
 
-      {/* SUBMIT BUTTON */}
-      <Button type="submit" disabled={loading || items.length === 0} className="w-full bg-orange-600 hover:bg-orange-700 h-10 font-semibold">
-        {loading ? 'Menyimpan...' : `Simpan ${platform ? (platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood') : 'Offline'}`}
-      </Button>
+      {!isCustomTab && (
+        <Button type="submit" disabled={loading || items.length === 0} className="w-full bg-orange-600 hover:bg-orange-700 h-10 font-semibold">
+          {loading ? 'Menyimpan...' : `Simpan ${platform ? (platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood') : 'Offline'}`}
+        </Button>
+      )}
+        </>
+      )}
     </form>
   );
 }

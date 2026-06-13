@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
 
     // Update investor remaining balance
     const remaining = new Decimal(investorData.remaining_balance || 0);
-    const newBalance = remaining.minus(amountDecimal).max(new Decimal(0));
+    const newBalance = Decimal.max(remaining.minus(amountDecimal), new Decimal(0));
     const newStatus = newBalance.equals(0) ? 'settled' : 'partial';
 
     await (supabase.from('investors') as any)

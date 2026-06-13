@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseServer();
 
     // Fetch current allocation rule (is_current = true)
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('allocation_rules')
       .select('*')
       .eq('outlet_id', outletId)
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     if (updateErr) throw updateErr;
 
     // Create new allocation rule
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('allocation_rules')
       .insert([
         {

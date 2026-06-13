@@ -14,3 +14,4 @@ COMMENT ON COLUMN sales.fee_percentage IS 'Fee percentage calculated as (fee_amo
 -- Index untuk query fee analysis
 CREATE INDEX IF NOT EXISTS idx_sales_calculated_total ON sales(calculated_total) WHERE calculated_total IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_fee_amount ON sales(fee_amount) WHERE fee_amount IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_fee_percentage ON sales(fee_percentage) WHERE fee_percentage IS NOT NULL;
