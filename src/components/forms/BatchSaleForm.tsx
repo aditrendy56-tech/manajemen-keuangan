@@ -26,6 +26,8 @@ interface BatchSaleFormProps {
   inline?: boolean;
 }
 
+type ActiveTab = 'offline' | 'shopeefood' | 'gofood';
+
 export function BatchSaleForm({
   onSubmit,
   sessionId,
@@ -35,8 +37,13 @@ export function BatchSaleForm({
   initialPaymentMethod = 'cash',
   inline = false,
 }: BatchSaleFormProps) {
-  const [channelType, setChannelType] = useState<'offline' | 'online'>(initialChannelType);
-  const [platform, setPlatform] = useState<'shopeefood' | 'gofood' | ''>(initialPlatform);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(
+    initialChannelType === 'online' && initialPlatform === 'shopeefood'
+      ? 'shopeefood'
+      : initialChannelType === 'online' && initialPlatform === 'gofood'
+        ? 'gofood'
+        : 'offline'
+  );
   const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(initialPaymentMethod === 'split' ? 'split' : 'single');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
@@ -67,13 +74,6 @@ export function BatchSaleForm({
   const [products, setProducts] = useState<Array<{ id: string; name: string; price?: number; price_offline?: number; price_shopeefood?: number; price_gofood?: number }>>([]);
 
   useEffect(() => {
-    setChannelType(initialChannelType);
-    setPlatform(initialPlatform);
-    setPaymentMode(initialPaymentMethod === 'split' ? 'split' : 'single');
-    setPaymentMethod(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
-  }, [initialChannelType, initialPlatform, initialPaymentMethod]);
-
-  useEffect(() => {
     async function loadProducts() {
       if (!outletId) return;
       try {
@@ -88,12 +88,13 @@ export function BatchSaleForm({
     loadProducts();
   }, [outletId]);
 
+  const isOnline = activeTab === 'shopeefood' || activeTab === 'gofood';
+  const platform = activeTab === 'shopeefood' ? 'shopeefood' : activeTab === 'gofood' ? 'gofood' : null;
+
   function getProductPrice(product: { price?: number; price_offline?: number; price_shopeefood?: number; price_gofood?: number }) {
     const basePrice = product.price_offline ?? product.price ?? 0;
-    if (channelType === 'online') {
-      if (platform === 'shopeefood') return product.price_shopeefood ?? basePrice;
-      if (platform === 'gofood') return product.price_gofood ?? basePrice;
-    }
+    if (activeTab === 'shopeefood') return product.price_shopeefood ?? basePrice;
+    if (activeTab === 'gofood') return product.price_gofood ?? basePrice;
     return basePrice;
   }
 
@@ -120,7 +121,6 @@ export function BatchSaleForm({
       addProductAsItem(fallbackProduct);
       return;
     }
-
     setItems((s) => [...s, { id: String(Date.now() + Math.random()), product_name: '', quantity: 1, unit_price: 0 }]);
   }
 
@@ -132,34 +132,13 @@ export function BatchSaleForm({
     setItems((s) => s.filter((r) => r.id !== id));
   }
 
-  function addPaymentEntry() {
-    setPaymentEntries((prev) => [
-      ...prev,
-      {
-        id: String(Date.now() + Math.random()),
-        payment_method: 'cash',
-        amount: '0',
-        payment_status: 'settled',
-        settlement_date: '',
-        payment_reference: '',
-        notes: '',
-      },
-    ]);
-  }
-
-  function updatePaymentEntry(id: string, patch: Partial<(typeof paymentEntries)[number]>) {
-    setPaymentEntries((prev) => prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
-  }
-
-  function removePaymentEntry(id: string) {
-    setPaymentEntries((prev) => prev.filter((entry) => entry.id !== id));
-  }
-
   const grossAmount = items.reduce((sum, it) => sum + it.quantity * Number(it.unit_price || 0), 0);
   const platformFeeRate = platform === 'shopeefood' ? 0.2 : platform === 'gofood' ? 0.25 : 0;
   const fallbackNetRevenue = grossAmount - grossAmount * platformFeeRate;
-  const explicitNetRevenue = netRevenue.trim() !== '' ? Number(netRevenue || 0) : fallbackNetRevenue;
-  const analysis = calculateSaleAnalysis(grossAmount, channelType === 'online' ? explicitNetRevenue : grossAmount);
+  const explicitNetRevenue = netRevenue.trim() !== '' ? Number(netRevenue || 0) : 0;
+  const analysis = isOnline && explicitNetRevenue > 0 
+    ? calculateSaleAnalysis(grossAmount, explicitNetRevenue)
+    : calculateSaleAnalysis(grossAmount, grossAmount);
   const feeGapPercentage = analysis.fee_percentage;
   const splitPaymentTotal = paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
@@ -169,6 +148,11 @@ export function BatchSaleForm({
     try {
       if (items.some((item) => !item.product_id || !item.product_name || item.quantity <= 0 || item.unit_price <= 0)) {
         alert('Pilih menu dulu untuk setiap baris, lalu isi qty yang valid');
+        return;
+      }
+
+      if (isOnline && explicitNetRevenue <= 0) {
+        alert('Untuk penjualan online, harus input Pendapatan Bersih dari Aplikasi');
         return;
       }
 
@@ -189,12 +173,12 @@ export function BatchSaleForm({
       const payload = {
         session_id: sessionId || null,
         outlet_id: outletId || null,
-        channel_type: channelType,
-        platform: channelType === 'online' ? platform || null : null,
-        channel: channelType === 'offline' ? 'offline' : platform || 'offline',
+        channel_type: isOnline ? 'online' : 'offline',
+        platform: platform,
+        channel: platform || 'offline',
         payment_method: paymentMode === 'split' ? 'split' : paymentMethod,
         gross_amount: normalizedGrossAmount,
-        net_revenue: channelType === 'online' ? explicitNetRevenue : normalizedGrossAmount,
+        net_revenue: isOnline ? explicitNetRevenue : normalizedGrossAmount,
         calculated_total: analysis.calculated_total,
         fee_amount: analysis.fee_amount,
         fee_percentage: analysis.fee_percentage,
@@ -225,6 +209,7 @@ export function BatchSaleForm({
       await onSubmit(payload);
       // reset
       setItems([]);
+      setNetRevenue('');
       setPaymentEntries([
         {
           id: String(Date.now()),
@@ -241,152 +226,85 @@ export function BatchSaleForm({
     }
   }
 
+  const tabConfig = {
+    offline: { label: 'Offline', icon: '🏪' },
+    shopeefood: { label: 'ShopeeFood', icon: '🍱' },
+    gofood: { label: 'GoFood', icon: '🍽️' },
+  };
+
   return (
-    <form onSubmit={handleSubmit} className={inline ? 'space-y-5' : 'space-y-5'}>
+    <form onSubmit={handleSubmit} className="space-y-5">
       {!inline && (
         <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
           <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-orange-600 to-orange-500 px-4 py-4 text-white">
             <div className="min-w-0">
-              <p className="text-sm font-semibold tracking-wide uppercase/none">Batch Penjualan</p>
-              <p className="mt-1 text-sm text-orange-50/90">Gunakan form ini untuk input beberapa item dalam satu transaksi.</p>
+              <p className="text-sm font-semibold tracking-wide">Penjualan</p>
+              <p className="mt-1 text-sm text-orange-50/90">Pilih kategori, input item, dan selesaikan pembayaran</p>
             </div>
             <div className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25">
-              {items.length} baris
+              {items.length} item
             </div>
           </div>
 
+          {/* TAB BUTTONS */}
+          <div className="flex gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+            {(Object.entries(tabConfig) as Array<[ActiveTab, typeof tabConfig['offline']]>).map(([tab, config]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab);
+                  setItems([]);
+                  setNetRevenue('');
+                }}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  activeTab === tab
+                    ? 'bg-white text-orange-600 ring-1 ring-orange-200'
+                    : 'bg-transparent text-slate-600 hover:text-orange-600'
+                }`}
+              >
+                <span>{config.icon}</span>
+                <span>{config.label}</span>
+              </button>
+            ))}
+          </div>
+
           <div className="space-y-4 bg-white p-4">
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
-              <div className="space-y-2">
-                <Label>Jenis Channel</Label>
-                <Select value={channelType} onValueChange={(v) => setChannelType(v as 'offline' | 'online')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="offline">Offline</SelectItem>
-                    <SelectItem value="online">Online</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {channelType === 'online' && (
-              <div className="space-y-2">
-                <Label>Platform Online</Label>
-                <Select value={platform} onValueChange={(v) => setPlatform(v as 'shopeefood' | 'gofood' | '')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih platform">
-                      {platform === 'shopeefood' ? 'ShopeeFood' : platform === 'gofood' ? 'GoFood' : ''}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="shopeefood">ShopeeFood</SelectItem>
-                    <SelectItem value="gofood">GoFood</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {channelType === 'online' && (
-              <div className="space-y-2">
-                <Label>Pendapatan Bersih dari Aplikasi (Rp)</Label>
-                <CurrencyInput
-                  value={netRevenue}
-                  onChange={(e) => setNetRevenue(e.target.value)}
-                  placeholder="Masukkan uang real yang masuk ke kas"
-                  showVisual={true}
-                />
-                <p className="text-xs text-slate-500">Nilai ini dipakai sebagai uang real untuk dashboard dan cash flow. Gap antara total item dan angka ini akan tampil sebagai analisis fee.</p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>Mode Pembayaran</Label>
-              <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="single">Satu Metode</SelectItem>
-                  <SelectItem value="split">Split Payment</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {paymentMode === 'single' ? (
-              <div className="grid grid-cols-2 gap-6 items-start">
+            {/* PAYMENT SETTINGS (top section) */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase text-slate-600">Pengaturan Pembayaran</p>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <Label>Metode Pembayaran</Label>
-                  <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
-                    <SelectTrigger>
+                  <Label className="text-xs">Mode Pembayaran</Label>
+                  <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
+                    <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="qris">QRIS</SelectItem>
+                      <SelectItem value="single">Satu Metode</SelectItem>
+                      <SelectItem value="split">Split Payment</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label>Status Pembayaran</Label>
-                  <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="settled">Settled</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 rounded-lg border p-4 bg-white dark:bg-slate-700">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium">Split Payment</p>
-                    <p className="text-sm text-gray-500">Total pembayaran harus sama dengan jumlah kotor (Rp {grossAmount.toLocaleString('id-ID')})</p>
-                  </div>
-                  <Button type="button" variant="outline" onClick={addPaymentEntry} disabled={splitPaymentTotal >= grossAmount}>
-                    Tambah Baris
-                  </Button>
                 </div>
 
-                {paymentEntries.map((entry, index) => (
-                  <div key={entry.id} className="grid grid-cols-12 gap-2 items-start rounded border bg-white p-3">
-                    <div className="col-span-2">
+                {paymentMode === 'single' && (
+                  <>
+                    <div>
                       <Label className="text-xs">Metode</Label>
-                      <Select
-                        value={entry.payment_method}
-                        onValueChange={(v) => updatePaymentEntry(entry.id, { payment_method: v as any })}
-                      >
-                        <SelectTrigger>
+                      <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
+                        <SelectTrigger className="mt-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="cash">Cash</SelectItem>
                           <SelectItem value="qris">QRIS</SelectItem>
-                          <SelectItem value="bank_transfer">Transfer</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Jumlah</Label>
-                      <CurrencyInput
-                        value={entry.amount}
-                        onChange={(e) => updatePaymentEntry(entry.id, { amount: e.target.value })}
-                        placeholder="0"
-                        showVisual={false}
-                      />
-                    </div>
-                    <div className="col-span-2">
+                    <div>
                       <Label className="text-xs">Status</Label>
-                      <Select
-                        value={entry.payment_status}
-                        onValueChange={(v) => updatePaymentEntry(entry.id, { payment_status: v as 'settled' | 'pending' })}
-                      >
-                        <SelectTrigger>
+                      <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
+                        <SelectTrigger className="mt-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -395,161 +313,204 @@ export function BatchSaleForm({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Settlement</Label>
-                      <Input
-                        type="date"
-                        value={entry.settlement_date}
-                        onChange={(e) => updatePaymentEntry(entry.id, { settlement_date: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <Label className="text-xs">Ref</Label>
-                      <Input
-                        value={entry.payment_reference}
-                        onChange={(e) => updatePaymentEntry(entry.id, { payment_reference: e.target.value })}
-                        placeholder="Opsional"
-                      />
-                    </div>
-                    <div className="col-span-1 flex justify-end pt-6">
-                      <Button type="button" variant="ghost" onClick={() => removePaymentEntry(entry.id)} disabled={paymentEntries.length <= 1} className="px-2">
-                        Hapus
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
-                  Subtotal: Rp {splitPaymentTotal.toLocaleString('id-ID')} / Rp {grossAmount.toLocaleString('id-ID')} {Math.abs(splitPaymentTotal - grossAmount) < 0.01 ? '✓' : '⚠️'}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-6 rounded-lg border bg-white p-4 dark:bg-slate-700 items-start">
-              <div>
-                <p className="text-xs text-gray-600">Jumlah Kotor</p>
-                <p className="font-semibold">Rp {grossAmount.toLocaleString('id-ID')}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">Tanggal Settlement</p>
-                <Input type="date" value={settlementDate} onChange={(e) => setSettlementDate(e.target.value)} />
+                  </>
+                )}
               </div>
             </div>
 
-            {channelType === 'online' && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-                <p className="font-semibold">Analisis Fee Online</p>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div>Calculated total: <strong>Rp {analysis.calculated_total.toLocaleString('id-ID')}</strong></div>
-                  <div>Net revenue: <strong>Rp {analysis.net_revenue.toLocaleString('id-ID')}</strong></div>
-                  <div>Fee amount: <strong>Rp {analysis.fee_amount.toLocaleString('id-ID')}</strong></div>
-                  <div>Fee percentage: <strong>{analysis.fee_percentage.toFixed(2)}%</strong></div>
+            {paymentMode === 'split' && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <p className="text-xs font-medium text-blue-900 mb-2">Split Payment</p>
+                <div className="space-y-2 max-h-48 overflow-auto">
+                  {paymentEntries.map((entry) => (
+                    <div key={entry.id} className="flex gap-2 items-center text-xs">
+                      <Select
+                        value={entry.payment_method}
+                        onValueChange={(v) => setPaymentEntries(prev => prev.map(e => e.id === entry.id ? { ...e, payment_method: v as any } : e))}
+                      >
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="qris">QRIS</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={entry.amount}
+                        onChange={(e) => setPaymentEntries(prev => prev.map(en => en.id === entry.id ? { ...en, amount: e.target.value } : en))}
+                        className="flex-1 h-8"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPaymentEntries(prev => prev.filter(e => e.id !== entry.id))}
+                        className="px-2 text-red-600"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                {Math.abs(feeGapPercentage) > 15 && (
-                  <p className="mt-3 rounded-lg border border-amber-300 bg-white/80 p-2 text-amber-800">⚠️ Gap fee di atas 15%. Cek potongan / promo / biaya marketplace sebelum lanjut.</p>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaymentEntries(prev => [...prev, {
+                    id: String(Date.now()),
+                    payment_method: 'cash',
+                    amount: '0',
+                    payment_status: 'settled',
+                    settlement_date: '',
+                    payment_reference: '',
+                    notes: '',
+                  }])}
+                  className="mt-2 w-full text-xs h-8"
+                >
+                  Tambah Pembayaran
+                </Button>
               </div>
             )}
           </div>
         </div>
       )}
 
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-900">Cari menu</p>
-            <p className="text-xs text-slate-500">Pilih item dari daftar, lalu isi jumlah. Harga mengikuti channel yang sedang aktif.</p>
-          </div>
-          <div className="text-xs text-slate-500">{filteredProducts.length} menu ditemukan</div>
+      {/* SEARCH & SELECT PRODUCTS */}
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Cari Menu</p>
+          <p className="text-xs text-slate-500">Klik item untuk menambahkan ke transaksi</p>
         </div>
+        <Input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Cari menu..."
+          className="text-sm"
+        />
+        <div className="max-h-56 overflow-auto rounded-lg border border-dashed border-slate-200 p-2">
+          {filteredProducts.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-500">Tidak ada menu cocok</div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => addProductAsItem(product)}
+                  className="rounded-lg border border-slate-200 bg-white p-2 text-left text-xs transition hover:border-orange-300 hover:bg-orange-50"
+                >
+                  <p className="truncate font-semibold text-slate-900">{product.name}</p>
+                  <p className="text-orange-600 font-medium">Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-        <div className="space-y-2">
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari menu, contoh: roti bakar coklat"
-          />
-          <div className="max-h-56 overflow-auto rounded-xl border border-dashed border-slate-200 p-2">
-            {filteredProducts.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-500">Tidak ada menu cocok</div>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
+      {/* ITEMS LIST - MINIMAL DISPLAY */}
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+          <p className="text-sm text-slate-500">Belum ada item. Cari dan klik menu di atas untuk menambahkan.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="divide-y divide-slate-200">
+            {items.map((row, index) => (
+              <div key={row.id} className="flex items-center gap-3 p-3 hover:bg-slate-50">
+                <span className="shrink-0 w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
+                  {index + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{row.product_name}</p>
+                  <p className="text-xs text-slate-500">Rp {(row.unit_price || 0).toLocaleString('id-ID')}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={String(row.quantity)}
+                    onChange={(e) => updateRow(row.id, { quantity: Number(e.target.value) })}
+                    className="w-14 h-8 text-center text-sm"
+                  />
+                  <Button
                     type="button"
-                    onClick={() => addProductAsItem(product)}
-                      className="rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-orange-300 hover:bg-orange-50"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeRow(row.id)}
+                    className="px-2 text-red-600 hover:bg-red-50"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
-                        <p className="text-xs text-slate-500">Klik untuk menambahkan ke transaksi</p>
-                      </div>
-                      <div className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                        Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    ✕
+                  </Button>
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+          <div className="bg-slate-50 px-3 py-2 flex justify-between items-center border-t border-slate-200">
+            <Button type="button" onClick={addRow} variant="ghost" size="sm" className="text-xs">
+              + Tambah Item
+            </Button>
+            <div className="text-xs font-semibold text-slate-700">
+              Total: Rp {grossAmount.toLocaleString('id-ID')}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="space-y-3">
-        {items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
-            Belum ada item. Cari menu di atas lalu klik item yang mau ditambahkan.
+      {/* ONLINE-ONLY: NET REVENUE INPUT & FEE ANALYSIS */}
+      {isOnline && (
+        <div className="space-y-3">
+          {/* Net Revenue Input */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <Label className="text-sm font-semibold text-slate-900">Pendapatan Bersih dari {platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood'} (Rp)</Label>
+            <CurrencyInput
+              value={netRevenue}
+              onChange={(e) => setNetRevenue(e.target.value)}
+              placeholder="Masukkan uang real yang masuk ke kas"
+              showVisual={true}
+              className="mt-2"
+            />
+            <p className="text-xs text-slate-500 mt-2">Nilai ini dipakai sebagai uang real untuk dashboard dan cash flow. Gap antara total item dan nilai ini akan dianalisis sebagai fee/potongan.</p>
           </div>
-        ) : items.map((row, index) => (
-          <div key={row.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Item {index + 1}</p>
-                <p className="text-xs text-slate-500">Nama item dan jumlah saja. Harga mengikuti item yang dipilih.</p>
+
+          {/* Fee Analysis - Only show if netRevenue is entered */}
+          {explicitNetRevenue > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-950 mb-3">📊 Analisis Fee {platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood'}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-white p-2 border border-amber-200">
+                  <p className="text-xs text-amber-700">Total Kalkulasi</p>
+                  <p className="text-lg font-bold text-amber-900">Rp {analysis.calculated_total.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="rounded-lg bg-white p-2 border border-amber-200">
+                  <p className="text-xs text-amber-700">Uang Masuk</p>
+                  <p className="text-lg font-bold text-amber-900">Rp {analysis.net_revenue.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="rounded-lg bg-white p-2 border border-amber-200">
+                  <p className="text-xs text-amber-700">Fee/Potongan</p>
+                  <p className="text-lg font-bold text-red-600">Rp {analysis.fee_amount.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="rounded-lg bg-white p-2 border border-amber-200">
+                  <p className="text-xs text-amber-700">Persentase Fee</p>
+                  <p className="text-lg font-bold text-red-600">{analysis.fee_percentage.toFixed(2)}%</p>
+                </div>
               </div>
-              <Button type="button" variant="ghost" onClick={() => removeRow(row.id)} className="px-2 text-red-600 hover:bg-red-50 hover:text-red-700">
-                Hapus
-              </Button>
+              {Math.abs(feeGapPercentage) > 15 && (
+                <div className="mt-3 rounded-lg border border-amber-400 bg-white p-3 text-amber-900 text-sm">
+                  ⚠️ <strong>Gap fee di atas 15%</strong>. Cek apakah ada promo/diskon/potongan marketplace sebelum melanjutkan.
+                </div>
+              )}
             </div>
+          )}
+        </div>
+      )}
 
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_90px]">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-500">Produk / Nama</Label>
-                <Input
-                  placeholder="Pilih dari menu di atas"
-                  value={row.product_name}
-                  readOnly
-                />
-                <p className="text-xs text-slate-500">{row.product_id ? `Terpilih: ${row.product_name}` : 'Belum ada item dipilih'}</p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-500">Qty</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={String(row.quantity)}
-                  onChange={(e) => updateRow(row.id, { quantity: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-3">
-        <Button type="button" onClick={addRow} variant="outline">
-          Tambah Item dari Hasil Cari
-        </Button>
-        <p className="text-sm text-slate-600">
-          Jumlah Kotor: <span className="font-semibold text-slate-900">Rp {grossAmount.toLocaleString('id-ID')}</span>
-        </p>
-      </div>
-
-      <Button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-700">
-        {loading ? 'Menyimpan...' : 'Simpan Penjualan'}
+      {/* SUBMIT BUTTON */}
+      <Button type="submit" disabled={loading || items.length === 0} className="w-full bg-orange-600 hover:bg-orange-700 h-10 font-semibold">
+        {loading ? 'Menyimpan...' : `Simpan ${tabConfig[activeTab].label}`}
       </Button>
     </form>
   );
