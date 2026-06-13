@@ -60,10 +60,11 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const id = params.id;
+    const resolvedParams = await Promise.resolve(params);
+    const id = resolvedParams.id;
     const body = await request.json();
 
     // Filter out null and undefined price values
@@ -99,10 +100,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const id = params.id;
+    const resolvedParams = await Promise.resolve(params);
+    const id = resolvedParams.id;
 
     const { error } = await getSupabaseServer()
       .from('products')

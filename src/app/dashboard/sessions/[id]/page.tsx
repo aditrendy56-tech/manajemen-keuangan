@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { SalesTable } from '@/components/tables/SalesTable';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
-import { CustomPricingTab } from '@/components/forms/CustomPricingTab';
 import { Sale, Expense, DailySession, MaterialPurchase, CashTransaction } from '@/types';
 import { useParams } from 'next/navigation';
 import { useOutlet } from '@/lib/context/OutletContext';
@@ -40,11 +39,6 @@ export default function SessionDetailPage() {
   const [refundDate, setRefundDate] = useState(new Date().toISOString().split('T')[0]);
   const [refundNotes, setRefundNotes] = useState('');
   const [expenseFormKey, setExpenseFormKey] = useState(0);
-  const [salePreset, setSalePreset] = useState<{
-    channelType: 'offline' | 'online' | 'custom';
-    platform: 'shopeefood' | 'gofood' | '';
-    paymentMethod: 'cash' | 'qris' | 'split';
-  }>({ channelType: 'offline', platform: '', paymentMethod: 'cash' });
 
   async function loadData() {
     if (!sessionId) return;
@@ -539,82 +533,13 @@ export default function SessionDetailPage() {
       </Card>
 
       <section className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h3 className="text-xl font-semibold">Daftar Penjualan</h3>
-          {session?.status === 'open' && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant={salePreset.channelType === 'offline' && salePreset.paymentMethod === 'cash' ? 'default' : 'outline'}
-                className={salePreset.channelType === 'offline' && salePreset.paymentMethod === 'cash' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'offline', platform: '', paymentMethod: 'cash' })}
-              >
-                Offline Cash
-              </Button>
-              <Button
-                type="button"
-                variant={salePreset.channelType === 'offline' && salePreset.paymentMethod === 'qris' ? 'default' : 'outline'}
-                className={salePreset.channelType === 'offline' && salePreset.paymentMethod === 'qris' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'offline', platform: '', paymentMethod: 'qris' })}
-              >
-                Offline QRIS
-              </Button>
-              <Button
-                type="button"
-                variant={salePreset.channelType === 'online' && salePreset.platform === 'shopeefood' ? 'default' : 'outline'}
-                className={salePreset.channelType === 'online' && salePreset.platform === 'shopeefood' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'online', platform: 'shopeefood', paymentMethod: 'qris' })}
-              >
-                ShopeeFood
-              </Button>
-              <Button
-                type="button"
-                variant={salePreset.channelType === 'online' && salePreset.platform === 'gofood' ? 'default' : 'outline'}
-                className={salePreset.channelType === 'online' && salePreset.platform === 'gofood' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'online', platform: 'gofood', paymentMethod: 'qris' })}
-              >
-                GoFood
-              </Button>
-              <Button
-                type="button"
-                variant={salePreset.paymentMethod === 'split' ? 'default' : 'outline'}
-                className={salePreset.paymentMethod === 'split' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'offline', platform: '', paymentMethod: 'split' })}
-              >
-                Split
-              </Button>
-              <Button
-                type="button"
-                variant={salePreset.channelType === 'custom' ? 'default' : 'outline'}
-                className={salePreset.channelType === 'custom' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                onClick={() => setSalePreset({ channelType: 'custom', platform: '', paymentMethod: 'cash' })}
-              >
-                💳 Custom
-              </Button>
-            </div>
-          )}
-        </div>
+        <h3 className="text-xl font-semibold">Daftar Penjualan</h3>
         
-        {/* Custom Pricing Tab */}
-        {session?.status === 'open' && salePreset.channelType === 'custom' && (
-          <CustomPricingTab
-            sessionId={sessionId}
-            outletId={outletId}
-            onSubmit={() => {
-              loadData();
-            }}
-          />
-        )}
-
-        {/* Regular Sales Form - Show only if not custom */}
-        {session?.status === 'open' && salePreset.channelType !== 'custom' && (
+        {session?.status === 'open' && (
           <BatchSaleForm
             onSubmit={handleBatchSaleSubmit}
             sessionId={sessionId}
             outletId={outletId}
-            initialChannelType={salePreset.channelType}
-            initialPlatform={salePreset.platform}
-            initialPaymentMethod={salePreset.paymentMethod}
           />
         )}
         <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
