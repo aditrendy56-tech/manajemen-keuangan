@@ -311,10 +311,10 @@ export function BatchSaleForm({
                   key={tab}
                   type="button"
                   onClick={() => handleTabChange(tab)}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  className={`rounded-xl px-4 py-2 text-sm font-bold shadow-md transition-all ${
                     activeTab === tab
-                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                      : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100'
+                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 hover:bg-emerald-700'
+                      : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100 hover:ring-slate-400'
                   }`}
                 >
                   <span className="mr-2">{config.icon}</span>
