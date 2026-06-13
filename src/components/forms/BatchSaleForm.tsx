@@ -60,19 +60,23 @@ export function BatchSaleForm({
   initialPaymentMethod = 'cash',
   inline = false,
 }: BatchSaleFormProps) {
-  type ActiveTab = 'offline' | 'shopeefood' | 'gofood';
+  type ActiveTab = 'offline_cash' | 'offline_qris' | 'shopeefood' | 'gofood' | 'split' | 'custom';
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>(
-    initialChannelType === 'online'
-      ? initialPlatform === 'gofood'
-        ? 'gofood'
-        : 'shopeefood'
-      : 'offline'
-  );
-  const isOnline = activeTab !== 'offline';
-  const platform = activeTab === 'offline' ? null : activeTab;
-  const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(initialPaymentMethod === 'split' ? 'split' : 'single');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
+  const getInitialTab = (): ActiveTab => {
+    if (initialChannelType === 'online') {
+      return initialPlatform === 'gofood' ? 'gofood' : 'shopeefood';
+    }
+    if (initialPaymentMethod === 'split') return 'split';
+    if (initialChannelType === 'custom') return 'custom';
+    return initialPaymentMethod === 'qris' ? 'offline_qris' : 'offline_cash';
+  };
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTab());
+  
+  const isOnline = activeTab === 'shopeefood' || activeTab === 'gofood';
+  const platform = activeTab === 'shopeefood' ? 'shopeefood' : activeTab === 'gofood' ? 'gofood' : null;
+  const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(activeTab === 'split' ? 'split' : 'single');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(activeTab === 'offline_qris' ? 'qris' : 'cash');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
   const [netRevenue, setNetRevenue] = useState('');
 
@@ -184,8 +188,23 @@ export function BatchSaleForm({
     setItems([]);
     setNetRevenue('');
     setPaymentEntries([createDefaultPaymentEntry()]);
-    setPaymentMode('single');
-    setPaymentMethod('qris');
+    
+    if (nextTab === 'split') {
+      setPaymentMode('split');
+      setPaymentMethod('cash');
+    } else if (nextTab === 'offline_qris') {
+      setPaymentMode('single');
+      setPaymentMethod('qris');
+    } else if (nextTab === 'offline_cash') {
+      setPaymentMode('single');
+      setPaymentMethod('cash');
+    } else if (nextTab === 'shopeefood' || nextTab === 'gofood') {
+      setPaymentMode('single');
+      setPaymentMethod('qris');
+    } else if (nextTab === 'custom') {
+      setPaymentMode('single');
+      setPaymentMethod('cash');
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -219,10 +238,10 @@ export function BatchSaleForm({
       const payload = {
         session_id: sessionId || null,
         outlet_id: outletId || null,
-        channel_type: isOnline ? 'online' : 'offline',
+        channel_type: isOnline ? 'online' : (activeTab === 'custom' ? 'custom' : 'offline'),
         platform: platform,
-        channel: platform || 'offline',
-        payment_method: paymentMode === 'split' ? 'split' : paymentMethod,
+        channel: platform || activeTab === 'custom' ? 'custom' : (activeTab === 'split' ? 'split' : 'offline'),
+        payment_method: activeTab === 'split' ? 'split' : (activeTab === 'offline_qris' ? 'qris' : 'cash'),
         gross_amount: normalizedGrossAmount,
         net_revenue: isOnline ? explicitNetRevenue : normalizedGrossAmount,
         calculated_total: analysis.calculated_total,
@@ -263,9 +282,12 @@ export function BatchSaleForm({
   }
 
   const tabConfig = {
-    offline: { label: 'Offline', icon: '🏪' },
+    offline_cash: { label: 'Offline Cash', icon: '💵' },
+    offline_qris: { label: 'Offline QRIS', icon: '📱' },
     shopeefood: { label: 'ShopeeFood', icon: '🍱' },
     gofood: { label: 'GoFood', icon: '🍽️' },
+    split: { label: 'Split', icon: '💳' },
+    custom: { label: 'Custom', icon: '⚙️' },
   } as const;
 
   return (
@@ -289,10 +311,10 @@ export function BatchSaleForm({
                   key={tab}
                   type="button"
                   onClick={() => handleTabChange(tab)}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     activeTab === tab
-                      ? 'bg-orange-600 text-white ring-2 ring-orange-200'
-                      : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-orange-50 hover:text-orange-700'
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100'
                   }`}
                 >
                   <span className="mr-2">{config.icon}</span>

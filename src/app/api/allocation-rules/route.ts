@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseServer();
 
     // Mark existing current rule as no longer current
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await (supabase as any)
       .from('allocation_rules')
       .update({ is_current: false })
       .eq('outlet_id', outlet_id)
