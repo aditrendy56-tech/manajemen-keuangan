@@ -4,6 +4,12 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 
+function stripFields(payload: Record<string, any>, fieldsToRemove: string[]) {
+  const nextPayload = { ...payload };
+  fieldsToRemove.forEach((field) => delete nextPayload[field]);
+  return nextPayload;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -111,11 +117,56 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/sales/custom] Insert data:', saleData);
 
-    const { data: sale, error: saleError } = await getSupabaseServer()
+    let saleResult = await getSupabaseServer()
       .from('sales')
       .insert([saleData])
       .select()
       .single();
+
+    let { data: sale, error: saleError } = saleResult;
+
+    if (saleError) {
+      const errorText = String(saleError.message || '').toLowerCase();
+      const fallbackStrategies = [
+        {
+          shouldTry: /payment_entries/.test(errorText),
+          label: 'payment_entries column',
+          payload: stripFields(saleData, ['payment_entries']),
+        },
+        {
+          shouldTry: /custom_original_price|custom_final_price|custom_description|is_custom_price/.test(errorText),
+          label: 'custom pricing columns',
+          payload: stripFields(saleData, ['custom_original_price', 'custom_final_price', 'custom_description', 'is_custom_price']),
+        },
+        {
+          shouldTry: /channel_type|platform|payment_status|settlement_date|payment_reference/.test(errorText),
+          label: 'channel/payment metadata columns',
+          payload: stripFields(saleData, ['channel_type', 'platform', 'payment_status', 'settlement_date', 'payment_reference']),
+        },
+        {
+          shouldTry: /payment_entries|custom_original_price|custom_final_price|custom_description|is_custom_price|channel_type|platform|payment_status|settlement_date|payment_reference/.test(errorText),
+          label: 'minimal legacy payload',
+          payload: stripFields(
+            saleData,
+            ['payment_entries', 'custom_original_price', 'custom_final_price', 'custom_description', 'is_custom_price', 'channel_type', 'platform', 'payment_status', 'settlement_date', 'payment_reference']
+          ),
+        },
+      ].filter((strategy, index, array) => strategy.shouldTry && array.findIndex((candidate) => candidate.label === strategy.label) === index);
+
+      for (const strategy of fallbackStrategies) {
+        console.warn(`[POST /api/sales/custom] Fallback: ${strategy.label} may not exist, retrying without them...`, saleError.message);
+        saleResult = await getSupabaseServer()
+          .from('sales')
+          .insert([strategy.payload])
+          .select()
+          .single();
+        ({ data: sale, error: saleError } = saleResult);
+
+        if (!saleError) {
+          break;
+        }
+      }
+    }
 
     if (saleError) {
       console.error('[POST /api/sales/custom] Error inserting sale:', saleError);

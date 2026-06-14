@@ -7,6 +7,12 @@ import { recordCashTransaction } from '@/lib/cash/ledger';
 import { splitSalesTransaction } from '@/lib/cash/dual-bucket-v2';
 import { resolveSessionForTransaction } from '@/lib/sessions';
 
+function stripFields(payload: Record<string, any>, fieldsToRemove: string[]) {
+  const nextPayload = { ...payload };
+  fieldsToRemove.forEach((field) => delete nextPayload[field]);
+  return nextPayload;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -247,40 +253,38 @@ export async function POST(request: NextRequest) {
 
     let { data: saleData, error: saleError } = saleResult;
 
-    const fallbackWithoutFeeColumns = (() => {
-      const { calculated_total: _ct, fee_amount: _fa, fee_percentage: _fp, ...withoutFeeColumns } = saleInsertData as any;
-      return withoutFeeColumns;
-    })();
-
-    const fallbackWithoutChannelColumns = (() => {
-      const {
-        channel_type: _channelType,
-        platform: _platform,
-        payment_status: _paymentStatus,
-        settlement_date: _settlementDate,
-        payment_reference: _paymentReference,
-        calculated_total: _ct,
-        fee_amount: _fa,
-        fee_percentage: _fp,
-        ...withoutChannelColumns
-      } = saleInsertData as any;
-      return withoutChannelColumns;
-    })();
+    const fallbackWithoutFeeColumns = stripFields(saleInsertData, ['calculated_total', 'fee_amount', 'fee_percentage']);
+    const fallbackWithoutPaymentEntries = stripFields(saleInsertData, ['payment_entries']);
+    const fallbackWithoutChannelColumns = stripFields(saleInsertData, ['channel_type', 'platform', 'payment_status', 'settlement_date', 'payment_reference']);
+    const legacyFallbackPayload = stripFields(
+      saleInsertData,
+      ['calculated_total', 'fee_amount', 'fee_percentage', 'payment_entries', 'channel_type', 'platform', 'payment_status', 'settlement_date', 'payment_reference']
+    );
 
     if (saleError) {
       const errorText = String(saleError.message || '').toLowerCase();
       const fallbackStrategies = [
         {
-          shouldTry: errorText.includes('calculated_total') || errorText.includes('fee_amount') || errorText.includes('fee_percentage'),
+          shouldTry: /calculated_total|fee_amount|fee_percentage/.test(errorText),
           label: 'Online fee analysis columns',
           payload: fallbackWithoutFeeColumns,
         },
         {
-          shouldTry: errorText.includes('channel_type') || errorText.includes('platform'),
-          label: 'channel_type/platform columns',
+          shouldTry: /payment_entries/.test(errorText),
+          label: 'payment_entries column',
+          payload: fallbackWithoutPaymentEntries,
+        },
+        {
+          shouldTry: /channel_type|platform|payment_status|settlement_date|payment_reference/.test(errorText),
+          label: 'channel/payment metadata columns',
           payload: fallbackWithoutChannelColumns,
         },
-      ].filter((strategy) => strategy.shouldTry);
+        {
+          shouldTry: /calculated_total|fee_amount|fee_percentage|payment_entries|channel_type|platform|payment_status|settlement_date|payment_reference/.test(errorText),
+          label: 'Legacy schema fallback payload',
+          payload: legacyFallbackPayload,
+        },
+      ].filter((strategy, index, array) => strategy.shouldTry && array.findIndex((candidate) => candidate.label === strategy.label) === index);
 
       for (const strategy of fallbackStrategies) {
         console.warn(`[POST /api/sales] Fallback: ${strategy.label} may not exist, retrying without them...`, saleError.message);
