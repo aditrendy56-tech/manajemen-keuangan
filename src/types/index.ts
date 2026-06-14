@@ -345,6 +345,19 @@ export interface ProfitLossReport {
   gross_revenue: number;
   platform_fees: number;
   net_revenue: number;
+  transaction_details?: Array<{
+    id: string;
+    created_at: string;
+    channel: string;
+    platform?: string | null;
+    gross_amount: number;
+    fee_amount: number;
+    fee_percentage: number;
+    platform_fee: number;
+    net_amount: number;
+    payment_method?: string | null;
+    payment_status?: string | null;
+  }>;
   online_fee_analysis?: {
     total_calculated_total: number;
     total_fee_amount: number;

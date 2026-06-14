@@ -73,6 +73,28 @@ export async function GET(request: NextRequest) {
     }, 0) || 0;
     const totalFeePercentage = totalCalculatedTotal > 0 ? (totalFeeAmount / totalCalculatedTotal) * 100 : 0;
     const totalNetRevenue = onlineSales.reduce((sum: number, sale: any) => sum + Number(sale.net_amount || 0), 0) || 0;
+    const transaction_details = (sales || []).map((sale: any) => {
+      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
+      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+      const feePercentage = calculatedTotal > 0 ? (feeAmount / calculatedTotal) * 100 : 0;
+      const grossAmount = Number(sale.gross_amount ?? calculatedTotal ?? 0);
+      const netAmount = Number(sale.net_amount ?? (grossAmount - feeAmount));
+
+      return {
+        id: sale.id,
+        created_at: sale.created_at,
+        channel: normalizeChannel(sale),
+        platform: sale.platform || null,
+        gross_amount: grossAmount,
+        fee_amount: feeAmount,
+        fee_percentage: feePercentage,
+        platform_fee: Number(sale.platform_fee || 0),
+        net_amount: netAmount,
+        payment_method: sale.payment_method || null,
+        payment_status: sale.payment_status || null,
+      };
+    });
+
     const byChannel = {
       shopeefood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
       gofood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
@@ -147,6 +169,7 @@ export async function GET(request: NextRequest) {
       pending_sales_amount,
       pending_expenses_amount,
       cash_basis_profit: settled_cash_inflow - settled_cash_outflow,
+      transaction_details,
       online_fee_analysis: {
         total_calculated_total: totalCalculatedTotal,
         total_fee_amount: totalFeeAmount,

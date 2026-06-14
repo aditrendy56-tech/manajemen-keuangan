@@ -3,6 +3,45 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+function toNumber(value: any) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+async function calculateExpectedClosing(supabase: any, sessionId: string, openingCash: number) {
+  const [salesRes, expensesRes, purchasesRes] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('id, net_amount, refund_amount')
+      .eq('session_id', sessionId),
+    supabase
+      .from('expenses')
+      .select('id, amount, refund_amount')
+      .eq('session_id', sessionId),
+    supabase
+      .from('material_purchases')
+      .select('id, quantity, unit_price, total_amount')
+      .eq('session_id', sessionId),
+  ]);
+
+  const salesTotal = (salesRes.data || []).reduce((sum: number, row: any) => {
+    const recognized = (Number(row.net_amount || 0) - Number(row.refund_amount || 0));
+    return sum + Math.max(recognized, 0);
+  }, 0);
+
+  const expensesTotal = (expensesRes.data || []).reduce((sum: number, row: any) => {
+    const recognized = (Number(row.amount || 0) - Number(row.refund_amount || 0));
+    return sum + Math.max(recognized, 0);
+  }, 0);
+
+  const purchasesTotal = (purchasesRes.data || []).reduce((sum: number, row: any) => {
+    const total = Number(row.total_amount || 0);
+    return sum + (Number.isFinite(total) && total > 0 ? total : Number(row.quantity || 0) * Number(row.unit_price || 0));
+  }, 0);
+
+  return Number(openingCash || 0) + salesTotal - expensesTotal - purchasesTotal;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,7 +49,7 @@ export async function PATCH(
   try {
     const { id: sessionId } = await params;
     const body = await request.json();
-    const { status } = body;
+    const { status, closing_cash } = body;
 
     if (!sessionId) {
       return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
@@ -25,7 +64,7 @@ export async function PATCH(
     // Check if session is locked
     const { data: session, error: sessionError } = await supabase
       .from('daily_sessions')
-      .select('id, is_locked')
+      .select('id, outlet_id, opening_cash, is_locked, status')
       .eq('id', sessionId)
       .single();
 
@@ -47,6 +86,31 @@ export async function PATCH(
     if (status) {
       updateData.status = status;
       if (status === 'closed') {
+        const closingCashValue = toNumber(closing_cash);
+
+        if (!Number.isFinite(closingCashValue)) {
+          return NextResponse.json(
+            { error: 'Jumlah cash penutupan wajib diisi untuk menutup sesi.' },
+            { status: 400 }
+          );
+        }
+
+        const expectedClosing = await calculateExpectedClosing(supabase, sessionId, Number(session.opening_cash || 0));
+        const difference = closingCashValue - expectedClosing;
+
+        if (Math.abs(difference) > 0.01) {
+          return NextResponse.json(
+            {
+              error: 'Jumlah cash penutupan tidak sesuai dengan laporan sesi. Cek kembali total kas yang masuk/keluar.',
+              expected_closing: expectedClosing,
+              entered_closing_cash: closingCashValue,
+              difference,
+            },
+            { status: 400 }
+          );
+        }
+
+        updateData.closing_cash = closingCashValue;
         updateData.closed_at = new Date().toISOString();
       }
     }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronRight, Info, X } from 'lucide-react';
 import { Sale } from '@/types';
 
 interface SalesTableProps {
@@ -25,6 +25,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   });
 
   const [selectedRefunds, setSelectedRefunds] = useState<Set<string>>(new Set());
+  const [infoSaleId, setInfoSaleId] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
@@ -90,20 +91,34 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
   function renderItem(sale: Sale, showNetFormat: boolean = false) {
     const isRefundable = sale.payment_status !== 'refunded';
+    const isOnlineSale = sale.channel_type === 'online' || sale.platform === 'gofood' || sale.platform === 'shopeefood';
+    const isInfoOpen = infoSaleId === sale.id;
 
     if (showNetFormat && sale.platform_fee > 0) {
       // Online format: "Produk - Rp GROSS ×Qty → Rp NET"
       return (
-        <div key={sale.id} className="py-2 px-0 flex justify-between items-center gap-3 text-sm">
-          <div className="flex-1">
-            {sale.product_name || 'Item'} - Rp {sale.gross_amount.toLocaleString('id-ID')} ×{sale.quantity || 1} → Rp {sale.net_amount.toLocaleString('id-ID')}
-            {sale.notes && (
-              <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
-            )}
-          </div>
-          {isRefundable && (
-            <div className="flex items-center gap-2">
-              {onRefund && (
+        <div key={sale.id} className="py-2 px-0 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1">
+              {sale.product_name || 'Item'} - Rp {sale.gross_amount.toLocaleString('id-ID')} ×{sale.quantity || 1} → Rp {sale.net_amount.toLocaleString('id-ID')}
+              {sale.notes && (
+                <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
+              )}
+            </div>
+            {isRefundable && (
+              <div className="flex items-center gap-2">
+                {isOnlineSale && (
+                  <button
+                    type="button"
+                    onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    aria-label="Lihat detail fee"
+                    title="Lihat detail fee"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {onRefund && (
                 <input
                   type="checkbox"
                   checked={selectedRefunds.has(sale.id)}
@@ -111,16 +126,41 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                   className="w-4 h-4 cursor-pointer"
                 />
               )}
-              {onDelete && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onDelete(sale.id)}
-                  className="text-red-600 hover:bg-red-50 p-1 h-auto"
+                {onDelete && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(sale.id)}
+                    className="text-red-600 hover:bg-red-50 p-1 h-auto"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {isOnlineSale && isInfoOpen && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold">Detail fee online</div>
+                  <div className="mt-1 text-amber-900">Harga item real: Rp {sale.gross_amount.toLocaleString('id-ID')}</div>
+                  <div className="text-amber-900">Potongan fee: Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</div>
+                  <div className="text-amber-900">Uang masuk bersih: Rp {sale.net_amount.toLocaleString('id-ID')}</div>
+                  <div className="text-amber-900">Persentase fee: {(sale.fee_percentage || 0).toFixed(2)}%</div>
+                  {sale.notes && <div className="mt-1 text-amber-800">Deskripsi: {sale.notes}</div>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInfoSaleId(null)}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
+                  aria-label="Tutup detail fee"
+                  title="Tutup detail fee"
                 >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              )}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -217,6 +257,9 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
           {/* OFFLINE - QRIS */}
           {renderSection('OFFLINE - QRIS', 'offlineQRIS', offlineQRIS)}
+
+          {/* OFFLINE - SPLIT */}
+          {renderSection('OFFLINE - SPLIT', 'offlineSplit', offlineSplit)}
 
           {/* GOFOOD */}
           {renderSection('GOFOOD', 'gofood', gofood, true)}

@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { ProfitLossReport } from '@/types';
 
 interface ReportsTableProps {
@@ -8,6 +10,8 @@ interface ReportsTableProps {
 }
 
 export function ReportsTable({ report }: ReportsTableProps) {
+  const [showTransactionDetails, setShowTransactionDetails] = useState(false);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -95,6 +99,56 @@ export function ReportsTable({ report }: ReportsTableProps) {
                     ) : null
                   ))}
                 </div>
+              </div>
+            )}
+
+            {report.transaction_details && report.transaction_details.length > 0 && (
+              <div className="my-4 pt-4 border-t-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">Detail Transaksi</div>
+                    <p className="text-xs text-slate-500">Klik untuk melihat gross, fee, dan net per transaksi.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTransactionDetails((prev) => !prev)}
+                  >
+                    {showTransactionDetails ? 'Sembunyikan' : 'Lihat detail'}
+                  </Button>
+                </div>
+
+                {showTransactionDetails && (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-700">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Tanggal</th>
+                            <th className="px-3 py-2 text-left">Channel</th>
+                            <th className="px-3 py-2 text-right">Gross</th>
+                            <th className="px-3 py-2 text-right">Fee</th>
+                            <th className="px-3 py-2 text-right">Net</th>
+                            <th className="px-3 py-2 text-right">% Fee</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.transaction_details.map((item) => (
+                            <tr key={item.id} className="border-t border-slate-100 align-top">
+                              <td className="px-3 py-2 text-slate-700">{new Date(item.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                              <td className="px-3 py-2 text-slate-700 capitalize">{item.channel}</td>
+                              <td className="px-3 py-2 text-right">Rp {item.gross_amount.toLocaleString('id-ID')}</td>
+                              <td className="px-3 py-2 text-right text-red-600">Rp {item.fee_amount.toLocaleString('id-ID')}</td>
+                              <td className="px-3 py-2 text-right font-semibold">Rp {item.net_amount.toLocaleString('id-ID')}</td>
+                              <td className="px-3 py-2 text-right text-amber-700">{item.fee_percentage.toFixed(2)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

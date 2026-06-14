@@ -362,36 +362,20 @@ export default function SessionDetailPage() {
     return Math.max(amount - refundAmount, 0);
   }
 
-  const saleIds = new Set(sales.map((sale) => sale.id));
-  const expenseIds = new Set(expenses.map((expense) => expense.id));
-  const purchaseIds = new Set(purchases.map((purchase) => purchase.id));
-  const sessionCashTransactions = cashTransactions.filter((transaction) => {
-    const sourceType = String((transaction as any).source_type || '');
-    const sourceId = String((transaction as any).source_id || '');
-
-    if (sourceType === 'sale' || sourceType === 'sale_refund') return saleIds.has(sourceId);
-    if (sourceType === 'expense' || sourceType === 'expense_refund') return expenseIds.has(sourceId);
-    if (sourceType === 'material_purchase') return purchaseIds.has(sourceId);
-    return false;
-  });
-  const cashInflow = sessionCashTransactions
-    .filter((transaction) => transaction.transaction_type === 'inflow')
-    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
-  const cashOutflow = sessionCashTransactions
-    .filter((transaction) => transaction.transaction_type === 'outflow')
-    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
-
   const totalSales = sales.reduce((sum, s) => sum + getRecognizedSaleAmount(s), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + getRecognizedExpenseAmount(e), 0);
   const totalPurchases = purchases.reduce(
     (sum, purchase) => sum + (purchase.total_amount || Number(purchase.quantity) * Number(purchase.unit_price)),
     0
   );
-  const expectedClosing = (session?.opening_cash || 0) + cashInflow - cashOutflow;
+  const expectedClosing = (session?.opening_cash || 0) + totalSales - totalExpenses - totalPurchases;
+  const closingDifference = Number(closingCash || 0) - expectedClosing;
 
   async function handleCloseSession() {
-    if (!closingCash) {
-      alert('Masukkan jumlah cash penutupan');
+    const enteredClosingCash = Number(closingCash || 0);
+
+    if (!closingCash || !Number.isFinite(enteredClosingCash) || enteredClosingCash <= 0) {
+      alert('Masukkan jumlah cash penutupan yang valid');
       return;
     }
 
@@ -401,7 +385,7 @@ export default function SessionDetailPage() {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
+        body: JSON.stringify({ status: 'closed', closing_cash: enteredClosingCash }),
       });
 
       if (!res.ok) {
@@ -410,8 +394,9 @@ export default function SessionDetailPage() {
       }
 
       const updated = await res.json();
-      setSession(updated);
-      alert('Sesi ditutup. Selisih: Rp ' + (parseInt(closingCash) - expectedClosing).toLocaleString('id-ID'));
+      setSession(updated.session || updated);
+      setClosingCash('');
+      alert('Sesi berhasil ditutup. Selisih cash: Rp ' + (enteredClosingCash - expectedClosing).toLocaleString('id-ID'));
     } catch (err: any) {
       console.error('Error closing session:', err);
       alert('Gagal menutup sesi: ' + (err.message || err));
@@ -469,6 +454,14 @@ export default function SessionDetailPage() {
                   Tutup Sesi
                 </Button>
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Perkiraan cash akhir dari laporan: Rp {expectedClosing.toLocaleString('id-ID')}
+              </p>
+              {closingCash && (
+                <p className={closingDifference === 0 ? 'mt-1 text-xs text-green-600' : 'mt-1 text-xs text-red-600'}>
+                  Selisih: Rp {Math.abs(closingDifference).toLocaleString('id-ID')} {closingDifference >= 0 ? 'lebih' : 'kurang'} dari laporan
+                </p>
+              )}
             </div>
           )}
         </CardContent>

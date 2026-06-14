@@ -74,25 +74,8 @@ export function ActiveSessionsTab({
   }
 
   async function handleCloseSession(sessionId: string) {
-    if (!confirm('Tutup sesi ini? Anda tidak bisa edit data setelah sesi ditutup.')) return;
-
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
-      });
-
-      if (response.ok) {
-        onSessionUpdated({ ...sessions.find((s) => s.id === sessionId)!, status: 'closed' });
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.message}`);
-      }
-    } catch (error) {
-      console.error('Error closing session:', error);
-      alert('Gagal menutup sesi');
-    }
+    alert('Gunakan halaman detail sesi untuk menginput closing cash dan verifikasi sebelum tutup sesi.');
+    window.location.href = `/dashboard/sessions/${sessionId}`;
   }
 
   async function handleDeleteSession(sessionId: string) {

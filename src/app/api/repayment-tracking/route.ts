@@ -42,65 +42,56 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Get profit allocations for the month
+    // Get profit allocations for the month using stable existing columns.
+    // This avoids depending on the newer hutang_payments JSON column that may not exist yet.
     const { data: allocations, error: allocError } = await supabase
       .from('profit_allocations')
-      .select('id, outlet_id, allocation_month, hutang_payments')
+      .select('id, outlet_id, allocation_month, total_profit, profit_pending_amount')
       .eq('outlet_id', outletId)
       .eq('allocation_month', month);
 
     if (allocError) throw allocError;
 
-    // Calculate total allocated for cicilan
-    let totalAllocated = new Decimal(0);
-    (allocations || []).forEach((alloc: any) => {
-      if (alloc.hutang_payments) {
-        Object.values(alloc.hutang_payments).forEach((payment: any) => {
-          const amount = (payment as any)?.amount || 0;
-          totalAllocated = totalAllocated.plus(new Decimal(amount));
-        });
-      }
-    });
+    // Calculate total allocated for cicilan using existing allocation fields.
+    const totalAllocated = (allocations || []).reduce(
+      (sum: Decimal, alloc: any) => sum.plus(new Decimal(alloc.total_profit || alloc.profit_pending_amount || 0)),
+      new Decimal(0)
+    );
 
-    // Get repayment tracking for the month
+    // Get repayment records from the existing capital_repayments table.
+    // This is the safe fallback path for current schema state.
     const { data: repayments, error: rtError } = await supabase
-      .from('repayment_tracking')
-      .select('id, investor_id, amount_paid, repayment_date, repayment_type')
-      .eq('outlet_id', outletId)
-      .eq('repayment_type', 'cicilan')
+      .from('capital_repayments')
+      .select('id, investor_id, amount, repayment_date, method, notes')
       .order('repayment_date', { ascending: false });
 
     if (rtError) throw rtError;
 
-    // Filter repayments by month
-    const filteredRepayments = (repayments || []).filter((rt: any) => {
-      const rtMonth = rt.repayment_date.slice(0, 7);
-      return rtMonth === month;
-    });
-
-    // Calculate total paid
-    const totalPaid = filteredRepayments.reduce(
-      (sum: Decimal, rt: any) => sum.plus(new Decimal(rt.amount_paid)),
-      new Decimal(0)
-    );
-
-    // Get investor names for recent payments
-    const investorIds = [...new Set(filteredRepayments.map((rt: any) => rt.investor_id))];
+    const investorIds = [...new Set((repayments || []).map((rt: any) => rt.investor_id).filter(Boolean))];
     const { data: investors, error: invError } = await supabase
       .from('investors')
-      .select('id, name')
+      .select('id, name, outlet_id')
       .in('id', investorIds);
 
     if (invError) throw invError;
 
     const investorMap = new Map((investors || []).map((inv: any) => [inv.id, inv.name]));
+    const outletInvestorIds = new Set((investors || []).filter((inv: any) => inv.outlet_id === outletId).map((inv: any) => inv.id));
 
-    // Prepare recent payments with investor names
+    const filteredRepayments = (repayments || [])
+      .filter((rt: any) => outletInvestorIds.has(rt.investor_id) && String(rt.repayment_date || '').slice(0, 7) === month)
+      .sort((a: any, b: any) => String(b.repayment_date || '').localeCompare(String(a.repayment_date || '')));
+
+    const totalPaid = filteredRepayments.reduce(
+      (sum: Decimal, rt: any) => sum.plus(new Decimal(rt.amount || 0)),
+      new Decimal(0)
+    );
+
     const recentPayments = filteredRepayments.slice(0, 10).map((rt: any) => ({
       investor_name: investorMap.get(rt.investor_id) || 'Unknown',
-      amount_paid: new Decimal(rt.amount_paid).toFixed(2),
+      amount_paid: new Decimal(rt.amount || 0).toFixed(2),
       repayment_date: rt.repayment_date,
-      repayment_type: rt.repayment_type,
+      repayment_type: 'cicilan',
     }));
 
     const outstanding = totalAllocated.minus(totalPaid);
