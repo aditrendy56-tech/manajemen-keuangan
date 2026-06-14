@@ -136,6 +136,16 @@ export interface Sale {
     payment_reference?: string | null;
     notes?: string | null;
   }>;
+  sale_items?: Array<{
+    id?: string;
+    product_id?: string | null;
+    product_name?: string | null;
+    quantity?: number;
+    unit_price?: number;
+    subtotal?: number;
+    cost_price?: number;
+  }>;
+  item_count?: number;
   order_ref?: string | null;
   notes?: string | null;
   // Custom Pricing Fields (NEW)

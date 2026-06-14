@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, ChevronDown, ChevronRight, Info, X } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Sale } from '@/types';
 
 interface SalesTableProps {
@@ -89,43 +89,35 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const customTotal = calcTotal(custom);
   const grandTotal = offlineTotal + gofoodNet + shopeefoodNet + customTotal;
 
-  function renderItem(sale: Sale, showNetFormat: boolean = false) {
+  function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0) {
     const isRefundable = sale.payment_status !== 'refunded';
     const isOnlineSale = sale.channel_type === 'online' || sale.platform === 'gofood' || sale.platform === 'shopeefood';
     const isInfoOpen = infoSaleId === sale.id;
 
     if (showNetFormat && sale.platform_fee > 0) {
-      // Online format: "Produk - Rp GROSS ×Qty → Rp NET"
+      const transactionItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
+        ? sale.sale_items
+        : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.gross_amount || sale.net_amount || 0, subtotal: sale.gross_amount || sale.net_amount || 0 }];
+
       return (
-        <div key={sale.id} className="py-2 px-0 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1">
-              {sale.product_name || 'Item'} - Rp {sale.gross_amount.toLocaleString('id-ID')} ×{sale.quantity || 1} → Rp {sale.net_amount.toLocaleString('id-ID')}
-              {sale.notes && (
-                <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
-              )}
+        <div key={sale.id} className="py-4 px-4 mb-3 rounded-lg border border-amber-200 bg-white">
+          {/* Header dengan Nomor Transaksi dan Kontrol */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-amber-100">
+            <div>
+              <div className="text-sm font-bold text-slate-900">
+                Transaksi {transactionNumber}
+              </div>
             </div>
             {isRefundable && (
               <div className="flex items-center gap-2">
-                {isOnlineSale && (
-                  <button
-                    type="button"
-                    onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                    aria-label="Lihat detail fee"
-                    title="Lihat detail fee"
-                  >
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                )}
                 {onRefund && (
-                <input
-                  type="checkbox"
-                  checked={selectedRefunds.has(sale.id)}
-                  onChange={() => toggleRefundSelection(sale.id)}
-                  className="w-4 h-4 cursor-pointer"
-                />
-              )}
+                  <input
+                    type="checkbox"
+                    checked={selectedRefunds.has(sale.id)}
+                    onChange={() => toggleRefundSelection(sale.id)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                )}
                 {onDelete && (
                   <Button
                     size="sm"
@@ -140,32 +132,80 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             )}
           </div>
 
-          {isOnlineSale && isInfoOpen && (
-            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-semibold">Detail fee online</div>
-                  <div className="mt-1 text-amber-900">Harga item real: Rp {sale.gross_amount.toLocaleString('id-ID')}</div>
-                  <div className="text-amber-900">Potongan fee: Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</div>
-                  <div className="text-amber-900">Uang masuk bersih: Rp {sale.net_amount.toLocaleString('id-ID')}</div>
-                  <div className="text-amber-900">Persentase fee: {(sale.fee_percentage || 0).toFixed(2)}%</div>
-                  {sale.notes && <div className="mt-1 text-amber-800">Deskripsi: {sale.notes}</div>}
+          {/* Daftar Item - Lebih Prominent */}
+          <div className="mb-4">
+            <div className="text-sm font-semibold text-slate-800 mb-2">Daftar Item</div>
+            <div className="space-y-2">
+              {transactionItems.map((item, index) => (
+                <div key={`${sale.id}-${item.product_id || index}`} className="flex items-center justify-between gap-3 pl-3 pr-2 py-1.5 rounded bg-slate-50 border-l-2 border-amber-300">
+                  <span className="text-sm text-slate-800 font-medium flex-1">
+                    {item.product_name || 'Item'} × {item.quantity || 1}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setInfoSaleId(null)}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
-                  aria-label="Tutup detail fee"
-                  title="Tutup detail fee"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subtotal per Transaksi */}
+          <div className="mb-4 p-3 rounded-md bg-slate-100 border border-slate-300 space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-700 font-medium">Subtotal Item:</span>
+              <span className="font-semibold text-slate-900">Rp {Number(sale.gross_amount || 0).toLocaleString('id-ID')}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-700 font-medium">Subtotal Bersih:</span>
+              <span className="font-semibold text-emerald-700">Rp {Number(sale.net_amount || 0).toLocaleString('id-ID')}</span>
+            </div>
+          </div>
+
+          {/* Detail Fee Button & Info */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex-1"></div>
+            <button
+              type="button"
+              onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
+              className="inline-flex h-7 px-3 items-center justify-center rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-medium gap-1.5"
+              aria-label="Lihat detail fee"
+              title="Lihat detail fee"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Detail Fee
+            </button>
+          </div>
+
+          {isInfoOpen && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 shadow-sm">
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-700">Harga item real:</span>
+                  <span className="font-semibold">Rp {sale.gross_amount.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-700">Potongan fee:</span>
+                  <span className="font-semibold text-red-600">Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-700">Uang masuk bersih:</span>
+                  <span className="font-semibold text-emerald-700">Rp {sale.net_amount.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-700">Persentase fee:</span>
+                  <span className="font-semibold text-amber-700">{(sale.fee_percentage || 0).toFixed(2)}%</span>
+                </div>
               </div>
             </div>
           )}
+
+          {sale.notes && <div className="text-xs text-gray-600 italic mt-3">Catatan: {sale.notes}</div>}
         </div>
       );
     }
+
 
     // Offline format: "Produk - Rp XXX ×Qty"
     return (
@@ -208,6 +248,8 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   function renderSection(title: string, sectionKey: string, items: Sale[], showNetFormat: boolean = false) {
     const isExpanded = expandedSections[sectionKey];
     const sectionTotal = calcTotal(items);
+    const sectionGross = calcGross(items);
+    const isOnlineSection = showNetFormat;
 
     return (
       <div key={sectionKey} className="mb-4 pt-3">
@@ -233,11 +275,31 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             ) : (
               <>
                 <div className="mt-1 space-y-1">
-                  {items.map((item) => renderItem(item, showNetFormat))}
+                  {items.map((item, index) => renderItem(item, showNetFormat, index + 1))}
                 </div>
-                <div className="py-2 text-sm font-semibold text-right mt-2">
-                  Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
-                </div>
+
+                {/* Footer: Total Transaksi & Total Bersih untuk online sections */}
+                {isOnlineSection && (
+                  <div className="mt-4 p-3 rounded-lg border border-amber-300 bg-amber-50">
+                    <div className="text-sm font-semibold text-amber-900 mb-2">Total {title.split(' ')[0]}</div>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-amber-800">Total Transaksi:</span>
+                        <span className="font-semibold text-amber-900">Rp {sectionGross.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-amber-800">Total Bersih Diterima:</span>
+                        <span className="font-semibold text-emerald-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!isOnlineSection && (
+                  <div className="py-2 text-sm font-semibold text-right mt-2">
+                    Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
+                  </div>
+                )}
               </>
             )}
           </div>

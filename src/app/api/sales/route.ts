@@ -26,13 +26,13 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Get sales with joined product info from sale_items
+    // Get sales with joined sale_items for full transaction details.
     let query = supabase
       .from('sales')
       .select(
         `
         *,
-        sale_items (product_id)
+        sale_items (id, product_id, quantity, unit_price, subtotal)
       `
       )
       .eq('outlet_id', outletId);
@@ -77,27 +77,25 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Enrich sales data with product names
+    // Enrich sales data with product names and full item details.
     const enrichedData = salesWithItems.map((sale: any) => {
-      let product_name: string | null = null;
+      const saleItems = Array.isArray(sale.sale_items)
+        ? sale.sale_items.map((item: any) => ({
+            id: item.id,
+            product_id: item.product_id,
+            product_name: productMap.get(item.product_id) || 'Item',
+            quantity: Number(item.quantity || 0),
+            unit_price: Number(item.unit_price || 0),
+            subtotal: Number(item.subtotal || (Number(item.quantity || 0) * Number(item.unit_price || 0)) || 0),
+          }))
+        : [];
 
-      // Priority 1: Custom pricing product_id
-      if (sale.product_id) {
-        product_name = productMap.get(sale.product_id) || null;
-      }
-      // Priority 2: First item from sale_items
-      else if (Array.isArray(sale.sale_items) && sale.sale_items.length > 0) {
-        const firstItem = sale.sale_items[0];
-        if (firstItem.product_id) {
-          product_name = productMap.get(firstItem.product_id) || null;
-        }
-      }
-
-      // Remove sale_items from response (internal data)
-      const { sale_items, ...saleData } = sale;
+      const product_name = saleItems[0]?.product_name || (sale.product_id ? productMap.get(sale.product_id) || null : null);
 
       return {
-        ...saleData,
+        ...sale,
+        sale_items: saleItems,
+        item_count: saleItems.length,
         product_name,
       };
     });
