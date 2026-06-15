@@ -102,10 +102,13 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
       return (
         <div key={sale.id} className="py-4 px-4 mb-3 rounded-lg border border-amber-200 bg-white">
           {/* Header dengan Nomor Transaksi dan Kontrol */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-amber-100">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-amber-200">
             <div>
-              <div className="text-sm font-bold text-slate-900">
-                Transaksi {transactionNumber}
+              <div className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span className="inline-block bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                  TXN #{transactionNumber}
+                </span>
+                <span className="text-xs text-slate-600 font-normal">{sale.id ? sale.id.slice(0, 8) : ''}</span>
               </div>
             </div>
             {isRefundable && (
@@ -133,69 +136,90 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
           </div>
 
           {/* Daftar Item - Lebih Prominent */}
-          <div className="mb-4">
-            <div className="text-sm font-semibold text-slate-800 mb-2">Daftar Item</div>
+          <div className="mb-5">
+            <div className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2.5 px-1">Item Breakdown</div>
             <div className="space-y-2">
               {transactionItems.map((item, index) => (
-                <div key={`${sale.id}-${item.product_id || index}`} className="flex items-center justify-between gap-3 pl-3 pr-2 py-1.5 rounded bg-slate-50 border-l-2 border-amber-300">
-                  <span className="text-sm text-slate-800 font-medium flex-1">
-                    {item.product_name || 'Item'} × {item.quantity || 1}
-                  </span>
-                  <span className="text-sm font-semibold text-slate-900">
-                    Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
-                  </span>
+                <div key={`${sale.id}-${item.product_id || index}`} className="flex items-start justify-between gap-3 p-2.5 rounded-md bg-gradient-to-r from-amber-50 to-white border border-amber-100 hover:border-amber-300 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 truncate">
+                      {item.product_name || 'Item'}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-2">
+                      <span className="inline-block bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs font-medium">×{item.quantity || 1}</span>
+                      <span className="text-slate-500">@ Rp {Number(item.unit_price || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-sm font-bold text-slate-900">
+                      Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Subtotal per Transaksi */}
-          <div className="mb-4 p-3 rounded-md bg-slate-100 border border-slate-300 space-y-1.5">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-700 font-medium">Subtotal Item:</span>
-              <span className="font-semibold text-slate-900">Rp {Number(sale.gross_amount || 0).toLocaleString('id-ID')}</span>
+          <div className="mb-4 p-3.5 rounded-lg bg-slate-50 border-2 border-slate-200 space-y-2.5">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-700 font-semibold">Item Total:</span>
+              <span className="font-bold text-slate-900 text-base">Rp {Number(sale.gross_amount || 0).toLocaleString('id-ID')}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-700 font-medium">Subtotal Bersih:</span>
-              <span className="font-semibold text-emerald-700">Rp {Number(sale.net_amount || 0).toLocaleString('id-ID')}</span>
+            {(sale.platform_fee || 0) > 0 && (
+              <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-300">
+                <span className="text-red-700 font-semibold">Platform Fee ({(sale.fee_percentage || 0).toFixed(1)}%):</span>
+                <span className="font-bold text-red-600">− Rp {Number(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center text-base pt-2 border-t-2 border-slate-300">
+              <span className="text-slate-900 font-bold">Net Amount:</span>
+              <span className="font-bold text-emerald-700 text-lg">Rp {Number(sale.net_amount || 0).toLocaleString('id-ID')}</span>
             </div>
           </div>
 
           {/* Detail Fee Button & Info */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex-1"></div>
-            <button
-              type="button"
-              onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
-              className="inline-flex h-7 px-3 items-center justify-center rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-medium gap-1.5"
-              aria-label="Lihat detail fee"
-              title="Lihat detail fee"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              Detail Fee
-            </button>
-          </div>
+          {(sale.platform_fee || 0) > 0 && (
+            <div className="flex items-center justify-end mb-3">
+              <button
+                type="button"
+                onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
+                className="inline-flex h-8 px-3 items-center justify-center rounded-md border-2 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold gap-1.5 transition-all"
+                aria-label="Lihat detail fee"
+                title="Lihat detail fee dan breakdown"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                {isInfoOpen ? 'Hide Fee Detail' : 'Show Fee Detail'}
+              </button>
+            </div>
+          )}
 
           {isInfoOpen && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 shadow-sm">
-              <div className="space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-700">Harga item real:</span>
-                  <span className="font-semibold">Rp {sale.gross_amount.toLocaleString('id-ID')}</span>
+            <div className="rounded-lg border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50 p-4 text-sm shadow-sm mb-3">
+              <div className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                Fee Breakdown
+              </div>
+              <div className="space-y-2.5">
+                <div className="flex justify-between pb-2.5 border-b border-amber-200">
+                  <span className="text-amber-800">Item Price:</span>
+                  <span className="font-bold text-slate-900">Rp {sale.gross_amount.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-700">Potongan fee:</span>
-                  <span className="font-semibold text-red-600">Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
+                <div className="flex justify-between pb-2.5 border-b border-amber-200">
+                  <span className="text-amber-800">Platform Fee:</span>
+                  <span className="font-bold text-red-600">− Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-700">Uang masuk bersih:</span>
-                  <span className="font-semibold text-emerald-700">Rp {sale.net_amount.toLocaleString('id-ID')}</span>
+                <div className="flex justify-between pb-2.5 border-b-2 border-amber-400">
+                  <span className="text-amber-900 font-bold">Fee Rate:</span>
+                  <span className="font-bold text-amber-700">{(sale.fee_percentage || 0).toFixed(2)}%</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-700">Persentase fee:</span>
-                  <span className="font-semibold text-amber-700">{(sale.fee_percentage || 0).toFixed(2)}%</span>
+                <div className="flex justify-between pt-2.5">
+                  <span className="text-slate-900 font-bold">Amount Received:</span>
+                  <span className="font-bold text-emerald-700 text-base">Rp {sale.net_amount.toLocaleString('id-ID')}</span>
                 </div>
               </div>
             </div>
@@ -280,16 +304,24 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
                 {/* Footer: Total Transaksi & Total Bersih untuk online sections */}
                 {isOnlineSection && (
-                  <div className="mt-4 p-3 rounded-lg border border-amber-300 bg-amber-50">
-                    <div className="text-sm font-semibold text-amber-900 mb-2">Total {title.split(' ')[0]}</div>
-                    <div className="space-y-1.5">
+                  <div className="mt-5 p-4 rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 shadow-sm">
+                    <div className="text-sm font-bold text-amber-950 mb-3 uppercase tracking-wide">
+                      {title} Summary
+                    </div>
+                    <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-amber-800">Total Transaksi:</span>
-                        <span className="font-semibold text-amber-900">Rp {sectionGross.toLocaleString('id-ID')}</span>
+                        <span className="text-amber-800 font-semibold">Total Transactions:</span>
+                        <span className="font-bold text-slate-900">Rp {sectionGross.toLocaleString('id-ID')}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-amber-800">Total Bersih Diterima:</span>
-                        <span className="font-semibold text-emerald-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
+                      {sectionGross !== sectionTotal && (
+                        <div className="flex justify-between text-sm pt-2 border-t border-amber-200">
+                          <span className="text-amber-800 font-semibold">Platform Fees:</span>
+                          <span className="font-bold text-red-600">− Rp {(sectionGross - sectionTotal).toLocaleString('id-ID')}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-base pt-2 border-t-2 border-amber-300">
+                        <span className="text-slate-900 font-bold">Net Received:</span>
+                        <span className="font-bold text-emerald-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
                       </div>
                     </div>
                   </div>
