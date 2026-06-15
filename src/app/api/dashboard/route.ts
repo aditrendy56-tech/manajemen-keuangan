@@ -27,17 +27,35 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const outletId = searchParams.get('outlet_id');
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    const requestedDate = searchParams.get('date');
 
     if (!outletId) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
     }
 
+    const supabase = getSupabaseServer();
+
+    let effectiveDate = requestedDate || new Date().toISOString().split('T')[0];
+
+    if (!requestedDate) {
+      const { data: activeSession } = await supabase
+        .from('daily_sessions')
+        .select('date')
+        .eq('outlet_id', outletId)
+        .eq('status', 'open')
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSession?.date) {
+        effectiveDate = activeSession.date;
+      }
+    }
+
+    const date = effectiveDate;
     const weekStart = new Date(`${date}T00:00:00`);
     weekStart.setDate(weekStart.getDate() - 6);
     const weekStartDate = weekStart.toISOString().split('T')[0];
-
-    const supabase = getSupabaseServer();
 
     // Get outlet settings for fee rates
     const { data: outletSettings } = await supabase.from('outlet_settings')
