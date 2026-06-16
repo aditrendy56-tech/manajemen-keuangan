@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteCashTransactionsBySource } from '@/lib/cash/ledger';
-import { recordCashTransaction } from '@/lib/cash/ledger';
+import { revertSalesSplit } from '@/lib/cash/dual-bucket-v2';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,6 +14,27 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const supabase = getSupabaseServer();
+
+    const { data: saleToDelete, error: fetchSaleError } = await supabase
+      .from('sales')
+      .select('id, outlet_id, gross_amount, platform_fee')
+      .eq('id', id)
+      .single();
+
+    if (fetchSaleError || !saleToDelete) {
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+    }
+
+    try {
+      await revertSalesSplit(
+        saleToDelete.outlet_id,
+        saleToDelete.id,
+        Number(saleToDelete.gross_amount || 0),
+        Number(saleToDelete.platform_fee || 0)
+      );
+    } catch (rollbackError) {
+      console.warn('[DELETE /api/sales] Warning: rollback split failed, continuing cleanup:', rollbackError);
+    }
 
     // Delete profit_pending_transactions associated with this sale
     const { error: deleteProfitError } = await supabase

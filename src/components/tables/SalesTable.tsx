@@ -91,7 +91,6 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
   function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0) {
     const isRefundable = sale.payment_status !== 'refunded';
-    const isOnlineSale = sale.channel_type === 'online' || sale.platform === 'gofood' || sale.platform === 'shopeefood';
     const isInfoOpen = infoSaleId === sale.id;
 
     if (showNetFormat && sale.platform_fee > 0) {

@@ -178,6 +178,49 @@ export async function splitSalesTransaction(
   }
 }
 
+export async function revertSalesSplit(
+  outletId: string,
+  saleId: string,
+  grossAmount: number,
+  platformFee: number = 0
+): Promise<void> {
+  try {
+    const supabase = getSupabaseServer();
+    const split = calculateSalesSplit(grossAmount, platformFee);
+    const currentBalance = await getFinancialBalance(outletId);
+
+    const nextKasUtama = new Decimal(currentBalance.kas_utama).minus(split.kas_utama_amount).toNumber();
+    const nextProfitPending = new Decimal(currentBalance.profit_pending).minus(split.profit_pending_amount).toNumber();
+
+    const { error: accountError } = await supabase
+      .from('financial_accounts')
+      .upsert(
+        {
+          outlet_id: outletId,
+          kas_utama_balance: Math.max(nextKasUtama, 0),
+          kas_utama_last_updated: new Date().toISOString(),
+          profit_pending_balance: Math.max(nextProfitPending, 0),
+          profit_pending_last_updated: new Date().toISOString(),
+        },
+        { onConflict: 'outlet_id' }
+      );
+
+    if (accountError) throw accountError;
+
+    const { error: deleteError } = await supabase
+      .from('profit_pending_transactions')
+      .delete()
+      .eq('sale_id', saleId);
+
+    if (deleteError) {
+      console.warn('[revertSalesSplit] Warning: Could not remove profit_pending_transactions:', deleteError);
+    }
+  } catch (error) {
+    console.error('[revertSalesSplit] Error:', error);
+    throw error;
+  }
+}
+
 /**
  * Validate expense can be paid from specified bucket
  * 
