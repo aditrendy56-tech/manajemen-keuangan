@@ -13,8 +13,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    // Delete sale items first
-    const { error: itemsError } = await getSupabaseServer()
+    const supabase = getSupabaseServer();
+
+    // Delete profit_pending_transactions associated with this sale
+    const { error: deleteProfitError } = await supabase
+      .from('profit_pending_transactions')
+      .delete()
+      .eq('sale_id', id);
+
+    if (deleteProfitError) {
+      console.warn('[DELETE /api/sales] Warning: Failed to delete profit_pending_transactions:', deleteProfitError.message);
+      // Continue anyway - not critical
+    }
+
+    // Delete sale items
+    const { error: itemsError } = await supabase
       .from('sale_items')
       .delete()
       .eq('sale_id', id);
@@ -22,7 +35,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (itemsError) throw itemsError;
 
     // Delete sale
-    const { error: saleError } = await getSupabaseServer()
+    const { error: saleError } = await supabase
       .from('sales')
       .delete()
       .eq('id', id);
@@ -31,8 +44,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     await deleteCashTransactionsBySource('sale', id);
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    console.log('[DELETE /api/sales] Successfully deleted sale:', id);
+    return NextResponse.json({ success: true, message: 'Sale deleted successfully', sale_id: id }, { status: 200 });
   } catch (error: any) {
+    console.error('[DELETE /api/sales] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

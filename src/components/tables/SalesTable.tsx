@@ -231,38 +231,60 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     }
 
 
-    // Offline format: "Produk - Rp XXX ×Qty"
+    // Offline format: Iterate sale_items if available, otherwise use product_name fallback
+    const offlineItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
+      ? sale.sale_items
+      : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.net_amount || 0, subtotal: sale.net_amount || 0 }];
+
+    const offlineItemsTotal = offlineItems.reduce((sum, item) => sum + Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)), 0);
+
     return (
-      <div key={sale.id} className="py-2 px-0 flex justify-between items-center gap-3 text-sm">
-        <div className="flex-1">
-          {sale.product_name || 'Item'} - Rp {sale.net_amount.toLocaleString('id-ID')} ×{sale.quantity || 1}
-          {sale.type === 'custom' && sale.custom_description && (
-            <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
-          )}
-          {sale.notes && (
-            <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
+      <div key={sale.id} className="py-3 px-0 border-b last:border-b-0">
+        <div className="flex justify-between items-start gap-3 mb-2">
+          <div className="flex-1 space-y-1">
+            {offlineItems.map((item, idx) => (
+              <div key={`${sale.id}-${item.product_id || idx}`} className="flex justify-between items-center gap-3 text-sm">
+                <div className="flex-1">
+                  {item.product_name || 'Item'} <span className="text-gray-600">×{item.quantity || 1}</span>
+                </div>
+                <div className="text-right whitespace-nowrap font-medium">
+                  Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
+                </div>
+              </div>
+            ))}
+            {sale.type === 'custom' && sale.custom_description && (
+              <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
+            )}
+            {sale.notes && (
+              <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
+            )}
+          </div>
+          {isRefundable && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {onRefund && (
+                <input
+                  type="checkbox"
+                  checked={selectedRefunds.has(sale.id)}
+                  onChange={() => toggleRefundSelection(sale.id)}
+                  className="w-4 h-4 cursor-pointer"
+                />
+              )}
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onDelete(sale.id)}
+                  className="text-red-600 hover:bg-red-50 p-1 h-auto"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
           )}
         </div>
-        {isRefundable && (
-          <div className="flex items-center gap-2">
-            {onRefund && (
-              <input
-                type="checkbox"
-                checked={selectedRefunds.has(sale.id)}
-                onChange={() => toggleRefundSelection(sale.id)}
-                className="w-4 h-4 cursor-pointer"
-              />
-            )}
-            {onDelete && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onDelete(sale.id)}
-                className="text-red-600 hover:bg-red-50 p-1 h-auto"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            )}
+        {offlineItems.length > 1 && (
+          <div className="text-right text-sm font-semibold pt-1 border-t text-slate-700">
+            Subtotal: Rp {offlineItemsTotal.toLocaleString('id-ID')}
           </div>
         )}
       </div>
