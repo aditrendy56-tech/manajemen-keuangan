@@ -35,8 +35,13 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    let effectiveDate = requestedDate || new Date().toISOString().split('T')[0];
+    // Resolve effective date for dashboard. Default to system date.
+    const systemDate = new Date().toISOString().split('T')[0];
+    let effectiveDate = requestedDate || systemDate;
 
+    // If no explicit date requested, prefer the active session date ONLY
+    // when the active session is for today's date. This avoids showing
+    // stale 'today' metrics when an old session remains open.
     if (!requestedDate) {
       const { data: activeSession } = await supabase
         .from('daily_sessions')
@@ -47,7 +52,7 @@ export async function GET(request: NextRequest) {
         .limit(1)
         .maybeSingle();
 
-      if (activeSession?.date) {
+      if (activeSession?.date && activeSession.date === systemDate) {
         effectiveDate = activeSession.date;
       }
     }
@@ -57,14 +62,14 @@ export async function GET(request: NextRequest) {
     weekStart.setDate(weekStart.getDate() - 6);
     const weekStartDate = weekStart.toISOString().split('T')[0];
 
-    // Get outlet settings for fee rates
+    // Get outlet settings for fee rates (support legacy column names)
     const { data: outletSettings } = await supabase.from('outlet_settings')
-      .select('fee_rate_shopeefood, fee_rate_gofood')
+      .select('fee_rate_shopeefood, fee_rate_gofood, fee_shopeefood, fee_gofood')
       .eq('outlet_id', outletId)
       .maybeSingle();
 
-    const fee_rate_shopeefood = Number(outletSettings?.fee_rate_shopeefood || 0.08);
-    const fee_rate_gofood = Number(outletSettings?.fee_rate_gofood || 0.10);
+    const fee_rate_shopeefood = Number(outletSettings?.fee_rate_shopeefood ?? outletSettings?.fee_shopeefood ?? 0.08);
+    const fee_rate_gofood = Number(outletSettings?.fee_rate_gofood ?? outletSettings?.fee_gofood ?? 0.10);
 
     // Get today's sales (recognized by transaction date)
     const { data: sales } = await supabase.from('sales')
@@ -136,7 +141,10 @@ export async function GET(request: NextRequest) {
     const today_total_platform_fee = today_fee_shopeefood + today_fee_gofood; // offline: 0%
 
     // STEP 4: Calculate Pendapatan Bersih (Net Revenue)
-    const today_pendapatan_bersih = today_gross_revenue - today_total_hpp - today_total_platform_fee;
+    // NOTE: `today_gross_revenue` already uses `sale.net_amount` (real money received after marketplace fee).
+    // Platform fees are kept for analytics only (tracked via today_total_platform_fee),
+    // so do not subtract platform fee again here to avoid double-dipping.
+    const today_pendapatan_bersih = today_gross_revenue - today_total_hpp;
 
     // STEP 5: Calculate Operational Expenses (ONLY category='operasional')
     const today_operational_expenses = (expenses || []).filter((e: any) => {
@@ -275,7 +283,9 @@ export async function GET(request: NextRequest) {
     const cumulative_total_platform_fee = cumulative_fee_shopeefood + cumulative_fee_gofood;
 
     // STEP 4: Calculate Cumulative Pendapatan Bersih
-    const cumulative_pendapatan_bersih = cumulative_gross_revenue - cumulative_total_hpp - cumulative_total_platform_fee;
+    // `cumulative_gross_revenue` is aggregated from `sale.net_amount` (already after fee),
+    // keep platform fee as analytics and do not subtract again here.
+    const cumulative_pendapatan_bersih = cumulative_gross_revenue - cumulative_total_hpp;
 
     // STEP 5: Calculate Cumulative Operational Expenses
     const cumulative_operational_expenses = (allExpenses || []).filter((e: any) => {
