@@ -4,14 +4,20 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
+interface ProfitChannelBreakdown {
+  offline?: number;
+  shopeefood?: number;
+  gofood?: number;
+}
+
 interface ProfitDetail {
   gross_revenue?: number;
   operational_expenses?: number;
-  daily_revenue_by_channel?: Record<string, number>;
+  daily_revenue_by_channel?: ProfitChannelBreakdown;
   daily_expenses_detailed?: Array<{ description: string; amount: number; category: string }>;
   total_gross_revenue?: number;
   total_operational_expenses?: number;
-  cumulative_revenue_by_channel?: Record<string, number>;
+  cumulative_revenue_by_channel?: ProfitChannelBreakdown;
   cumulative_expenses_by_category?: Record<string, number>;
   daily_breakdown?: Array<{ date: string; profit: number; gross_revenue: number }>;
   average_daily_profit?: number;
@@ -119,27 +125,27 @@ export function ProfitToggleCard({
                   <div className="space-y-1 text-xs">
                     {profitDetail.daily_revenue_by_channel && (
                       <>
-                        {(profitDetail.daily_revenue_by_channel as any).offline > 0 && (
+                        {profitDetail.daily_revenue_by_channel?.offline && profitDetail.daily_revenue_by_channel.offline > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Offline</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.daily_revenue_by_channel as any).offline)}
+                              {formatCurrency(profitDetail.daily_revenue_by_channel.offline)}
                             </span>
                           </div>
                         )}
-                        {(profitDetail.daily_revenue_by_channel as any).shopeefood > 0 && (
+                        {profitDetail.daily_revenue_by_channel?.shopeefood && profitDetail.daily_revenue_by_channel.shopeefood > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Shopeefood</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.daily_revenue_by_channel as any).shopeefood)}
+                              {formatCurrency(profitDetail.daily_revenue_by_channel.shopeefood)}
                             </span>
                           </div>
                         )}
-                        {(profitDetail.daily_revenue_by_channel as any).gofood > 0 && (
+                        {profitDetail.daily_revenue_by_channel?.gofood && profitDetail.daily_revenue_by_channel.gofood > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Gofood</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.daily_revenue_by_channel as any).gofood)}
+                              {formatCurrency(profitDetail.daily_revenue_by_channel.gofood)}
                             </span>
                           </div>
                         )}
@@ -190,27 +196,27 @@ export function ProfitToggleCard({
                   <div className="space-y-1 text-xs">
                     {profitDetail.cumulative_revenue_by_channel && (
                       <>
-                        {(profitDetail.cumulative_revenue_by_channel as any).offline > 0 && (
+                        {profitDetail.cumulative_revenue_by_channel?.offline && profitDetail.cumulative_revenue_by_channel.offline > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Offline</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.cumulative_revenue_by_channel as any).offline)}
+                              {formatCurrency(profitDetail.cumulative_revenue_by_channel.offline)}
                             </span>
                           </div>
                         )}
-                        {(profitDetail.cumulative_revenue_by_channel as any).shopeefood > 0 && (
+                        {profitDetail.cumulative_revenue_by_channel?.shopeefood && profitDetail.cumulative_revenue_by_channel.shopeefood > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Shopeefood</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.cumulative_revenue_by_channel as any).shopeefood)}
+                              {formatCurrency(profitDetail.cumulative_revenue_by_channel.shopeefood)}
                             </span>
                           </div>
                         )}
-                        {(profitDetail.cumulative_revenue_by_channel as any).gofood > 0 && (
+                        {profitDetail.cumulative_revenue_by_channel?.gofood && profitDetail.cumulative_revenue_by_channel.gofood > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Gofood</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.cumulative_revenue_by_channel as any).gofood)}
+                              {formatCurrency(profitDetail.cumulative_revenue_by_channel.gofood)}
                             </span>
                           </div>
                         )}
@@ -228,11 +234,11 @@ export function ProfitToggleCard({
                   <div className="space-y-1 text-xs">
                     {profitDetail.cumulative_expenses_by_category && (
                       <>
-                        {(profitDetail.cumulative_expenses_by_category as any).operasional > 0 && (
+                        {profitDetail.cumulative_expenses_by_category?.operasional && profitDetail.cumulative_expenses_by_category.operasional > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Operasional</span>
                             <span className="font-medium">
-                              {formatCurrency((profitDetail.cumulative_expenses_by_category as any).operasional)}
+                              {formatCurrency(profitDetail.cumulative_expenses_by_category.operasional)}
                             </span>
                           </div>
                         )}

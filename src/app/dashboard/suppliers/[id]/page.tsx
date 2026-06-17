@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Supplier, SupplierPrice, RawMaterial, MaterialPurchase } from '@/types';
 import { Card } from '@/components/ui/card';
@@ -24,11 +24,7 @@ export default function SupplierDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showPriceForm, setShowPriceForm] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [supplierId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -101,7 +97,22 @@ export default function SupplierDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supplierId]);
+
+  useEffect(() => {
+    let active = true;
+
+    const runFetch = async () => {
+      await fetchData();
+      if (!active) return;
+    };
+
+    void runFetch();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchData]);
 
   if (loading) {
     return (

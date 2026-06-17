@@ -17,6 +17,212 @@ interface DualBucketProps {
   outletId: string;
 }
 
+interface DescriptionModalProps {
+  selectedDescription: string | null;
+  onClose: () => void;
+}
+
+function DescriptionModal({ selectedDescription, onClose }: DescriptionModalProps) {
+  const descriptions: Record<string, { title: string; content: JSX.Element }> = {
+    kas_utama: {
+      title: 'Kas Utama (60% Sales)',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-green-700 mb-2">📐 Cara Perhitungan:</h4>
+            <p className="text-sm text-gray-700 bg-green-50 p-3 rounded border border-green-200">
+              Kas Utama = Modal Injeksi AWAL + (60% × Setiap Sale Bersih)
+            </p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-green-700 mb-2">✅ BOLEH Digunakan Untuk:</h4>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Beli bahan/ingredients untuk produksi</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Bayar gaji karyawan</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Bayar sewa tempat usaha</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Bayar utilitas (listrik, air, gas)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Bayar internet/telepon</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Servis & maintenance peralatan</span>
+              </li>
+              <li className="flex gap-2">
+                <span>✓</span>
+                <span>Keperluan operasional lainnya</span>
+              </li>
+            </ul>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+            <p className="text-sm text-yellow-800">
+              <strong>💡 Tips:</strong> Pastikan selalu ada buffer minimal Rp 100K untuk kebutuhan mendesak!
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    profit_pending: {
+      title: 'Profit Pending (40% Sales)',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-blue-700 mb-2">📐 Cara Perhitungan:</h4>
+            <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded border border-blue-200">
+              Profit Pending = 40% × Setiap Sale Bersih (Gross - HPP - Fee)
+            </p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-blue-700 mb-2">🔒 Status & Penggunaan:</h4>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span>⏳</span>
+                <span>Dikunci hingga akhir bulan (jangan diambil untuk operasional)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>📊</span>
+                <span>Terkumpul sepanjang bulan dari setiap penjualan</span>
+              </li>
+              <li className="flex gap-2">
+                <span>⚖️</span>
+                <span>Dialokasikan akhir bulan di menu &quot;Alokasi Profit&quot;</span>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold text-blue-700 mb-2">📋 Dialokasikan Untuk:</h4>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span>1.</span>
+                <span><strong>Bayar Hutang Investor</strong> (PRIORITAS - cicil investasi)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>2.</span>
+                <span><strong>Kas Utama Top-up</strong> (untuk month depan)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>3.</span>
+                <span><strong>Simpan Uang</strong> (strategic fund)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>4.</span>
+                <span><strong>Profit Distribution</strong> (ke investors)</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    simpan_uang: {
+      title: 'Simpan Uang (Strategic Fund)',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-orange-700 mb-2">📐 Asal Dananya:</h4>
+            <p className="text-sm text-gray-700 bg-orange-50 p-3 rounded border border-orange-200">
+              Dialokasikan dari Profit Pending akhir bulan (bukan dari modal/sales langsung)
+            </p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-orange-700 mb-2">💼 Tujuan Penggunaan:</h4>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span>🚨</span>
+                <span>Dana Darurat (emergency fund) - collapse bisnis</span>
+              </li>
+              <li className="flex gap-2">
+                <span>🛠️</span>
+                <span>Pembelian Alat/Equipment baru</span>
+              </li>
+              <li className="flex gap-2">
+                <span>📈</span>
+                <span>Modal Ekspansi (outlet baru/produk baru)</span>
+              </li>
+              <li className="flex gap-2">
+                <span>🎯</span>
+                <span>Investasi strategis lainnya</span>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold text-orange-700 mb-2">📝 Pencatatan:</h4>
+            <p className="text-sm text-gray-700">
+              Setiap alokasi dicatat dengan <strong>reason/alasan</strong> dan <strong>status tracking</strong>
+              (active/reallocated/used/archived) untuk audit trail yang jelas.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    total_tersedia: {
+      title: 'Total Tersedia (Bayar Hutang Dulu)',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-purple-700 mb-2">📐 Rumus:</h4>
+            <p className="text-sm text-gray-700 bg-purple-50 p-3 rounded border border-purple-200">
+              Total Tersedia = Kas Utama + Profit Pending + Simpan Uang
+            </p>
+          </div>
+          <div>
+            <h4 className="font-semibold text-purple-700 mb-2">⚖️ Prinsip “Bayar Hutang Dulu”:</h4>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                <p className="font-semibold mb-2">Prioritas Pembayaran (Akhir Bulan):</p>
+                <ol className="space-y-2 ml-4">
+                  <li><strong>1. Hutang CICIL Investor</strong> - Bayar dari Profit Pending (FIRST)</li>
+                  <li><strong>2. Hutang BELUM Bayar</strong> - Jika ada sisa Profit Pending</li>
+                  <li><strong>3. Profit Distribution</strong> - Investor yang LUNAS dapat profit share</li>
+                  <li><strong>4. Strategic Allocation</strong> - Simpan Uang & Kas Top-up</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded p-3">
+            <p className="text-sm text-blue-800">
+              <strong>🎯 Goal:</strong> Menghindari situation &quot;Profit Rp 9M tapi kas cuma Rp 6.5M&quot;. 
+              Dengan sistem ini, setiap rupiah tracking clear dan tidak tercampur!
+            </p>
+          </div>
+        </div>
+      ),
+    },
+  };
+
+  const desc = descriptions[selectedDescription ?? ''];
+  if (!desc) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 sticky top-0 bg-white border-b">
+          <CardTitle>{desc.title}</CardTitle>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </CardHeader>
+        <CardContent className="pt-6">{desc.content}</CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
   const [balance, setBalance] = useState<FinancialBalance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,28 +232,43 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
 
   useEffect(() => {
     if (!outletId) return;
-    fetchBalance();
-    
-    // Refresh every 30 seconds for real-time updates
-    const interval = setInterval(fetchBalance, 30000);
-    return () => clearInterval(interval);
-  }, [outletId, refreshTrigger]);
 
-  async function fetchBalance() {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/cash/financial-summary?outlet_id=${outletId}`);
-      if (!response.ok) throw new Error('Failed to fetch balance');
-      const data = await response.json();
-      setBalance(data);
-      setError(null);
-    } catch (err) {
-      console.error('Failed to fetch financial balance:', err);
-      setError('Gagal mengambil data saldo');
-    } finally {
-      setLoading(false);
-    }
-  }
+    let cancelled = false;
+
+    const runFetch = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/cash/financial-summary?outlet_id=${outletId}`);
+        if (!response.ok) throw new Error('Failed to fetch balance');
+        const data = await response.json();
+        if (!cancelled) {
+          setBalance(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to fetch financial balance:', err);
+          setError('Gagal mengambil data saldo');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void runFetch();
+
+    // Refresh every 30 seconds for real-time updates
+    const interval = setInterval(() => {
+      void runFetch();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [outletId, refreshTrigger]);
 
   if (loading && !balance) {
     return (
@@ -88,214 +309,7 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
     );
   }
 
-  if (!balance) return null;
-
-  // Description Modal Component
-  function DescriptionModal() {
-    const descriptions: Record<string, { title: string; content: JSX.Element }> = {
-      kas_utama: {
-        title: 'Kas Utama (60% Sales)',
-        content: (
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-green-700 mb-2">📐 Cara Perhitungan:</h4>
-              <p className="text-sm text-gray-700 bg-green-50 p-3 rounded border border-green-200">
-                Kas Utama = Modal Injeksi AWAL + (60% × Setiap Sale Bersih)
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-green-700 mb-2">✅ BOLEH Digunakan Untuk:</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Beli bahan/ingredients untuk produksi</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Bayar gaji karyawan</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Bayar sewa tempat usaha</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Bayar utilitas (listrik, air, gas)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Bayar internet/telepon</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Servis & maintenance peralatan</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>✓</span>
-                  <span>Keperluan operasional lainnya</span>
-                </li>
-              </ul>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-              <p className="text-sm text-yellow-800">
-                <strong>💡 Tips:</strong> Pastikan selalu ada buffer minimal Rp 100K untuk kebutuhan mendesak!
-              </p>
-            </div>
-          </div>
-        ),
-      },
-      profit_pending: {
-        title: 'Profit Pending (40% Sales)',
-        content: (
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-blue-700 mb-2">📐 Cara Perhitungan:</h4>
-              <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded border border-blue-200">
-                Profit Pending = 40% × Setiap Sale Bersih (Gross - HPP - Fee)
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-blue-700 mb-2">🔒 Status & Penggunaan:</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex gap-2">
-                  <span>⏳</span>
-                  <span>Dikunci hingga akhir bulan (jangan diambil untuk operasional)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>📊</span>
-                  <span>Terkumpul sepanjang bulan dari setiap penjualan</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>⚖️</span>
-                  <span>Dialokasikan akhir bulan di menu "Alokasi Profit"</span>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-blue-700 mb-2">📋 Dialokasikan Untuk:</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex gap-2">
-                  <span>1.</span>
-                  <span><strong>Bayar Hutang Investor</strong> (PRIORITAS - cicil investasi)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>2.</span>
-                  <span><strong>Kas Utama Top-up</strong> (untuk month depan)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>3.</span>
-                  <span><strong>Simpan Uang</strong> (strategic fund)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>4.</span>
-                  <span><strong>Profit Distribution</strong> (ke investors)</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        ),
-      },
-      simpan_uang: {
-        title: 'Simpan Uang (Strategic Fund)',
-        content: (
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-orange-700 mb-2">📐 Asal Dananya:</h4>
-              <p className="text-sm text-gray-700 bg-orange-50 p-3 rounded border border-orange-200">
-                Dialokasikan dari Profit Pending akhir bulan (bukan dari modal/sales langsung)
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-orange-700 mb-2">💼 Tujuan Penggunaan:</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex gap-2">
-                  <span>🚨</span>
-                  <span>Dana Darurat (emergency fund) - collapse bisnis</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>🛠️</span>
-                  <span>Pembelian Alat/Equipment baru</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>📈</span>
-                  <span>Modal Ekspansi (outlet baru/produk baru)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span>🎯</span>
-                  <span>Investasi strategis lainnya</span>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-orange-700 mb-2">📝 Pencatatan:</h4>
-              <p className="text-sm text-gray-700">
-                Setiap alokasi dicatat dengan <strong>reason/alasan</strong> dan <strong>status tracking</strong> 
-                (active/reallocated/used/archived) untuk audit trail yang jelas.
-              </p>
-            </div>
-          </div>
-        ),
-      },
-      total_tersedia: {
-        title: 'Total Tersedia (Bayar Hutang Dulu)',
-        content: (
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-purple-700 mb-2">📐 Rumus:</h4>
-              <p className="text-sm text-gray-700 bg-purple-50 p-3 rounded border border-purple-200">
-                Total Tersedia = Kas Utama + Profit Pending + Simpan Uang
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-purple-700 mb-2">⚖️ Prinsip "Bayar Hutang Dulu":</h4>
-              <div className="space-y-3 text-sm text-gray-700">
-                <div className="bg-purple-50 p-3 rounded border border-purple-200">
-                  <p className="font-semibold mb-2">Prioritas Pembayaran (Akhir Bulan):</p>
-                  <ol className="space-y-2 ml-4">
-                    <li><strong>1. Hutang CICIL Investor</strong> - Bayar dari Profit Pending (FIRST)</li>
-                    <li><strong>2. Hutang BELUM Bayar</strong> - Jika ada sisa Profit Pending</li>
-                    <li><strong>3. Profit Distribution</strong> - Investor yang LUNAS dapat profit share</li>
-                    <li><strong>4. Strategic Allocation</strong> - Simpan Uang & Kas Top-up</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3">
-              <p className="text-sm text-blue-800">
-                <strong>🎯 Goal:</strong> Menghindari situation "Profit Rp 9M tapi kas cuma Rp 6.5M". 
-                Dengan sistem ini, setiap rupiah tracking clear dan tidak tercampur!
-              </p>
-            </div>
-          </div>
-        ),
-      },
-    };
-
-    const desc = descriptions[selectedDescription!];
-    if (!desc) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 sticky top-0 bg-white border-b">
-            <CardTitle>{desc.title}</CardTitle>
-            <button
-              onClick={() => setSelectedDescription(null)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </CardHeader>
-          <CardContent className="pt-6">{desc.content}</CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Determine status badges based on balances
-  const kasUtamaStatus = balance.kas_utama > 0 ? 'healthy' : 'warning';
-  const profitPendingStatus = balance.profit_pending > 0 ? 'pending' : 'empty';
-  const simpanUangStatus = balance.simpan_uang > 0 ? 'active' : 'empty';
 
   return (
     <div className="space-y-4">
@@ -490,7 +504,12 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
       </div>
 
       {/* Description Modal */}
-      {selectedDescription && <DescriptionModal />}
+      {selectedDescription && (
+        <DescriptionModal
+          selectedDescription={selectedDescription}
+          onClose={() => setSelectedDescription(null)}
+        />
+      )}
 
       {/* Last Updated Info */}
       <div className="text-xs text-gray-500 text-center">

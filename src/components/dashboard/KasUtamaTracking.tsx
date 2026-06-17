@@ -5,18 +5,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 
+interface TrackingItem {
+  date?: string;
+  items?: Array<{ investor?: string; amount?: number }>;
+}
+
 interface KasTrackingData {
   outlet_id: string;
   month: string;
   current_balance: number;
   sources: {
-    capital_input: { label: string; total_amount: number; transactions: any[] };
-    sales: { label: string; total_amount: number; transactions: any[] };
-    allocation_profit: { label: string; total_amount: number; transactions: any[] };
+    capital_input: { label: string; total_amount: number; transactions: TrackingItem[] };
+    sales: { label: string; total_amount: number; transactions: TrackingItem[] };
+    allocation_profit: { label: string; total_amount: number; transactions: TrackingItem[] };
   };
   outflows: {
-    expenses: { label: string; total_amount: number; transactions: any[] };
-    allocation_cicilan: { label: string; total_amount: number; transactions: any[] };
+    expenses: { label: string; total_amount: number; transactions: TrackingItem[] };
+    allocation_cicilan: { label: string; total_amount: number; transactions: TrackingItem[] };
   };
   net_flow: number;
   calculation_breakdown: {
@@ -51,17 +56,28 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
       if (!response.ok) throw new Error('Failed to fetch kas utama tracking');
       const json = await response.json();
       setData(json);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data tracking');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (outletId) {
-      fetchData();
-    }
+    if (!outletId) return;
+
+    let active = true;
+
+    const runFetch = async () => {
+      await fetchData();
+      if (!active) return;
+    };
+
+    void runFetch();
+
+    return () => {
+      active = false;
+    };
   }, [outletId, month]);
 
   if (loading) return <div className="text-center py-8">Memuat...</div>;
@@ -164,11 +180,11 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
                 {expandedSection === 'capital' && data.sources.capital_input.transactions.length > 0 && (
                   <div className="mt-3 pt-3 border-t space-y-2">
                     {data.sources.capital_input.transactions.map((tx, idx) => (
-                      <div key={`capital-${tx.date}-${idx}`} className="text-xs bg-gray-50 p-2 rounded">
-                        <p className="font-mono font-semibold">{tx.date}</p>
-                        {tx.items?.map((item: any, i: number) => (
-                          <p key={`capital-item-${item.investor}-${i}`} className="text-gray-700">
-                            • {item.investor}: {formatCurrency(item.amount)}
+                      <div key={`capital-${tx.date ?? idx}-${idx}`} className="text-xs bg-gray-50 p-2 rounded">
+                        <p className="font-mono font-semibold">{tx.date ?? '-'}</p>
+                        {tx.items?.map((item, i: number) => (
+                          <p key={`capital-item-${item.investor ?? i}-${i}`} className="text-gray-700">
+                            • {item.investor ?? 'Item'}: {formatCurrency(item.amount ?? 0)}
                           </p>
                         ))}
                       </div>

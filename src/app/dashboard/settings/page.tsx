@@ -26,11 +26,10 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadSettings();
-  }, [outletId]);
+  const getErrorMessage = (err: unknown) =>
+    err instanceof Error ? err.message : 'Terjadi kesalahan yang tidak diketahui';
 
-  async function loadSettings() {
+  const loadSettings = async () => {
     try {
       setLoading(true);
       setError('');
@@ -44,12 +43,30 @@ export default function SettingsPage() {
       setCurrency(data.currency || 'IDR');
       setFeeShopee(data.fee_shopeefood ? String(Number(data.fee_shopeefood) * 100) : '20');
       setFeeGofood(data.fee_gofood ? String(Number(data.fee_gofood) * 100) : '25');
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat pengaturan');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Gagal memuat pengaturan');
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const runLoad = async () => {
+      try {
+        await loadSettings();
+      } finally {
+        if (!active) return;
+      }
+    };
+
+    void runLoad();
+
+    return () => {
+      active = false;
+    };
+  }, [outletId]);
 
   async function handleSave() {
     try {
@@ -87,8 +104,8 @@ export default function SettingsPage() {
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Gagal menyimpan pengaturan');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Gagal menyimpan pengaturan');
     } finally {
       setSaving(false);
     }

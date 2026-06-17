@@ -1,22 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
+interface SessionFormData {
+  date: string;
+  opening_cash: number;
+  notes: string;
+}
+
 interface SessionFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: SessionFormData) => Promise<void>;
   loading?: boolean;
   onDateChange?: (date: string) => void;
   disableSubmit?: boolean;
   duplicateWarning?: boolean;
-  existingDates?: string[]; // NEW: List of dates that already have open sessions
+  existingDates?: string[];
 }
 
 export function SessionForm({ 
@@ -27,16 +32,15 @@ export function SessionForm({
   duplicateWarning = false,
   existingDates = [],
 }: SessionFormProps) {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [openingCash, setOpeningCash] = useState('0');
   const [notes, setNotes] = useState('');
-  const [isDuplicateDate, setIsDuplicateDate] = useState(false);
+  const isDuplicateDate = existingDates.includes(date);
 
-  useEffect(() => {
-    onDateChange?.(date);
-    // Check if date already has open session
-    setIsDuplicateDate(existingDates.includes(date));
-  }, [date, onDateChange, existingDates]);
+  const handleDateChange = (nextDate: string) => {
+    setDate(nextDate);
+    onDateChange?.(nextDate);
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +86,7 @@ export function SessionForm({
               id="date"
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               required
             />
           </div>

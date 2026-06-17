@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
+interface PaymentEntry {
+  id: string;
+  payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+  amount: string;
+  payment_status: 'settled' | 'pending';
+  settlement_date: string;
+  payment_reference: string;
+  notes: string;
+}
+
+interface SaleFormPayload {
+  channel_type: 'offline' | 'online';
+  platform: 'shopeefood' | 'gofood' | null;
+  channel: 'offline' | 'shopeefood' | 'gofood';
+  payment_method: 'cash' | 'qris' | 'split';
+  gross_amount: number;
+  platform_fee: number;
+  net_amount: number;
+  payment_status: 'settled' | 'pending';
+  settlement_date: string | null;
+  payment_entries: Array<{
+    payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+    amount: number;
+    payment_status: 'settled' | 'pending';
+    settlement_date: string | null;
+    payment_reference: string | null;
+    notes: string | null;
+  }>;
+  notes: string;
+}
+
 interface SaleFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: SaleFormPayload) => Promise<void>;
   loading?: boolean;
   initialChannelType?: 'offline' | 'online';
   initialPlatform?: 'shopeefood' | 'gofood' | '';
@@ -32,52 +63,17 @@ export function SaleForm({
   const [notes, setNotes] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
   const [settlementDate, setSettlementDate] = useState('');
-  const [paymentEntries, setPaymentEntries] = useState<Array<{
-    id: string;
-    payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
-    amount: string;
-    payment_status: 'settled' | 'pending';
-    settlement_date: string;
-    payment_reference: string;
-    notes: string;
-  }>>([
-    {
-      id: String(Date.now()),
-      payment_method: 'cash',
-      amount: '0',
-      payment_status: 'settled',
-      settlement_date: '',
-      payment_reference: '',
-      notes: '',
-    },
-  ]);
+  const createPaymentEntry = (method: PaymentEntry['payment_method'] = 'cash', amount = '0'): PaymentEntry => ({
+    id: `entry-${Math.random().toString(36).slice(2, 9)}`,
+    payment_method: method,
+    amount,
+    payment_status: 'settled',
+    settlement_date: '',
+    payment_reference: '',
+    notes: '',
+  });
 
-  useEffect(() => {
-    setChannelType(initialChannelType);
-    setPlatform(initialPlatform);
-    setPaymentMode(initialPaymentMethod === 'split' ? 'split' : 'single');
-    setPaymentMethod(initialPaymentMethod === 'qris' ? 'qris' : 'cash');
-  }, [initialChannelType, initialPlatform, initialPaymentMethod]);
-
-  useEffect(() => {
-    if (paymentMode === 'split' && paymentEntries.length < 2) {
-      setPaymentEntries((prev) => {
-        if (prev.length >= 2) return prev;
-        return [
-          ...prev,
-          {
-            id: String(Date.now() + Math.random()),
-            payment_method: 'qris',
-            amount: '0',
-            payment_status: 'settled',
-            settlement_date: '',
-            payment_reference: '',
-            notes: '',
-          },
-        ];
-      });
-    }
-  }, [paymentMode, paymentEntries.length]);
+  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>(() => [createPaymentEntry('cash', '0')]);
 
   const platformFee =
     platform === 'shopeefood'
@@ -90,18 +86,7 @@ export function SaleForm({
   const splitPaymentRemaining = parseFloat(grossAmount) - splitPaymentTotal;
 
   function addPaymentEntry() {
-    setPaymentEntries((prev) => [
-      ...prev,
-      {
-        id: String(Date.now() + Math.random()),
-        payment_method: 'cash',
-        amount: '0',
-        payment_status: 'settled',
-        settlement_date: '',
-        payment_reference: '',
-        notes: '',
-      },
-    ]);
+    setPaymentEntries((prev) => [...prev, createPaymentEntry('cash', '0')]);
   }
 
   function updatePaymentEntry(id: string, patch: Partial<(typeof paymentEntries)[number]>) {
@@ -171,7 +156,13 @@ export function SaleForm({
           <div className="grid grid-cols-2 gap-6 items-start">
             <div>
               <Label htmlFor="channel_type">Jenis Channel</Label>
-              <Select value={channelType} onValueChange={(value) => setChannelType(value as 'offline' | 'online')}>
+              <Select value={channelType} onValueChange={(value) => {
+                const nextChannel = value as 'offline' | 'online';
+                setChannelType(nextChannel);
+                if (nextChannel === 'offline') {
+                  setPlatform('');
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -225,7 +216,13 @@ export function SaleForm({
 
           <div>
             <Label htmlFor="payment_mode">Mode Pembayaran</Label>
-            <Select value={paymentMode} onValueChange={(value) => setPaymentMode(value as 'single' | 'split')}>
+            <Select value={paymentMode} onValueChange={(value) => {
+              const nextMode = value as 'single' | 'split';
+              setPaymentMode(nextMode);
+              if (nextMode === 'split' && paymentEntries.length < 2) {
+                setPaymentEntries((prev) => (prev.length >= 2 ? prev : [...prev, createPaymentEntry('qris', '0')]));
+              }
+            }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -292,7 +289,7 @@ export function SaleForm({
                     <Label>Metode</Label>
                     <Select
                       value={entry.payment_method}
-                      onValueChange={(value) => updatePaymentEntry(entry.id, { payment_method: value as any })}
+                      onValueChange={(value) => updatePaymentEntry(entry.id, { payment_method: value as PaymentEntry['payment_method'] })}
                     >
                       <SelectTrigger>
                         <SelectValue />

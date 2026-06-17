@@ -38,30 +38,42 @@ export function ExpenseDetailsModal({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && category && outletId) {
-      fetchExpenseDetails();
-    }
-  }, [isOpen, category, outletId, date]);
+    let cancelled = false;
 
-  async function fetchExpenseDetails() {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/dashboard/expenses-details?outlet_id=${outletId}&category=${category}&date=${date}`
-      );
-      if (!response.ok) throw new Error('Failed to fetch details');
-      
-      const data = await response.json();
-      setExpenses(data.expenses || []);
-      setTotal(data.total || 0);
-    } catch (error) {
-      console.error('Error fetching expense details:', error);
-      setExpenses([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
+    const fetchExpenseDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `/api/dashboard/expenses-details?outlet_id=${outletId}&category=${category}&date=${date}`
+        );
+        if (!response.ok) throw new Error('Failed to fetch details');
+
+        const data = await response.json();
+        if (!cancelled) {
+          setExpenses(data.expenses || []);
+          setTotal(data.total || 0);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching expense details:', error);
+          setExpenses([]);
+          setTotal(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (isOpen && category && outletId) {
+      void fetchExpenseDetails();
     }
-  }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, category, outletId, date]);
 
   const getCategoryLabel = (cat: string): string => {
     const labels: { [key: string]: string } = {

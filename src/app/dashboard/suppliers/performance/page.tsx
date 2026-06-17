@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Supplier, MaterialPurchase, RawMaterial } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,11 +37,7 @@ export default function SupplierPerformancePage() {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -63,7 +59,22 @@ export default function SupplierPerformancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const runFetch = async () => {
+      await fetchData();
+      if (!active) return;
+    };
+
+    void runFetch();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchData]);
 
   if (loading) {
     return (

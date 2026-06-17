@@ -32,32 +32,40 @@ export function PeriodInfoBanner({ outletId, onTutupBukuClick }: PeriodInfoBanne
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPeriodAndAllocation();
+    let cancelled = false;
+
+    const runFetch = async () => {
+      try {
+        setLoading(true);
+
+        const periodRes = await fetch(`/api/periods?outlet_id=${outletId}&status=active`);
+        const periodData = await periodRes.json();
+        if (!cancelled && periodData.periods && periodData.periods.length > 0) {
+          setPeriod(periodData.periods[0]);
+        }
+
+        const allocRes = await fetch(`/api/allocation-rules?outlet_id=${outletId}`);
+        const allocData = await allocRes.json();
+        if (!cancelled && allocData && allocData.data) {
+          setAllocation(allocData.data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching period/allocation:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void runFetch();
+
+    return () => {
+      cancelled = true;
+    };
   }, [outletId]);
-
-  async function fetchPeriodAndAllocation() {
-    try {
-      setLoading(true);
-      
-      // Fetch current period
-      const periodRes = await fetch(`/api/periods?outlet_id=${outletId}&status=active`);
-      const periodData = await periodRes.json();
-      if (periodData.periods && periodData.periods.length > 0) {
-        setPeriod(periodData.periods[0]);
-      }
-
-      // Fetch current allocation rule
-      const allocRes = await fetch(`/api/allocation-rules?outlet_id=${outletId}`);
-      const allocData = await allocRes.json();
-      if (allocData && allocData.data) {
-        setAllocation(allocData.data);
-      }
-    } catch (error) {
-      console.error('Error fetching period/allocation:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -158,7 +166,7 @@ export function PeriodInfoBanner({ outletId, onTutupBukuClick }: PeriodInfoBanne
           {!canTutupBuku && !period.is_locked && (
             <Alert className="border-blue-200 bg-blue-50">
               <AlertDescription className="text-sm text-blue-800">
-                📅 Tombol "Tutup Buku" akan tersedia pada tanggal 5 bulan depan.
+                📅 Tombol &quot;Tutup Buku&quot; akan tersedia pada tanggal 5 bulan depan.
               </AlertDescription>
             </Alert>
           )}

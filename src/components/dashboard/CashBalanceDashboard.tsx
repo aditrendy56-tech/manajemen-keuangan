@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 interface CashBalanceData {
@@ -28,27 +28,39 @@ export function CashBalanceDashboard({ outletId, refreshTrigger = 0 }: CashBalan
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchBalance();
-  }, [outletId, refreshTrigger]);
+    let cancelled = false;
 
-  async function fetchBalance() {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(`/api/cash/balance?outlet_id=${outletId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Gagal load cash balance');
+    const runFetch = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/cash/balance?outlet_id=${outletId}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Gagal load cash balance');
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          setBalance(data.balance || data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to fetch cash balance:', err);
+          setError(err instanceof Error ? err.message : 'Gagal mengambil saldo kas');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      
-      setBalance(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+    };
+
+    void runFetch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [outletId, refreshTrigger]);
 
   if (loading) {
     return (

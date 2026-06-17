@@ -23,8 +23,19 @@ interface RepaymentSummaryProps {
   refreshTrigger?: number;
 }
 
+interface RepaymentSummaryData {
+  total_allocated?: number;
+  total_paid?: number;
+  recent_payments?: Array<{
+    investor_name?: string;
+    repayment_date?: string;
+    amount_paid?: number;
+    repayment_type?: string;
+  }>;
+}
+
 export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentSummaryProps) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<RepaymentSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +60,7 @@ export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentS
 
         const result = await response.json();
         setData(result);
-      } catch (err: any) {
+      } catch {
         // Silently fail - data may not be available yet
         setError('Data tidak tersedia');
       } finally {
@@ -143,7 +154,7 @@ export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentS
           <div>
             <h4 className="font-semibold text-sm mb-3">Pembayaran Terbaru</h4>
             <div className="space-y-2 max-h-40 overflow-y-auto">
-              {recentPayments.slice(0, 5).map((payment: any, idx: number) => (
+              {recentPayments.slice(0, 5).map((payment, idx: number) => (
                 <div key={idx} className="flex items-center justify-between text-sm p-2 rounded border border-gray-100">
                   <div className="flex-1">
                     <p className="font-semibold text-gray-700">

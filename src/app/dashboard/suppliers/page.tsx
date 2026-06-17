@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Supplier } from '@/types';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
@@ -17,11 +17,7 @@ export default function SuppliersPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
-
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -34,14 +30,30 @@ export default function SuppliersPage() {
       }
       const data = await response.json();
       setSuppliers(Array.isArray(data) ? data : []);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Gagal mengambil data supplier. Pastikan sudah run migration di Supabase.';
       console.error('Error fetching suppliers:', error);
-      setError(error.message || 'Gagal mengambil data supplier. Pastikan sudah run migration di Supabase.');
+      setError(message);
       setSuppliers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const runFetch = async () => {
+      await fetchSuppliers();
+      if (!active) return;
+    };
+
+    void runFetch();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchSuppliers]);
 
   const handleSuccess = (newSupplier: Supplier) => {
     setShowForm(false);
