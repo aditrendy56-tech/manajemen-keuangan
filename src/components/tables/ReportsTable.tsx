@@ -446,8 +446,8 @@ export function ReportsTable({ report }: ReportsTableProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {report.transaction_details.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50 transition">
+                  {report.transaction_details.map((item, idx) => (
+                    <tr key={`detail-${item.channel}-${item.created_at}-${item.id || idx}`} className="hover:bg-slate-50 transition">
                       <td className="px-4 py-3 text-slate-700">{new Date(item.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td className="px-4 py-3 text-slate-700 capitalize"><span className="inline-block px-2 py-1 bg-slate-100 rounded text-xs font-medium">{item.channel}</span></td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-900">Rp {item.gross_amount.toLocaleString('id-ID')}</td>

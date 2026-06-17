@@ -47,8 +47,8 @@ export function ExpensesTable({ expenses, onDelete, onRefund }: ExpensesTablePro
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((expense) => (
-                  <tr key={expense.id} className="border-b hover:bg-gray-50">
+                {expenses.map((expense, idx) => (
+                  <tr key={`expense-${expense.date}-${expense.id || idx}`} className="border-b hover:bg-gray-50">
                     <td className="p-2">{expense.date}</td>
                     <td className="p-2">
                       <Badge className={categoryColors[expense.category]}>
