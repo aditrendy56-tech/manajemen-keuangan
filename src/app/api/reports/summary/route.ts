@@ -237,7 +237,8 @@ export async function GET(request: NextRequest) {
 
     const operational_expenses = (expenses || []).filter((expense: ExpenseRecord) => String(expense.category || '').toLowerCase() === 'operasional')
       .reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
-    const gross_profit = net_revenue - total_expenses;
+    // ✅ FIXED: Profit should ONLY deduct operational expenses, not materials/equipment
+    const gross_profit = net_revenue - operational_expenses;
     const net_profit = net_revenue - operational_expenses;
     const profit_margin = gross_revenue > 0 ? (gross_profit / gross_revenue) * 100 : 0;
 
