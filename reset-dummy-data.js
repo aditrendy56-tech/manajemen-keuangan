@@ -56,17 +56,24 @@ const tables = [
   'financial_accounts',
 ];
 
-const idConditions = {
-  financial_accounts: { col: 'outlet_id', op: 'not' },
+const OUTLET_ID = '660e8400-e29b-41d4-a716-446655440000';
+
+const tableFilters = {
+  financial_accounts: { col: 'outlet_id', value: OUTLET_ID },
+  daily_sessions: { col: 'outlet_id', value: OUTLET_ID },
 };
 
 async function deleteTable(table) {
   try {
-    const condition = idConditions[table] || { col: 'id', op: 'not' };
     let query = supabase.from(table).delete();
-
-    if (condition.op === 'not') {
-      query = query.not(condition.col, 'is', null);
+    
+    // Apply filter if specific table requires it
+    const filter = tableFilters[table];
+    if (filter) {
+      query = query.eq(filter.col, filter.value);
+    } else {
+      // For other tables, delete all (no WHERE clause needed)
+      query = query.not('id', 'is', null);
     }
 
     const { error } = await query;

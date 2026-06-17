@@ -4,22 +4,67 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ProfitLossReport } from '@/types';
 
-function normalizeChannel(sale: any) {
+type SaleRecord = {
+  id?: string;
+  outlet_id?: string | null;
+  created_at?: string | null;
+  channel_type?: string | null;
+  platform?: string | null;
+  channel?: string | null;
+  gross_amount?: number | string | null;
+  calculated_total?: number | string | null;
+  fee_amount?: number | string | null;
+  platform_fee?: number | string | null;
+  net_amount?: number | string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  refund_amount?: number | string | null;
+};
+
+type ExpenseRecord = {
+  id?: string;
+  amount?: number | string | null;
+  refund_amount?: number | string | null;
+  category?: string | null;
+  payment_status?: string | null;
+  date?: string | null;
+};
+
+type CashTransactionRecord = {
+  transaction_type?: string | null;
+  amount?: number | string | null;
+};
+
+type SaleItemRecord = {
+  sale_id?: string | null;
+  quantity?: number | string | null;
+  cost_price?: number | string | null;
+  products?: {
+    name?: string | null;
+  } | null;
+};
+
+function toNumber(value: number | string | null | undefined): number {
+  const numericValue = typeof value === 'string' ? Number(value) : value;
+  return Number.isFinite(numericValue) ? Number(numericValue) : 0;
+}
+
+function normalizeChannel(sale: SaleRecord) {
   if (sale.channel_type === 'offline') return 'offline';
   if (sale.platform === 'shopeefood' || sale.channel === 'shopeefood') return 'shopeefood';
   if (sale.platform === 'gofood' || sale.channel === 'gofood') return 'gofood';
   return sale.channel || 'offline';
 }
 
-function getRecognizedSaleAmount(sale: any) {
-  const netAmount = Number(sale.net_amount || 0);
-  const refundAmount = Number(sale.refund_amount || 0);
+function getRecognizedSaleAmount(sale: SaleRecord) {
+  const netAmount = toNumber(sale.net_amount);
+  const refundAmount = toNumber(sale.refund_amount);
   return Math.max(netAmount - refundAmount, 0);
 }
 
-function getRecognizedExpenseAmount(expense: any) {
-  const amount = Number(expense.amount || 0);
-  const refundAmount = Number(expense.refund_amount || 0);
+function getRecognizedExpenseAmount(expense: ExpenseRecord) {
+  const amount = toNumber(expense.amount);
+  const refundAmount = toNumber(expense.refund_amount);
   return Math.max(amount - refundAmount, 0);
 }
 
@@ -39,46 +84,56 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Get sales data (recognized by transaction date)
     const { data: sales } = await supabase.from('sales')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('created_at', `${startDate}T00:00:00`)
       .lte('created_at', `${endDate}T23:59:59`);
 
-    // Get expenses data (recognized by transaction date)
     const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('date', startDate)
       .lte('date', endDate);
 
-    // Cash transactions for settlement basis
     const { data: cashTransactions } = await supabase.from('cash_transactions')
       .select('*')
       .eq('outlet_id', outletId)
       .gte('transaction_date', startDate)
       .lte('transaction_date', endDate);
 
-    // Calculate metrics
-    const gross_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 }), 0) || 0;
-    const net_revenue = (sales || []).reduce((sum: number, s: any) => sum + getRecognizedSaleAmount(s), 0) || 0;
-    const platform_fees = (sales || []).reduce((sum: number, s: any) => sum + (s.platform_fee || 0), 0) || 0;
-    const onlineSales = (sales || []).filter((sale: any) => sale.channel_type === 'online' || sale.platform === 'shopeefood' || sale.platform === 'gofood');
-    const totalCalculatedTotal = onlineSales.reduce((sum: number, sale: any) => sum + Number(sale.calculated_total ?? sale.gross_amount ?? 0), 0) || 0;
-    const totalFeeAmount = onlineSales.reduce((sum: number, sale: any) => {
-      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
-      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+    const gross_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount), 0) || 0;
+    const platform_fees = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.platform_fee || sale.fee_amount), 0) || 0;
+
+    // Calculate total HPP (Cost of Goods Sold)
+    const saleIds = (sales || []).map((sale: SaleRecord) => sale.id).filter((id): id is string => Boolean(id));
+    let total_hpp = 0;
+    if (saleIds.length > 0) {
+      const { data: saleItems } = await supabase.from('sale_items')
+        .select('cost_price, quantity')
+        .in('sale_id', saleIds);
+      total_hpp = (saleItems || []).reduce((sum: number, item: SaleItemRecord) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
+    }
+
+    // Net Revenue = Gross Revenue - HPP (Cost of Goods Sold)
+    const net_revenue = gross_revenue - total_hpp;
+
+    const onlineSales = (sales || []).filter((sale: SaleRecord) => sale.channel_type === 'online' || sale.platform === 'shopeefood' || sale.platform === 'gofood');
+    const totalCalculatedTotal = onlineSales.reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.calculated_total ?? sale.gross_amount), 0) || 0;
+    const totalFeeAmount = onlineSales.reduce((sum: number, sale: SaleRecord) => {
+      const calculatedTotal = toNumber(sale.calculated_total ?? sale.gross_amount);
+      const feeAmount = toNumber(sale.fee_amount ?? (calculatedTotal - toNumber(sale.net_amount)));
       return sum + feeAmount;
     }, 0) || 0;
     const totalFeePercentage = totalCalculatedTotal > 0 ? (totalFeeAmount / totalCalculatedTotal) * 100 : 0;
-    const totalNetRevenue = onlineSales.reduce((sum: number, sale: any) => sum + Number(sale.net_amount || 0), 0) || 0;
-    const transaction_details = (sales || []).map((sale: any) => {
-      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
-      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+    const totalNetRevenue = onlineSales.reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.net_amount), 0) || 0;
+
+    const transaction_details = (sales || []).map((sale: SaleRecord) => {
+      const calculatedTotal = toNumber(sale.calculated_total ?? sale.gross_amount);
+      const feeAmount = toNumber(sale.fee_amount ?? (calculatedTotal - toNumber(sale.net_amount)));
       const feePercentage = calculatedTotal > 0 ? (feeAmount / calculatedTotal) * 100 : 0;
-      const grossAmount = Number(sale.gross_amount ?? calculatedTotal ?? 0);
-      const netAmount = Number(sale.net_amount ?? (grossAmount - feeAmount));
+      const grossAmount = toNumber(sale.gross_amount ?? calculatedTotal);
+      const netAmount = toNumber(sale.net_amount ?? (grossAmount - feeAmount));
 
       return {
         id: sale.id,
@@ -88,7 +143,7 @@ export async function GET(request: NextRequest) {
         gross_amount: grossAmount,
         fee_amount: feeAmount,
         fee_percentage: feePercentage,
-        platform_fee: Number(sale.platform_fee || 0),
+        platform_fee: toNumber(sale.platform_fee),
         net_amount: netAmount,
         payment_method: sale.payment_method || null,
         payment_status: sale.payment_status || null,
@@ -100,18 +155,18 @@ export async function GET(request: NextRequest) {
       gofood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
     };
 
-    onlineSales.forEach((sale: any) => {
+    onlineSales.forEach((sale: SaleRecord) => {
       const channel = sale.platform === 'shopeefood' || sale.channel === 'shopeefood' ? 'shopeefood' : 'gofood';
       if (!byChannel[channel]) return;
 
-      const calculatedTotal = Number(sale.calculated_total ?? sale.gross_amount ?? 0);
-      const feeAmount = Number(sale.fee_amount ?? (calculatedTotal - Number(sale.net_amount ?? 0)));
+      const calculatedTotal = toNumber(sale.calculated_total ?? sale.gross_amount);
+      const feeAmount = toNumber(sale.fee_amount ?? (calculatedTotal - toNumber(sale.net_amount)));
       const feePercentage = calculatedTotal > 0 ? (feeAmount / calculatedTotal) * 100 : 0;
 
       byChannel[channel].calculated_total += calculatedTotal;
       byChannel[channel].fee_amount += feeAmount;
       byChannel[channel].fee_percentage += feePercentage;
-      byChannel[channel].net_revenue += Number(sale.net_amount || 0);
+      byChannel[channel].net_revenue += toNumber(sale.net_amount);
       byChannel[channel].sales_count += 1;
     });
 
@@ -120,38 +175,125 @@ export async function GET(request: NextRequest) {
         ? (channelData.fee_amount / channelData.calculated_total) * 100
         : 0;
     });
+
     const settled_cash_inflow = cashTransactions?.reduce(
-      (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
+      (sum: number, tx: CashTransactionRecord) => sum + (tx.transaction_type === 'inflow' ? toNumber(tx.amount) : 0),
       0
     ) || 0;
     const settled_cash_outflow = cashTransactions?.reduce(
-      (sum: number, tx: any) => sum + (tx.transaction_type === 'outflow' ? (tx.amount || 0) : 0),
+      (sum: number, tx: CashTransactionRecord) => sum + (tx.transaction_type === 'outflow' ? toNumber(tx.amount) : 0),
       0
     ) || 0;
 
-    // Expenses by category
     const expenses_by_category: Record<string, number> = {};
     let total_expenses = 0;
 
-    (expenses || []).forEach((expense: any) => {
+    (expenses || []).forEach((expense: ExpenseRecord) => {
       const recognizedAmount = getRecognizedExpenseAmount(expense);
-      expenses_by_category[expense.category] =
-        (expenses_by_category[expense.category] || 0) + recognizedAmount;
+      const category = String(expense.category || 'operasional').toLowerCase();
+      expenses_by_category[category] = (expenses_by_category[category] || 0) + recognizedAmount;
       total_expenses += recognizedAmount;
     });
 
     const pending_sales_amount = (sales || []).reduce(
-      (sum: number, s: any) => sum + (String(s.payment_status || '').toLowerCase() === 'settled' ? 0 : getRecognizedSaleAmount(s)),
+      (sum: number, sale: SaleRecord) => sum + (String(sale.payment_status || '').toLowerCase() === 'settled' ? 0 : getRecognizedSaleAmount(sale)),
       0
     ) || 0;
 
     const pending_expenses_amount = (expenses || []).reduce(
-      (sum: number, e: any) => sum + (String(e.payment_status || '').toLowerCase() === 'paid' ? 0 : getRecognizedExpenseAmount(e)),
+      (sum: number, expense: ExpenseRecord) => sum + (String(expense.payment_status || '').toLowerCase() === 'paid' ? 0 : getRecognizedExpenseAmount(expense)),
       0
     ) || 0;
 
+    const operational_expenses = (expenses || []).filter((expense: ExpenseRecord) => String(expense.category || '').toLowerCase() === 'operasional')
+      .reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
     const gross_profit = net_revenue - total_expenses;
+    const net_profit = net_revenue - operational_expenses;
     const profit_margin = gross_revenue > 0 ? (gross_profit / gross_revenue) * 100 : 0;
+
+    const dailyBreakdownMap = new Map<string, {
+      gross_revenue: number;
+      platform_fees: number;
+      net_revenue: number;
+      hpp: number;
+      operational_expenses: number;
+      profit: number;
+      item_count: number;
+    }>();
+
+    (sales || []).forEach((sale: SaleRecord) => {
+      const saleDate = String(sale.created_at || '').split('T')[0];
+      const existing = dailyBreakdownMap.get(saleDate) || {
+        gross_revenue: 0,
+        platform_fees: 0,
+        net_revenue: 0,
+        hpp: 0,
+        operational_expenses: 0,
+        profit: 0,
+        item_count: 0,
+      };
+
+      const grossAmount = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
+      const feeAmount = toNumber(sale.platform_fee || sale.fee_amount || 0);
+
+      existing.gross_revenue += grossAmount;
+      existing.platform_fees += feeAmount;
+      dailyBreakdownMap.set(saleDate, existing);
+    });
+
+    const saleItemRows = await supabase.from('sale_items')
+      .select('sale_id, quantity, cost_price')
+      .in('sale_id', saleIds);
+
+    const saleItemMap = new Map<string, Array<{ quantity: number; cost_price: number }>>();
+    (saleItemRows.data || []).forEach((row: SaleItemRecord) => {
+      const current = saleItemMap.get(String(row.sale_id || '')) || [];
+      current.push({ quantity: toNumber(row.quantity), cost_price: toNumber(row.cost_price) });
+      saleItemMap.set(String(row.sale_id || ''), current);
+    });
+
+    (sales || []).forEach((sale: SaleRecord) => {
+      const saleDate = String(sale.created_at || '').split('T')[0];
+      const current = dailyBreakdownMap.get(saleDate);
+      if (!current) return;
+
+      const items = saleItemMap.get(String(sale.id || '')) || [];
+      const hpp = items.reduce((sum: number, item: { quantity: number; cost_price: number }) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0);
+      const itemCount = items.reduce((sum: number, item: { quantity: number }) => sum + (item.quantity || 0), 0);
+
+      current.hpp += hpp;
+      current.item_count += itemCount;
+      // Update net_revenue to be gross_revenue - hpp
+      current.net_revenue = current.gross_revenue - current.hpp;
+    });
+
+    (expenses || []).forEach((expense: ExpenseRecord) => {
+      const expenseDate = String(expense.date || '').split('T')[0];
+      const current = dailyBreakdownMap.get(expenseDate);
+      if (!current) return;
+
+      const amount = getRecognizedExpenseAmount(expense);
+      if (String(expense.category || '').toLowerCase() === 'operasional') {
+        current.operational_expenses += amount;
+      }
+    });
+
+    dailyBreakdownMap.forEach((values) => {
+      values.profit = values.net_revenue - values.operational_expenses;
+    });
+
+    const daily_breakdown = Array.from(dailyBreakdownMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, values]) => ({
+        date,
+        gross_revenue: values.gross_revenue,
+        platform_fees: values.platform_fees,
+        net_revenue: values.net_revenue,
+        hpp: values.hpp,
+        operational_expenses: values.operational_expenses,
+        profit: values.profit,
+        item_count: values.item_count,
+      }));
 
     const report: ProfitLossReport = {
       gross_revenue,
@@ -160,7 +302,8 @@ export async function GET(request: NextRequest) {
       total_expenses,
       expenses_by_category,
       gross_profit,
-      net_profit: gross_profit,
+      operational_expenses,
+      net_profit,
       profit_margin,
       recognized_gross_revenue: gross_revenue,
       recognized_net_revenue: net_revenue,
@@ -169,6 +312,7 @@ export async function GET(request: NextRequest) {
       pending_sales_amount,
       pending_expenses_amount,
       cash_basis_profit: settled_cash_inflow - settled_cash_outflow,
+      daily_breakdown,
       transaction_details,
       online_fee_analysis: {
         total_calculated_total: totalCalculatedTotal,
@@ -180,31 +324,28 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Revenue by channel
     const revenueByChannel = { offline: 0, shopeefood: 0, gofood: 0 };
-    (sales || []).forEach((s: any) => {
-      const channel = normalizeChannel(s);
-      const recognizedGross = getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 });
+    (sales || []).forEach((sale: SaleRecord) => {
+      const channel = normalizeChannel(sale);
+      const recognizedGross = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
       if (channel === 'offline') revenueByChannel.offline += recognizedGross;
       else if (channel === 'shopeefood') revenueByChannel.shopeefood += recognizedGross;
       else if (channel === 'gofood') revenueByChannel.gofood += recognizedGross;
     });
 
-    // Payment method
     const paymentMethod = { cash: 0, qris: 0 };
-    (sales || []).forEach((s: any) => {
-      const recognizedGross = getRecognizedSaleAmount({ ...s, net_amount: s.gross_amount || 0 });
-      if (s.payment_method === 'cash') paymentMethod.cash += recognizedGross;
-      else if (s.payment_method === 'qris') paymentMethod.qris += recognizedGross;
+    (sales || []).forEach((sale: SaleRecord) => {
+      const recognizedGross = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
+      if (sale.payment_method === 'cash') paymentMethod.cash += recognizedGross;
+      else if (sale.payment_method === 'qris') paymentMethod.qris += recognizedGross;
     });
 
-    // Get sale items to count products
-    const { data: saleItems } = await getSupabaseServer().from('sale_items')
+    const { data: saleItems } = await supabase.from('sale_items')
       .select('product_id, quantity, products(name)')
-      .in('sale_id', sales?.map((s: any) => s.id) || []);
+      .in('sale_id', saleIds);
 
     const productCounts: Record<string, { name: string; quantity: number }> = {};
-    saleItems?.forEach((item: any) => {
+    saleItems?.forEach((item: SaleItemRecord) => {
       const productName = item.products?.name || 'Unknown';
       if (!productCounts[productName]) {
         productCounts[productName] = { name: productName, quantity: 0 };
@@ -217,7 +358,8 @@ export async function GET(request: NextRequest) {
       .slice(0, 5);
 
     return NextResponse.json({ report, revenueByChannel, paymentMethod, topProducts });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

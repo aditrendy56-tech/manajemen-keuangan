@@ -388,6 +388,17 @@ export interface ProfitLossReport {
   net_profit: number;
   profit_margin: number;
   hpp?: number;
+  operational_expenses?: number;
+  daily_breakdown?: Array<{
+    date: string;
+    gross_revenue: number;
+    platform_fees: number;
+    net_revenue: number;
+    hpp: number;
+    operational_expenses: number;
+    profit: number;
+    item_count: number;
+  }>;
   recognized_gross_revenue?: number;
   recognized_net_revenue?: number;
   settled_cash_inflow?: number;

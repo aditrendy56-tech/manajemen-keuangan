@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useCallback, useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, TrendingUp, ShoppingCart, Zap, ChevronRight, ChevronDown } from 'lucide-react';
 import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart';
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
 import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { DualBucketFinancialDisplay } from '@/components/dashboard/DualBucketFinancialDisplay';
@@ -23,7 +24,7 @@ function ChannelDetailCard({
   channel: 'offline' | 'shopeefood' | 'gofood';
   amount: number;
   timeFilter: 'today' | 'cumulative';
-  channelMetrics: any;
+  channelMetrics: { cash?: number; qris?: number; fee?: number; totalItems?: number };
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -97,7 +98,7 @@ function ChannelDetailCard({
         {/* Show message for cumulative mode */}
         {timeFilter === 'cumulative' && (
           <div className="text-xs text-gray-600 bg-white p-2 rounded border">
-            Pilih "Hari Ini" untuk melihat detail breakdown
+            Pilih Hari Ini untuk melihat detail breakdown
           </div>
         )}
       </CardContent>
@@ -108,18 +109,17 @@ function ChannelDetailCard({
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [cashRefreshTrigger, setCashRefreshTrigger] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [timeFilter, setTimeFilter] = useState<'today' | 'cumulative'>('today');
+  const [selectedMetricDetail, setSelectedMetricDetail] = useState<null | {
+    title: string;
+    description: string;
+    rows: Array<{ label: string; value: string; percentage?: number }>;}
+  >(null);
   const { outletId } = useOutlet();
 
-  useEffect(() => {
-    if (!outletId) return;
-    fetchMetrics();
-  }, [outletId]);
-
-  async function fetchMetrics() {
+  const fetchMetrics = useCallback(async () => {
     try {
       const response = await fetch(`/api/dashboard?outlet_id=${outletId}`);
       if (!response.ok) throw new Error('Failed to fetch metrics');
@@ -156,7 +156,17 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [outletId]);
+
+  useEffect(() => {
+    if (!outletId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void fetchMetrics();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchMetrics, outletId]);
 
   if (loading) {
     return <div className="text-center py-8">Memuat data...</div>;
@@ -165,6 +175,20 @@ export default function DashboardPage() {
   if (!metrics) {
     return <div className="text-center py-8 text-red-600">Gagal memuat data</div>;
   }
+
+  const activeGrossRevenue = timeFilter === 'today' ? metrics.today_gross_revenue || 0 : metrics.cumulative_gross_revenue || 0;
+  const activeNetRevenue = timeFilter === 'today' ? metrics.today_pendapatan_bersih || 0 : metrics.cumulative_pendapatan_bersih || 0;
+  const activeProfit = timeFilter === 'today' ? metrics.today_profit || 0 : metrics.cumulative_profit || 0;
+  const activeItemsSold = timeFilter === 'today' ? metrics.today_total_items_sold || 0 : metrics.cumulative_total_items_sold || 0;
+  const activeOperationalExpenses = timeFilter === 'today' ? metrics.today_operational_expenses || 0 : metrics.cumulative_operational_expenses || 0;
+  const activeHpp = timeFilter === 'today' ? metrics.today_total_hpp || 0 : metrics.cumulative_total_hpp || 0;
+  const activeRevenueByChannel = timeFilter === 'today' ? metrics.today_revenue_by_channel || { offline: 0, shopeefood: 0, gofood: 0 } : metrics.cumulative_revenue_by_channel || { offline: 0, shopeefood: 0, gofood: 0 };
+
+  const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(value);
 
   return (
     <div className="space-y-6">
@@ -202,56 +226,131 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Pendapatan Kotor
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Pendapatan Kotor
+              </CardTitle>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMetricDetail({
+                    title: 'Pendapatan Kotor',
+                    description: 'Total penjualan sebelum dikurangi HPP atau biaya operasional.',
+                    rows: [
+                      { label: 'Offline', value: formatCurrency(activeRevenueByChannel.offline || 0), percentage: activeGrossRevenue > 0 ? ((activeRevenueByChannel.offline || 0) / activeGrossRevenue) * 100 : 0 },
+                      { label: 'ShopeeFood', value: formatCurrency(activeRevenueByChannel.shopeefood || 0), percentage: activeGrossRevenue > 0 ? ((activeRevenueByChannel.shopeefood || 0) / activeGrossRevenue) * 100 : 0 },
+                      { label: 'GoFood', value: formatCurrency(activeRevenueByChannel.gofood || 0), percentage: activeGrossRevenue > 0 ? ((activeRevenueByChannel.gofood || 0) / activeGrossRevenue) * 100 : 0 },
+                      { label: 'Total', value: formatCurrency(activeGrossRevenue), percentage: 100 },
+                    ],
+                  });
+                }}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                Detail
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-600" />
-              <span className="text-2xl font-bold">Rp {(timeFilter === 'today' ? metrics.today_gross_revenue || 0 : metrics.cumulative_gross_revenue || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {activeGrossRevenue.toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Pendapatan Bersih
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Pendapatan Bersih
+              </CardTitle>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMetricDetail({
+                    title: 'Pendapatan Bersih',
+                    description: 'Pendapatan kotor dikurangi HPP dari item yang terjual.',
+                    rows: [
+                      { label: 'Pendapatan kotor', value: formatCurrency(activeGrossRevenue), percentage: 100 },
+                      { label: 'HPP', value: formatCurrency(activeHpp), percentage: activeGrossRevenue > 0 ? (activeHpp / activeGrossRevenue) * 100 : 0 },
+                      { label: 'Pendapatan bersih', value: formatCurrency(activeNetRevenue), percentage: activeGrossRevenue > 0 ? (activeNetRevenue / activeGrossRevenue) * 100 : 0 },
+                    ],
+                  });
+                }}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                Detail
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-blue-600" />
-              <span className="text-2xl font-bold">Rp {(timeFilter === 'today' ? metrics.today_pendapatan_bersih || 0 : metrics.cumulative_pendapatan_bersih || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {activeNetRevenue.toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Profit
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Profit
+              </CardTitle>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMetricDetail({
+                    title: 'Profit',
+                    description: 'Pendapatan bersih dikurangi biaya operasional.',
+                    rows: [
+                      { label: 'Pendapatan bersih', value: formatCurrency(activeNetRevenue), percentage: 100 },
+                      { label: 'Operasional', value: formatCurrency(activeOperationalExpenses), percentage: activeNetRevenue > 0 ? (activeOperationalExpenses / activeNetRevenue) * 100 : 0 },
+                      { label: 'Profit', value: formatCurrency(activeProfit), percentage: activeNetRevenue > 0 ? (activeProfit / activeNetRevenue) * 100 : 0 },
+                    ],
+                  });
+                }}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                Detail
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-orange-600" />
-              <span className="text-2xl font-bold">Rp {(timeFilter === 'today' ? metrics.today_profit || 0 : metrics.cumulative_profit || 0).toLocaleString('id-ID')}</span>
+              <span className="text-2xl font-bold">Rp {activeProfit.toLocaleString('id-ID')}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Jumlah Item Terjual
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Jumlah Item Terjual
+              </CardTitle>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMetricDetail({
+                    title: 'Item Terjual',
+                    description: 'Total kuantitas item dari transaksi penjualan.',
+                    rows: [
+                      { label: 'Total item', value: activeItemsSold.toString() },
+                    ],
+                  });
+                }}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                Detail
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-red-600" />
-              <span className="text-2xl font-bold">{timeFilter === 'today' ? metrics.today_total_items_sold || 0 : metrics.cumulative_total_items_sold || 0}</span>
+              <span className="text-2xl font-bold">{activeItemsSold}</span>
             </div>
           </CardContent>
         </Card>
@@ -447,6 +546,48 @@ export default function DashboardPage() {
           date={new Date().toISOString().split('T')[0]}
         />
       )}
+
+      <Dialog open={Boolean(selectedMetricDetail)} onOpenChange={() => setSelectedMetricDetail(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">{selectedMetricDetail?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 border-l-4 border-blue-400 pl-3">{selectedMetricDetail?.description}</p>
+            <div className="space-y-2">
+              {selectedMetricDetail?.rows.map((row, idx) => {
+                const isTotal = idx === (selectedMetricDetail.rows.length - 1);
+                return (
+                  <div
+                    key={row.label}
+                    className={`flex items-center justify-between gap-3 p-3 rounded-lg ${
+                      isTotal
+                        ? 'bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200'
+                        : 'bg-slate-50 border border-slate-200'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${ isTotal ? 'text-green-800' : 'text-gray-700' }`}>
+                        {row.label}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-bold ${ isTotal ? 'text-green-700 text-lg' : 'text-gray-900' }`}>
+                        {row.value}
+                      </p>
+                      {row.percentage !== undefined && (
+                        <p className={`text-xs font-semibold ${ isTotal ? 'text-green-600' : 'text-blue-600' }`}>
+                          {row.percentage.toFixed(1)}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
