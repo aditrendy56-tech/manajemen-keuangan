@@ -19,6 +19,7 @@ type SaleRecord = {
   payment_method?: string | null;
   payment_status?: string | null;
   refund_amount?: number | string | null;
+  notes?: string | null;
 };
 
 type ExpenseRecord = {
@@ -27,7 +28,11 @@ type ExpenseRecord = {
   refund_amount?: number | string | null;
   category?: string | null;
   payment_status?: string | null;
+  payment_method?: string | null;
+  funding_source?: string | null;
   date?: string | null;
+  description?: string | null;
+  notes?: string | null;
 };
 
 type CashTransactionRecord = {
@@ -38,6 +43,8 @@ type CashTransactionRecord = {
 type SaleItemRecord = {
   sale_id?: string | null;
   quantity?: number | string | null;
+  unit_price?: number | string | null;
+  subtotal?: number | string | null;
   cost_price?: number | string | null;
   products?: {
     name?: string | null;
@@ -105,18 +112,35 @@ export async function GET(request: NextRequest) {
     const gross_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount), 0) || 0;
     const platform_fees = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.platform_fee || sale.fee_amount), 0) || 0;
 
-    // Calculate total HPP (Cost of Goods Sold)
     const saleIds = (sales || []).map((sale: SaleRecord) => sale.id).filter((id): id is string => Boolean(id));
-    let total_hpp = 0;
-    if (saleIds.length > 0) {
-      const { data: saleItems } = await supabase.from('sale_items')
-        .select('cost_price, quantity')
-        .in('sale_id', saleIds);
-      total_hpp = (saleItems || []).reduce((sum: number, item: SaleItemRecord) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0) || 0;
-    }
+
+    const saleItemRows = saleIds.length > 0
+      ? await supabase.from('sale_items')
+          .select('sale_id, quantity, unit_price, subtotal, cost_price, products(name)')
+          .in('sale_id', saleIds)
+      : { data: [] as SaleItemRecord[] };
+
+    // Calculate total HPP (Cost of Goods Sold)
+    const total_hpp = (saleItemRows.data || []).reduce(
+      (sum: number, item: SaleItemRecord) => sum + ((item.cost_price || 0) * (item.quantity || 1)),
+      0
+    ) || 0;
 
     // Net Revenue = Gross Revenue - HPP (Cost of Goods Sold)
     const net_revenue = gross_revenue - total_hpp;
+
+    const saleItemMap = new Map<string, Array<{ quantity: number; unit_price: number; subtotal: number; cost_price: number; product_name: string }>>();
+    (saleItemRows.data || []).forEach((item: SaleItemRecord) => {
+      const current = saleItemMap.get(String(item.sale_id || '')) || [];
+      current.push({
+        quantity: toNumber(item.quantity),
+        unit_price: toNumber(item.unit_price),
+        subtotal: toNumber(item.subtotal),
+        cost_price: toNumber(item.cost_price),
+        product_name: item.products?.name || 'Item',
+      });
+      saleItemMap.set(String(item.sale_id || ''), current);
+    });
 
     const onlineSales = (sales || []).filter((sale: SaleRecord) => sale.channel_type === 'online' || sale.platform === 'shopeefood' || sale.platform === 'gofood');
     const totalCalculatedTotal = onlineSales.reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.calculated_total ?? sale.gross_amount), 0) || 0;
@@ -134,6 +158,9 @@ export async function GET(request: NextRequest) {
       const feePercentage = calculatedTotal > 0 ? (feeAmount / calculatedTotal) * 100 : 0;
       const grossAmount = toNumber(sale.gross_amount ?? calculatedTotal);
       const netAmount = toNumber(sale.net_amount ?? (grossAmount - feeAmount));
+      const items = saleItemMap.get(String(sale.id || '')) || [];
+      const itemCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const itemNames = items.map((item) => item.product_name).join(', ');
 
       return {
         id: sale.id,
@@ -147,6 +174,9 @@ export async function GET(request: NextRequest) {
         net_amount: netAmount,
         payment_method: sale.payment_method || null,
         payment_status: sale.payment_status || null,
+        item_count: itemCount,
+        item_names: itemNames || null,
+        notes: sale.notes || null,
       };
     });
 
@@ -241,15 +271,11 @@ export async function GET(request: NextRequest) {
       dailyBreakdownMap.set(saleDate, existing);
     });
 
-    const saleItemRows = await supabase.from('sale_items')
-      .select('sale_id, quantity, cost_price')
-      .in('sale_id', saleIds);
-
-    const saleItemMap = new Map<string, Array<{ quantity: number; cost_price: number }>>();
+    const hppItemMap = new Map<string, Array<{ quantity: number; cost_price: number }>>();
     (saleItemRows.data || []).forEach((row: SaleItemRecord) => {
-      const current = saleItemMap.get(String(row.sale_id || '')) || [];
+      const current = hppItemMap.get(String(row.sale_id || '')) || [];
       current.push({ quantity: toNumber(row.quantity), cost_price: toNumber(row.cost_price) });
-      saleItemMap.set(String(row.sale_id || ''), current);
+      hppItemMap.set(String(row.sale_id || ''), current);
     });
 
     (sales || []).forEach((sale: SaleRecord) => {
@@ -257,7 +283,7 @@ export async function GET(request: NextRequest) {
       const current = dailyBreakdownMap.get(saleDate);
       if (!current) return;
 
-      const items = saleItemMap.get(String(sale.id || '')) || [];
+      const items = hppItemMap.get(String(sale.id || '')) || [];
       const hpp = items.reduce((sum: number, item: { quantity: number; cost_price: number }) => sum + ((item.cost_price || 0) * (item.quantity || 1)), 0);
       const itemCount = items.reduce((sum: number, item: { quantity: number }) => sum + (item.quantity || 0), 0);
 
@@ -295,6 +321,19 @@ export async function GET(request: NextRequest) {
         item_count: values.item_count,
       }));
 
+    const expense_details = (expenses || []).map((expense: ExpenseRecord) => ({
+      id: expense.id,
+      date: expense.date || '',
+      category: String(expense.category || 'operasional').toLowerCase(),
+      description: expense.description || null,
+      amount: getRecognizedExpenseAmount(expense),
+      refund_amount: toNumber(expense.refund_amount),
+      payment_status: expense.payment_status || null,
+      payment_method: expense.payment_method || null,
+      funding_source: expense.funding_source || null,
+      notes: expense.notes || null,
+    }));
+
     const report: ProfitLossReport = {
       gross_revenue,
       platform_fees,
@@ -314,6 +353,9 @@ export async function GET(request: NextRequest) {
       cash_basis_profit: settled_cash_inflow - settled_cash_outflow,
       daily_breakdown,
       transaction_details,
+      expense_details,
+      total_sales_count: sales?.length || 0,
+      total_expense_count: expenses?.length || 0,
       online_fee_analysis: {
         total_calculated_total: totalCalculatedTotal,
         total_fee_amount: totalFeeAmount,

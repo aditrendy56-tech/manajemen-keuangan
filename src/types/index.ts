@@ -367,6 +367,21 @@ export interface ProfitLossReport {
     net_amount: number;
     payment_method?: string | null;
     payment_status?: string | null;
+    item_count?: number;
+    item_names?: string;
+    notes?: string | null;
+  }>;
+  expense_details?: Array<{
+    id: string;
+    date: string;
+    category: string;
+    description?: string | null;
+    amount: number;
+    refund_amount?: number;
+    payment_status?: string | null;
+    payment_method?: string | null;
+    funding_source?: string | null;
+    notes?: string | null;
   }>;
   online_fee_analysis?: {
     total_calculated_total: number;
@@ -387,6 +402,8 @@ export interface ProfitLossReport {
   gross_profit: number;
   net_profit: number;
   profit_margin: number;
+  total_sales_count?: number;
+  total_expense_count?: number;
   hpp?: number;
   operational_expenses?: number;
   daily_breakdown?: Array<{

@@ -17,20 +17,30 @@ type SaleRecord = {
   channel_type?: string | null;
   platform?: string | null;
   channel?: string | null;
+  notes?: string | null;
+  payment_method?: string | null;
 };
 
 type ExpenseRecord = {
+  id?: string;
   amount?: number | string | null;
   refund_amount?: number | string | null;
   category?: string | null;
   payment_status?: string | null;
+  payment_method?: string | null;
+  funding_source?: string | null;
+  description?: string | null;
+  notes?: string | null;
   date?: string | null;
 };
 
 type SaleItemRecord = {
   sale_id?: string | null;
   quantity?: number | string | null;
+  unit_price?: number | string | null;
+  subtotal?: number | string | null;
   cost_price?: number | string | null;
+  products?: { name?: string | null } | null;
 };
 
 function toNumber(value: number | string | null | undefined): number {
@@ -77,18 +87,19 @@ export async function GET(request: NextRequest) {
       .gte('date', startDate)
       .lte('date', endDate);
 
+    const saleIds = (sales || []).map((sale: SaleRecord) => sale.id).filter((id): id is string => Boolean(id));
+    const { data: saleItems } = await getSupabaseServer().from('sale_items')
+      .select('sale_id, quantity, unit_price, subtotal, cost_price, products(name)')
+      .in('sale_id', saleIds);
+
     const gross_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount), 0) || 0;
-    const net_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + getRecognizedSaleAmount(sale), 0) || 0;
     const platform_fees = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.platform_fee || sale.fee_amount), 0) || 0;
+    const total_hpp = (saleItems || []).reduce((sum: number, item: SaleItemRecord) => sum + ((toNumber(item.cost_price) || 0) * (toNumber(item.quantity) || 1)), 0) || 0;
+    const net_revenue = gross_revenue - total_hpp;
     const total_expenses = (expenses || []).reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
     const operational_expenses = (expenses || []).filter((expense: ExpenseRecord) => String(expense.category || '').toLowerCase() === 'operasional').reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
     const gross_profit = net_revenue - total_expenses;
     const net_profit = net_revenue - operational_expenses;
-
-    const saleIds = (sales || []).map((sale: SaleRecord) => sale.id).filter((id): id is string => Boolean(id));
-    const { data: saleItems } = await getSupabaseServer().from('sale_items')
-      .select('sale_id, quantity, cost_price')
-      .in('sale_id', saleIds);
 
     const dailyBreakdownMap = new Map<string, {
       gross_revenue: number;
@@ -180,8 +191,10 @@ export async function GET(request: NextRequest) {
       ['Pendapatan Kotor', gross_revenue],
       ['Biaya Platform', platform_fees],
       ['Pendapatan Bersih', net_revenue],
-      ['Total HPP', (saleItems || []).reduce((sum: number, item: SaleItemRecord) => sum + (toNumber(item.cost_price) * toNumber(item.quantity)), 0)],
-      ['Total Biaya Operasional', operational_expenses],
+      ['Total HPP', total_hpp],
+      ['Total Pengeluaran', total_expenses],
+      ['Biaya Operasional', operational_expenses],
+      ['Laba Kotor', gross_profit],
       ['Laba Bersih', net_profit],
       ['Marjin Keuntungan (%)', gross_revenue > 0 ? ((gross_profit / gross_revenue) * 100).toFixed(2) : 0],
     ];
@@ -189,12 +202,44 @@ export async function GET(request: NextRequest) {
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
 
     if (sales && sales.length > 0) {
-      const salesSheet = XLSX.utils.json_to_sheet(sales);
+      const salesDetail = (sales || []).map((sale: SaleRecord) => {
+        const grossAmount = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
+        const feeAmount = toNumber(sale.fee_amount ?? (grossAmount - toNumber(sale.net_amount)));
+        const netAmount = toNumber(sale.net_amount ?? (grossAmount - feeAmount));
+        const items = (saleItems || []).filter((item: SaleItemRecord) => item.sale_id === sale.id);
+        const itemNames = items.map((item: SaleItemRecord) => item.products?.name || 'Item').join(', ');
+        return {
+          id: sale.id,
+          tanggal: sale.created_at,
+          channel: sale.channel || sale.platform || 'offline',
+          platform: sale.platform || '-',
+          payment_method: sale.payment_method || '-',
+          payment_status: sale.payment_status || '-',
+          item_names: itemNames || '-',
+          item_count: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
+          gross_amount: grossAmount,
+          fee_amount: feeAmount,
+          net_amount: netAmount,
+          notes: sale.notes || '-',
+        };
+      });
+      const salesSheet = XLSX.utils.json_to_sheet(salesDetail);
       XLSX.utils.book_append_sheet(workbook, salesSheet, 'Detail Penjualan');
     }
 
     if (expenses && expenses.length > 0) {
-      const expensesSheet = XLSX.utils.json_to_sheet(expenses);
+      const expensesDetail = (expenses || []).map((expense: ExpenseRecord) => ({
+        id: expense.id,
+        tanggal: expense.date,
+        kategori: expense.category || '-',
+        deskripsi: expense.description || '-',
+        jumlah: getRecognizedExpenseAmount(expense),
+        payment_method: expense.payment_method || '-',
+        payment_status: expense.payment_status || '-',
+        funding_source: expense.funding_source || '-',
+        notes: expense.notes || '-',
+      }));
+      const expensesSheet = XLSX.utils.json_to_sheet(expensesDetail);
       XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Detail Pengeluaran');
     }
 

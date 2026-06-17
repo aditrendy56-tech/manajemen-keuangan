@@ -14,7 +14,7 @@ import { useParams } from 'next/navigation';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import BatchSaleForm from '@/components/forms/BatchSaleForm';
-import { ExpenseForm } from '@/components/forms/ExpenseForm';
+import { AlertCircle } from 'lucide-react';
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -29,7 +29,6 @@ export default function SessionDetailPage() {
   const [closingCash, setClosingCash] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [refundKind, setRefundKind] = useState<'sale' | 'expense'>('sale');
   const [refundTarget, setRefundTarget] = useState<Sale | Expense | null>(null);
@@ -40,7 +39,7 @@ export default function SessionDetailPage() {
   const [refundNotes, setRefundNotes] = useState('');
   const [expenseFormKey, setExpenseFormKey] = useState(0);
 
-  async function loadData() {
+  async function loadData(sessionDate?: string) {
     if (!sessionId) return;
     setLoading(true);
     setError(null);
@@ -64,7 +63,11 @@ export default function SessionDetailPage() {
     try {
       const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
       const expensesData = expensesRes.ok ? await expensesRes.json() : [];
-      setExpenses(Array.isArray(expensesData) ? expensesData : []);
+      // Filter expenses to only show those matching the session's date
+      const filteredExpenses = sessionDate ? 
+        (Array.isArray(expensesData) ? expensesData.filter((exp: Expense) => exp.date === sessionDate) : [])
+        : (Array.isArray(expensesData) ? expensesData : []);
+      setExpenses(filteredExpenses);
     } catch (e) {
       console.warn('Failed to fetch expenses:', e);
       setExpenses([]);
@@ -103,7 +106,7 @@ export default function SessionDetailPage() {
         setSession(sessionData || null);
 
         // fetch sales, expenses, purchases, and cash transactions
-        await loadData();
+        await loadData(sessionData?.date);
       } catch (err: any) {
         console.error('Error loading session detail:', err);
         setError(err.message || 'Failed to load data');
@@ -151,32 +154,7 @@ export default function SessionDetailPage() {
     }
   }
 
-  async function handleExpenseSubmit(data: any) {
-    if (!outletId || !sessionId) {
-      alert('Outlet atau sesi tidak tersedia');
-      return;
-    }
 
-    const response = await fetch('/api/expenses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...data,
-        session_id: sessionId,
-        outlet_id: outletId,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Gagal menyimpan pengeluaran');
-    }
-
-    const newExpense = await response.json();
-    setExpenses((prev) => [newExpense, ...prev]);
-    setExpenseFormKey((v) => v + 1);
-    setExpenseDialogOpen(false);
-  }
 
   function openRefundDialog(target: Sale | Sale[] | Expense, kind: 'sale' | 'expense') {
     // Check if it's batch refund (array of sales)
@@ -322,7 +300,7 @@ export default function SessionDetailPage() {
         throw new Error(errorData.error || 'Gagal menghapus');
       }
 
-      await loadData();
+      await loadData(session?.date);
       alert('Pengeluaran dihapus');
     } catch (err: any) {
       alert('Gagal hapus: ' + (err.message || err));
@@ -343,7 +321,7 @@ export default function SessionDetailPage() {
         throw new Error(errorData.error || 'Gagal menghapus');
       }
 
-      await loadData();
+      await loadData(session?.date);
       alert('Penjualan dihapus');
     } catch (err: any) {
       alert('Gagal hapus: ' + (err.message || err));
@@ -468,14 +446,17 @@ export default function SessionDetailPage() {
       </Card>
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xl font-semibold">Daftar Pengeluaran</h3>
-          {session?.status === 'open' && (
-            <Button onClick={() => setExpenseDialogOpen(true)} className="bg-orange-600 hover:bg-orange-700">
-              Input Pengeluaran
-            </Button>
-          )}
+        <h3 className="text-xl font-semibold">Daftar Pengeluaran</h3>
+        
+        {/* Info banner directing users to Pengeluaran page */}
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-blue-800">
+            💡 <strong>Catatan:</strong> Untuk input pengeluaran baru, gunakan halaman <strong>Pengeluaran</strong> di menu utama. 
+            Pengeluaran akan otomatis muncul di sini jika tanggalnya sesuai dengan hari sesi.
+          </p>
         </div>
+        
         <ExpensesTable 
           expenses={expenses} 
           onRefund={(expense) => openRefundDialog(expense, 'expense')}
@@ -537,21 +518,6 @@ export default function SessionDetailPage() {
         )}
         <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
       </section>
-
-      <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Input Pengeluaran Hari Ini</DialogTitle>
-          </DialogHeader>
-          <ExpenseForm
-            key={expenseFormKey}
-            onSubmit={async (data) => {
-              await handleExpenseSubmit(data);
-            }}
-          />
-          <DialogFooter />
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
         <DialogContent className="max-w-xl">
