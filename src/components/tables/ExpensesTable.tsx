@@ -25,6 +25,8 @@ interface ExpensesTableProps {
 }
 
 export function ExpensesTable({ expenses, onDelete, onRefund }: ExpensesTableProps) {
+  const showActions = Boolean(onDelete || onRefund);
+
   return (
     <Card>
       <CardHeader>
@@ -43,7 +45,7 @@ export function ExpensesTable({ expenses, onDelete, onRefund }: ExpensesTablePro
                   <th className="text-left p-2">Deskripsi</th>
                   <th className="text-right p-2">Jumlah</th>
                   <th className="text-center p-2">Status</th>
-                  <th className="text-center p-2">Aksi</th>
+                  {showActions && <th className="text-center p-2">Aksi</th>}
                 </tr>
               </thead>
               <tbody>
@@ -70,30 +72,32 @@ export function ExpensesTable({ expenses, onDelete, onRefund }: ExpensesTablePro
                         )}
                       </div>
                     </td>
-                    <td className="p-2 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        {onRefund && expense.payment_status !== 'refunded' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => onRefund(expense)}
-                            className="text-amber-700 hover:bg-amber-50"
-                          >
-                            Refund
-                          </Button>
-                        )}
-                        {onDelete && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onDelete(expense.id)}
-                            className="text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+                    {showActions && (
+                      <td className="p-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {onRefund && expense.payment_status !== 'refunded' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onRefund(expense)}
+                              className="text-amber-700 hover:bg-amber-50"
+                            >
+                              Refund
+                            </Button>
+                          )}
+                          {onDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onDelete(expense.id)}
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

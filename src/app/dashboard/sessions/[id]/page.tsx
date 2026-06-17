@@ -16,6 +16,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import BatchSaleForm from '@/components/forms/BatchSaleForm';
 import { AlertCircle } from 'lucide-react';
 
+type ExpenseSessionRecord = Expense & {
+  sessions?: {
+    date?: string | null;
+  } | null;
+};
+
 export default function SessionDetailPage() {
   const params = useParams();
   const sessionId = params?.id as string;
@@ -37,7 +43,6 @@ export default function SessionDetailPage() {
   const [refundReference, setRefundReference] = useState('');
   const [refundDate, setRefundDate] = useState(new Date().toISOString().split('T')[0]);
   const [refundNotes, setRefundNotes] = useState('');
-  const [expenseFormKey, setExpenseFormKey] = useState(0);
 
   async function loadData(sessionDate?: string) {
     if (!sessionId) return;
@@ -63,10 +68,16 @@ export default function SessionDetailPage() {
     try {
       const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
       const expensesData = expensesRes.ok ? await expensesRes.json() : [];
-      // Filter expenses to only show those matching the session's date
-      const filteredExpenses = sessionDate ? 
-        (Array.isArray(expensesData) ? expensesData.filter((exp: Expense) => exp.date === sessionDate) : [])
-        : (Array.isArray(expensesData) ? expensesData : []);
+
+      const sourceExpenses = Array.isArray(expensesData) ? expensesData : [];
+      const filteredExpenses = sessionDate
+        ? sourceExpenses.filter((exp: ExpenseSessionRecord) => {
+            const matchesSession = exp.session_id === sessionId;
+            const matchesDate = exp.date === sessionDate || exp.sessions?.date === sessionDate;
+            return matchesSession || matchesDate;
+          })
+        : sourceExpenses;
+
       setExpenses(filteredExpenses);
     } catch (e) {
       console.warn('Failed to fetch expenses:', e);
@@ -286,27 +297,6 @@ export default function SessionDetailPage() {
     }
   }
 
-  async function handleDeleteExpense(expenseId: string) {
-    if (!confirm('Hapus pengeluaran ini? Data akan hilang selamanya.')) return;
-
-    try {
-      const response = await fetch(`/api/expenses/${expenseId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Gagal menghapus');
-      }
-
-      await loadData(session?.date);
-      alert('Pengeluaran dihapus');
-    } catch (err: any) {
-      alert('Gagal hapus: ' + (err.message || err));
-    }
-  }
-
   async function handleDeleteSale(saleId: string) {
     if (!confirm('Hapus penjualan ini? Data akan hilang selamanya.')) return;
 
@@ -457,11 +447,7 @@ export default function SessionDetailPage() {
           </p>
         </div>
         
-        <ExpensesTable 
-          expenses={expenses} 
-          onRefund={(expense) => openRefundDialog(expense, 'expense')}
-          onDelete={handleDeleteExpense}
-        />
+        <ExpensesTable expenses={expenses} />
       </section>
 
       <Card>

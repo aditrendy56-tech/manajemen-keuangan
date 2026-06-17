@@ -105,9 +105,8 @@ export default function ExpensesPage() {
         throw new Error(errorData.message || errorData.error || 'Failed to save expense');
       }
 
-      const newExpense = await response.json();
-      console.log('[Expenses] Success! Created expense:', newExpense);
-      setExpenses([newExpense, ...expenses]);
+      await response.json();
+      await fetchExpenses();
       setWarning(null);
       // Reset form akan di-handle oleh component
     } catch (err: any) {
@@ -129,7 +128,7 @@ export default function ExpensesPage() {
       });
 
       if (response.ok) {
-        setExpenses(expenses.filter((e) => e.id !== id));
+        await fetchExpenses();
       } else {
         alert('Gagal menghapus pengeluaran');
       }
