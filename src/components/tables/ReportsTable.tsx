@@ -169,7 +169,7 @@ export function ReportsTable({ report }: ReportsTableProps) {
                         {isExpanded && (
                           <div className="bg-emerald-50 border-t border-emerald-200 p-4 space-y-3">
                             {transactions.map((transaction, idx) => (
-                              <div key={transaction.id || idx} className="bg-white rounded-lg p-3 border border-emerald-100">
+                              <div key={`transaction-${channel}-${transaction.id || idx}`} className="bg-white rounded-lg p-3 border border-emerald-100">
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                   <div className="flex-1">
                                     <p className="font-semibold text-slate-900">{transaction.item_names || 'Item penjualan'}</p>
@@ -260,7 +260,7 @@ export function ReportsTable({ report }: ReportsTableProps) {
                   {isExpanded && (
                     <div className="ml-6 mt-2 pl-4 border-l-2 border-orange-200 space-y-2 pb-2">
                       {expenses.map((expense, idx) => (
-                        <div key={expense.id || idx} className="bg-orange-50 rounded-lg p-3 text-sm">
+                        <div key={`expense-${category}-${expense.id || idx}`} className="bg-orange-50 rounded-lg p-3 text-sm">
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex-1">
                               <p className="font-semibold text-slate-900">{expense.description || 'Pengeluaran'}</p>

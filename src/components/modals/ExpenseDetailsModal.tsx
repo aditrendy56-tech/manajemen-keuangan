@@ -106,7 +106,7 @@ export function ExpenseDetailsModal({
             </div>
           ) : (
             expenses.map((expense: ExpenseDetail, idx: number) => (
-              <Card key={expense.id} className="border">
+              <Card key={`expense-${expense.id || `${category}-${idx}`}`} className="border">
                 <CardContent className="pt-4">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">

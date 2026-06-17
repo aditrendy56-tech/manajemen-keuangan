@@ -164,10 +164,10 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
                 {expandedSection === 'capital' && data.sources.capital_input.transactions.length > 0 && (
                   <div className="mt-3 pt-3 border-t space-y-2">
                     {data.sources.capital_input.transactions.map((tx, idx) => (
-                      <div key={idx} className="text-xs bg-gray-50 p-2 rounded">
+                      <div key={`capital-${tx.date}-${idx}`} className="text-xs bg-gray-50 p-2 rounded">
                         <p className="font-mono font-semibold">{tx.date}</p>
                         {tx.items?.map((item: any, i: number) => (
-                          <p key={i} className="text-gray-700">
+                          <p key={`capital-item-${item.investor}-${i}`} className="text-gray-700">
                             • {item.investor}: {formatCurrency(item.amount)}
                           </p>
                         ))}
