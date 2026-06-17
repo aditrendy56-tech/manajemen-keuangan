@@ -108,14 +108,6 @@ export default function ReportsPage() {
           </div>
         </CardContent>
       </Card>
-              />
-            </div>
-            <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">
-              Export Excel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Main Report */}
       {error && (
