@@ -7,17 +7,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/card';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
-import { useOutlet } from '@/lib/context/OutletContext';
+
+interface ExpenseFormPayload {
+  date: string;
+  category: string | null;
+  description: string;
+  amount: number;
+  payment_method: 'cash' | 'qris' | 'bank_transfer' | 'pending';
+  payment_status: 'paid' | 'pending';
+  settlement_date: string | null;
+  notes: string;
+  equipment_name?: string;
+}
 
 interface ExpenseFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: ExpenseFormPayload) => Promise<void>;
   loading?: boolean;
 }
 
 export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
-  const { outletId } = useOutlet();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [category, setCategory] = useState<string | null>('operasional');
   const [equipmentName, setEquipmentName] = useState('');
@@ -51,7 +60,7 @@ export function ExpenseForm({ onSubmit, loading = false }: ExpenseFormProps) {
     }
 
     try {
-      const formData: any = {
+      const formData: ExpenseFormPayload = {
         date,
         category,
         description: description.trim(),

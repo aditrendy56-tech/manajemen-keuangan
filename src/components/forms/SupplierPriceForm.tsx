@@ -96,10 +96,11 @@ export default function SupplierPriceForm({
       if (onSuccess) {
         setTimeout(() => onSuccess(data), 500);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Gagal menyimpan harga';
       setMessage({
         type: 'error',
-        text: error.message || 'Gagal menyimpan harga',
+        text: message,
       });
     } finally {
       setLoading(false);

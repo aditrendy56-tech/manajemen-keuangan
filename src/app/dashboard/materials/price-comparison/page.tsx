@@ -1,22 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RawMaterial, MaterialPurchase, SupplierPrice, Supplier } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Select } from '@/components/ui/select';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   Legend,
+  Tooltip,
   ResponsiveContainer,
 } from 'recharts';
 
@@ -42,11 +39,7 @@ export default function PriceComparisonPage() {
   const [selectedMaterial, setSelectedMaterial] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -76,7 +69,12 @@ export default function PriceComparisonPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return (
@@ -93,18 +91,6 @@ export default function PriceComparisonPage() {
   const materialPurchases = purchases.filter(
     (p) => p.raw_material_id === selectedMaterial
   );
-
-  // Prepare data untuk price trend chart
-  const priceHistory: PriceData[] = materialPurchases
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map((p) => ({
-      date: new Date(p.date).toLocaleDateString('id-ID', {
-        month: 'short',
-        day: 'numeric',
-      }),
-      price: p.unit_price,
-      supplier: suppliers.find((s) => s.id === p.supplier_id)?.name || 'Unknown',
-    }));
 
   // Group by supplier for trend
   const supplierTrendData: PriceData[] = [];

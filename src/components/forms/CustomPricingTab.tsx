@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Product } from '@/types';
 
 interface CustomPricingEntry {
@@ -48,7 +47,7 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
         if (!res.ok) throw new Error('Gagal memuat produk');
         const data = await res.json();
         setProducts(Array.isArray(data) ? data : []);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching products:', err);
         setError('Gagal memuat daftar produk');
       } finally {
@@ -162,9 +161,10 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
       onSubmit(entries);
       setEntries([]);
       alert(`${entries.length} custom pricing berhasil ditambahkan`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal menambahkan custom pricing';
       console.error('Error submitting custom pricing:', err);
-      setError(err.message || 'Gagal menambahkan custom pricing');
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -303,7 +303,7 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
                       <p className="text-xs text-blue-600 mt-1">
                         Diskon: Rp {entry.discount_amount.toLocaleString('id-ID')} ({entry.discount_percentage}%)
                       </p>
-                      <p className="text-xs text-gray-700 mt-2 italic">"{entry.description}"</p>
+                      <p className="text-xs text-gray-700 mt-2 italic">&ldquo;{entry.description}&rdquo;</p>
                     </div>
                     <div className="flex gap-2 ml-2">
                       <Button

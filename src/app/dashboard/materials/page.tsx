@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MaterialPurchase, RawMaterial, Supplier, SupplierPrice, Expense } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -41,10 +40,13 @@ export default function MaterialsPage() {
     notes: '',
   });
 
-  const [selectedSupplierPrices, setSelectedSupplierPrices] = useState<SupplierPrice[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { outletId, sessionId, setSessionId } = useOutlet();
+  const selectedSupplierPrices = useMemo(() => {
+    if (!formData.raw_material_id) return [] as SupplierPrice[];
+    return supplierPrices.filter((price) => price.raw_material_id === formData.raw_material_id);
+  }, [formData.raw_material_id, supplierPrices]);
 
   useEffect(() => {
     if (!outletId || sessionId) return;
@@ -58,9 +60,9 @@ export default function MaterialsPage() {
           return;
         }
 
-        const sessions = await response.json();
+        const sessions = await response.json() as { sessions?: Array<{ id: string; date: string; status: string }> };
         const todaySession = sessions.sessions && Array.isArray(sessions.sessions)
-          ? sessions.sessions.find((s: any) => s.date === today && s.status === 'open')
+          ? sessions.sessions.find((session) => session.date === today && session.status === 'open')
           : null;
 
         if (todaySession) {
@@ -90,31 +92,7 @@ export default function MaterialsPage() {
     ensureSession();
   }, [outletId, sessionId, setSessionId]);
 
-  useEffect(() => {
-    if (outletId) fetchData();
-  }, [outletId]);
-
-  useEffect(() => {
-    if (formData.raw_material_id) {
-      const prices = supplierPrices.filter(
-        (p) => p.raw_material_id === formData.raw_material_id
-      );
-      setSelectedSupplierPrices(prices);
-      
-      // Auto-fill unit price from first supplier if available
-      if (formData.supplier_id && prices.length > 0) {
-        const selected = prices.find((p) => p.supplier_id === formData.supplier_id);
-        if (selected && !formData.unit_price) {
-          setFormData((prev) => ({
-            ...prev,
-            unit_price: selected.unit_price.toString(),
-          }));
-        }
-      }
-    }
-  }, [formData.raw_material_id, supplierPrices, formData.supplier_id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -183,7 +161,7 @@ export default function MaterialsPage() {
         );
         if (equipRes.ok) {
           const data = await equipRes.json();
-          setEquipment(Array.isArray(data) ? data.filter((e: any) => e.category === 'peralatan') : []);
+          setEquipment(Array.isArray(data) ? data.filter((item: Expense) => item.category === 'peralatan') : []);
         } else {
           setEquipment([]);
         }
@@ -194,7 +172,15 @@ export default function MaterialsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [outletId]);
+
+  useEffect(() => {
+    if (!outletId) {
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, outletId]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -202,10 +188,19 @@ export default function MaterialsPage() {
     >
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => {
+      const nextValue = { ...prev, [name]: value };
+
+      if ((name === 'raw_material_id' || name === 'supplier_id') && nextValue.raw_material_id) {
+        const prices = supplierPrices.filter((price) => price.raw_material_id === nextValue.raw_material_id);
+        const selected = prices.find((price) => price.supplier_id === nextValue.supplier_id);
+        if (selected && !nextValue.unit_price) {
+          nextValue.unit_price = selected.unit_price.toString();
+        }
+      }
+
+      return nextValue;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -262,10 +257,11 @@ export default function MaterialsPage() {
       });
 
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Gagal menyimpan pembelian';
       setMessage({
         type: 'error',
-        text: error.message || 'Gagal menyimpan pembelian',
+        text: message,
       });
     } finally {
       setSubmitting(false);
@@ -352,7 +348,7 @@ export default function MaterialsPage() {
           <CardContent>
             {equipment.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                Belum ada data alat/peralatan. Input via menu Pengeluaran dengan kategori "Peralatan".
+                Belum ada data alat/peralatan. Input via menu Pengeluaran dengan kategori &quot;Peralatan&quot;.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -395,7 +391,7 @@ export default function MaterialsPage() {
               <span className="text-lg">💡</span>
               <div>
                 <strong>Coming Soon!</strong><br />
-                Untuk perhitungan bahan dan HPP detail, fitur ini akan dikembangkan lebih lanjut. Saat ini, tracking bahan dapat dilakukan melalui menu Pengeluaran dengan kategori "Bahan".
+                Untuk perhitungan bahan dan HPP detail, fitur ini akan dikembangkan lebih lanjut. Saat ini, tracking bahan dapat dilakukan melalui menu Pengeluaran dengan kategori &quot;Bahan&quot;.
               </div>
             </div>
           </Alert>

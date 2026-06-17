@@ -10,6 +10,8 @@ import type { ModalItem } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
+type ModalCategory = 'peralatan' | 'bahan_awal' | 'rencana_tambahan';
+
 interface ModalCategoryFormProps {
   investorId: string;
   investorName: string;
@@ -18,7 +20,7 @@ interface ModalCategoryFormProps {
 
 export default function ModalCategoryForm({ investorId, investorName, onSuccess }: ModalCategoryFormProps) {
   const { outletId } = useOutlet();
-  const [category, setCategory] = useState<'peralatan' | 'bahan_awal' | 'rencana_tambahan'>('peralatan');
+  const [category, setCategory] = useState<ModalCategory>('peralatan');
   const [items, setItems] = useState<ModalItem[]>([
     { name: '', quantity: 1, unit_price: 0, total_price: 0 }
   ]);
@@ -27,7 +29,7 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (index: number, field: 'quantity' | 'unit_price' | 'name' | 'condition', value: string | number) => {
     const newItems = [...items];
     const item = newItems[index];
     
@@ -99,17 +101,12 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
       
       setTimeout(() => setSuccess(false), 3000);
       if (onSuccess) onSuccess();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal menambahkan modal';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const categoryLabels = {
-    peralatan: '🔧 Peralatan',
-    bahan_awal: '🛒 Bahan Awal',
-    rencana_tambahan: '📋 Rencana Tambahan'
   };
 
   return (
@@ -127,7 +124,7 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
           <div className="grid grid-cols-1 gap-6 items-start">
             <div>
               <Label htmlFor="category">Kategori Modal</Label>
-              <select value={category} onChange={(e: any) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500">
+              <select value={category} onChange={(e) => setCategory(e.target.value as ModalCategory)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-orange-500">
                 <option value="peralatan">🔧 Peralatan</option>
                 <option value="bahan_awal">🛒 Bahan Awal</option>
                 <option value="rencana_tambahan">📋 Rencana Tambahan</option>

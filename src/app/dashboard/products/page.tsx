@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,12 +33,7 @@ export default function ProductsPage() {
   const [editCostPrice, setEditCostPrice] = useState('');
   const [editDescription, setEditDescription] = useState('');
 
-  useEffect(() => {
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outletId]);
-
-  async function fetchProducts() {
+  const fetchProducts = useCallback(async () => {
     try {
       setFetching(true);
       if (!outletId) {
@@ -51,13 +46,7 @@ export default function ProductsPage() {
         console.log('fetchProducts received data:', data);
         console.log('First product:', data?.[0]);
         if (Array.isArray(data)) {
-          // Ensure all products have IDs
-          const validatedData = data.map((p: any) => {
-            if (!p.id) {
-              console.warn('Product without ID:', p);
-            }
-            return p;
-          });
+          const validatedData = data as Product[];
           setProducts(validatedData);
         } else {
           console.error('Expected array, got:', typeof data);
@@ -73,7 +62,12 @@ export default function ProductsPage() {
     } finally {
       setFetching(false);
     }
-  }
+  }, [outletId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchProducts();
+  }, [fetchProducts]);
 
   function calculateMargin(sellPrice: number, cost: number): number {
     if (sellPrice <= 0) return 0;
@@ -109,7 +103,7 @@ export default function ProductsPage() {
 
       if (response.ok) {
         const newProduct = await response.json();
-        setProducts([...products, newProduct]);
+        setProducts((currentProducts) => [...currentProducts, newProduct]);
         setName('');
         setPrice('');
         setPriceOffline('');
@@ -216,7 +210,7 @@ export default function ProductsPage() {
       if (response.ok) {
         const updatedProduct = await response.json();
         console.log('Update successful:', updatedProduct);
-        setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+        setProducts((currentProducts) => currentProducts.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
         cancelEdit();
       } else {
         const data = await response.json().catch(() => ({}));
@@ -225,7 +219,8 @@ export default function ProductsPage() {
       }
     } catch (error) {
       console.error('Error updating product:', error);
-      alert('Error updating product: ' + (error as any).message);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Error updating product: ' + message);
     } finally {
       setLoading(false);
     }
@@ -435,7 +430,7 @@ export default function ProductsPage() {
                   <p className="mt-1 text-xs text-gray-500">
                     {(editingId ? editPrice || editPriceOffline : price || priceOffline) ? (
                       <>
-                        Default 40%: {formatPrice(((editingId ? editPrice || editPriceOffline : price || priceOffline) as any) * 0.4)}
+                        Default 40%: {formatPrice((Number(editingId ? editPrice || editPriceOffline : price || priceOffline) || 0) * 0.4)}
                         {(editingId ? editCostPrice : costPrice) && (
                           <>
                             <br />

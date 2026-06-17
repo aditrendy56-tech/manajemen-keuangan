@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ExpenseForm } from '@/components/forms/ExpenseForm';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
-import { Expense } from '@/types';
+import { Expense, ExpenseFormData } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
@@ -16,7 +16,7 @@ interface ValidationWarning {
   requested?: number;
   shortfall?: number;
   message?: string;
-  pendingData?: any;
+  pendingData?: ExpenseFormData;
   kas_source?: string;
 }
 
@@ -28,12 +28,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<ValidationWarning | null>(null);
 
-  // Fetch expenses dari database saat component mount
-  useEffect(() => {
-    fetchExpenses();
-  }, [outletId]);
-
-  async function fetchExpenses() {
+  const fetchExpenses = useCallback(async () => {
     try {
       setFetching(true);
       setError(null);
@@ -41,16 +36,22 @@ export default function ExpensesPage() {
       if (!response.ok) throw new Error('Failed to fetch expenses');
       const data = await response.json();
       setExpenses(Array.isArray(data) ? data : []);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch expenses';
       console.error('Error fetching expenses:', err);
-      setError(err.message);
+      setError(message);
       setExpenses([]);
     } finally {
       setFetching(false);
     }
-  }
+  }, [outletId]);
 
-  async function handleSubmit(data: any, forceOverride: boolean = false) {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchExpenses();
+  }, [fetchExpenses]);
+
+  async function handleSubmit(data: ExpenseFormData, forceOverride: boolean = false) {
     console.log('[Expenses] handleSubmit called:', { data, forceOverride, sessionId, outletId });
     
     if (!sessionId) {
@@ -109,9 +110,10 @@ export default function ExpensesPage() {
       await fetchExpenses();
       setWarning(null);
       // Reset form akan di-handle oleh component
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to save expense';
       console.error('[Expenses] Error saving expense:', err);
-      setError(err.message);
+      setError(message);
     } finally {
       setLoading(false);
     }

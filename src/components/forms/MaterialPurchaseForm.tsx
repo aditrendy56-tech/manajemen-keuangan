@@ -8,8 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
+interface MaterialPurchaseFormPayload {
+  date: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  notes: string;
+}
+
 interface MaterialPurchaseFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: MaterialPurchaseFormPayload) => Promise<void>;
   loading?: boolean;
 }
 

@@ -8,8 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 
+interface CapitalFormPayload {
+  date: string;
+  amount: number;
+  source: string;
+  notes: string;
+}
+
 interface CapitalFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: CapitalFormPayload) => Promise<void>;
   loading?: boolean;
 }
 
