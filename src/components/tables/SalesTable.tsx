@@ -139,7 +139,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             <div className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2.5 px-1">Item Breakdown</div>
             <div className="space-y-2">
               {transactionItems.map((item, index) => (
-                <div key={`${sale.id}-${item.product_id || index}`} className="flex items-start justify-between gap-3 p-2.5 rounded-md bg-gradient-to-r from-amber-50 to-white border border-amber-100 hover:border-amber-300 transition-colors">
+                <div key={`${sale.id}-${item.product_id || 'item'}-${index}`} className="flex items-start justify-between gap-3 p-2.5 rounded-md bg-gradient-to-r from-amber-50 to-white border border-amber-100 hover:border-amber-300 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-slate-900 truncate">
                       {item.product_name || 'Item'}
@@ -242,7 +242,7 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
         <div className="flex justify-between items-start gap-3 mb-2">
           <div className="flex-1 space-y-1">
             {offlineItems.map((item, idx) => (
-              <div key={`${sale.id}-${item.product_id || idx}`} className="flex justify-between items-center gap-3 text-sm">
+              <div key={`${sale.id}-${item.product_id || 'item'}-${idx}`} className="flex justify-between items-center gap-3 text-sm">
                 <div className="flex-1">
                   {item.product_name || 'Item'} <span className="text-gray-600">×{item.quantity || 1}</span>
                 </div>
