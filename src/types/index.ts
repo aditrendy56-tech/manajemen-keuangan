@@ -57,7 +57,7 @@ export interface CapitalEntry {
   date: string;
   amount: number;
   source?: string;
-  source_type?: 'owner' | 'investor';
+  source_type?: 'owner' | 'investor' | 'karyawan';
   investor_id?: string | null;
   category?: 'peralatan' | 'bahan_awal' | 'rencana_tambahan';
   items?: ModalItem[];
@@ -104,6 +104,22 @@ export interface DailySession {
   status: 'open' | 'closed';
   closed_at?: string | null;
   created_at: string;
+}
+
+// Discount Types (for online sales tracking)
+export interface DiskonMenuItem {
+  item_index: number;
+  product_id: string;
+  product_name: string;
+  qty: number;
+  price_normal: number;
+  price_after_diskon: number;
+}
+
+export interface DiskonLangsung {
+  urutan: number;
+  amount: number;
+  notes?: string;
 }
 
 export interface Sale {
@@ -157,6 +173,9 @@ export interface Sale {
   custom_original_price?: number | null;
   custom_final_price?: number | null;
   custom_description?: string | null;
+  // Discount Tracking (NEW - for online sales analysis)
+  diskon_menu_items?: DiskonMenuItem[] | null;
+  diskon_langsung?: DiskonLangsung[] | null;
   created_at: string;
 }
 
@@ -245,15 +264,34 @@ export interface ProfitAllocation {
   id: string;
   outlet_id: string;
   allocation_date: string;
+  allocation_month?: string;
+  profit_pending_amount?: number;
+  profit_after_hutang?: number;
+  total_employee_allocation?: number;
+  kas_utama_topup?: number;
+  simpan_uang_amount?: number;
+  simpan_reason?: string;
+  user_choice?: string;
+  approval_status?: 'draft' | 'approved' | 'executed' | 'rejected' | 'amended' | string;
+  approved_by?: string;
+  approved_at?: string;
+  profit_share_breakdown?: Array<{
+    investor_id: string;
+    investor_name: string;
+    share_percent: number;
+    share_amount: number;
+  }>;
+  notes?: string;
+  amended_from_allocation_id?: string;
+  amendment_reason?: string;
   period_label?: string;
-  total_profit: number;
-  reserve_amount: number;
-  distributed_amount: number;
-  allocation_mode: 'retain' | 'split' | 'full_distribution' | 'custom';
+  total_profit?: number;
+  reserve_amount?: number;
+  distributed_amount?: number;
+  allocation_mode?: 'retain' | 'split' | 'full_distribution' | 'custom';
   reserve_label?: string;
   distribution_label?: string;
-  notes?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface Stakeholder {

@@ -27,6 +27,11 @@ export interface SalesSplit {
   platform_fee?: number;
 }
 
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 /**
  * Calculate how much should go to each bucket from a sale
  * Ratio: 60% Kas Utama, 40% Profit Pending
@@ -55,6 +60,16 @@ export function calculateSalesSplit(grossAmount: number, platformFee: number = 0
  */
 export async function getFinancialBalance(outletId: string): Promise<FinancialBalance> {
   try {
+    if (!isValidUuid(outletId)) {
+      return {
+        kas_utama: 0,
+        profit_pending: 0,
+        simpan_uang: 0,
+        total_available: 0,
+        last_updated: new Date().toISOString(),
+      };
+    }
+
     const supabase = getSupabaseServer();
     
     const { data, error } = await supabase

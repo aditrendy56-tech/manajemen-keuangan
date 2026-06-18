@@ -30,6 +30,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
     }
 
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outletId);
+    if (!isValidUuid) {
+      return NextResponse.json({ error: 'outlet_id must be a valid UUID' }, { status: 400 });
+    }
+
     // Get real-time balance
     const balance = await getFinancialBalance(outletId);
 

@@ -126,6 +126,8 @@ export async function POST(request: NextRequest) {
       settlement_date,
       payment_reference,
       notes,
+      diskon_menu_items,
+      diskon_langsung,
     } = body;
 
     const effectiveChannel =
@@ -224,6 +226,26 @@ export async function POST(request: NextRequest) {
             },
           ];
 
+    // Normalize and validate diskon arrays
+    const normalizedDiskonMenu = Array.isArray(diskon_menu_items) 
+      ? diskon_menu_items.filter((item: any) => 
+          item && typeof item === 'object' && 
+          item.item_index !== undefined && 
+          item.product_id && 
+          item.qty && 
+          item.price_normal && 
+          item.price_after_diskon !== undefined
+        )
+      : [];
+    
+    const normalizedDiskonLangsung = Array.isArray(diskon_langsung)
+      ? diskon_langsung.map((item: any) => ({
+          urutan: Number(item.urutan || 0),
+          amount: Number(item.amount || 0),
+          notes: item.notes || undefined,
+        })).filter((item: any) => item.amount > 0)
+      : [];
+
     const saleInsertData = {
       session_id: session.id,
       outlet_id,
@@ -242,6 +264,9 @@ export async function POST(request: NextRequest) {
       payment_entries: normalizedPaymentEntries,
       payment_reference: payment_reference || null,
       notes: notes || null,
+      // Discount fields
+      diskon_menu_items: normalizedDiskonMenu.length > 0 ? normalizedDiskonMenu : null,
+      diskon_langsung: normalizedDiskonLangsung.length > 0 ? normalizedDiskonLangsung : null,
     };
     console.log('[POST /api/sales] Insert data:', saleInsertData);
     let saleResult = await (getSupabaseServer().from('sales') as any)

@@ -8,17 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-
-interface ProfitAllocation {
-  id: string;
-  allocation_month: string;
-  profit_pending_amount: number;
-  profit_after_hutang: number;
-  total_employee_allocation: number;
-  kas_utama_topup: number;
-  simpan_uang_amount: number;
-  approval_status: string;
-}
+import type { ProfitAllocation } from '@/types';
 
 interface ApprovalModalProps {
   open: boolean;
@@ -33,7 +23,6 @@ export function ProfitAllocationApprovalModal({
   onOpenChange,
   allocation,
   onApprove,
-  loading = false,
 }: ApprovalModalProps) {
   const [approvalNotes, setApprovalNotes] = useState('');
   const [approving, setApproving] = useState(false);
@@ -95,27 +84,27 @@ export function ProfitAllocationApprovalModal({
               <div>
                 <p className="text-gray-600">Profit Pending</p>
                 <p className="font-semibold text-lg text-blue-600">
-                  {formatCurrency(allocation.profit_pending_amount)}
+                  {formatCurrency(allocation.profit_pending_amount ?? 0)}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">Setelah Hutang</p>
                 <p className="font-semibold text-lg text-blue-600">
-                  {formatCurrency(allocation.profit_after_hutang)}
+                  {formatCurrency(allocation.profit_after_hutang ?? 0)}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">Kas Topup</p>
-                <p className="font-semibold">{formatCurrency(allocation.kas_utama_topup)}</p>
+                <p className="font-semibold">{formatCurrency(allocation.kas_utama_topup ?? 0)}</p>
               </div>
               <div>
                 <p className="text-gray-600">Simpan Uang</p>
-                <p className="font-semibold">{formatCurrency(allocation.simpan_uang_amount)}</p>
+                <p className="font-semibold">{formatCurrency(allocation.simpan_uang_amount ?? 0)}</p>
               </div>
-              {allocation.total_employee_allocation > 0 && (
+              {(allocation.total_employee_allocation ?? 0) > 0 && (
                 <div>
                   <p className="text-gray-600">Alokasi Karyawan</p>
-                  <p className="font-semibold">{formatCurrency(allocation.total_employee_allocation)}</p>
+                  <p className="font-semibold">{formatCurrency(allocation.total_employee_allocation ?? 0)}</p>
                 </div>
               )}
             </CardContent>

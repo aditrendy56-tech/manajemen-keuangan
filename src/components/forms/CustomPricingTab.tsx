@@ -34,6 +34,8 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [customPrice, setCustomPrice] = useState('');
+  const [discountAmountInput, setDiscountAmountInput] = useState('');
+  const [discountPercentageInput, setDiscountPercentageInput] = useState('');
   const [description, setDescription] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -65,9 +67,16 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
   const quantityNum = parseInt(quantity) || 0;
   const originalTotal = originalPrice * quantityNum;
   const customPriceNum = parseFloat(customPrice) || 0;
-  const discountAmount = originalTotal - customPriceNum;
-  const discountPercentage =
-    originalTotal > 0 ? ((discountAmount / originalTotal) * 100).toFixed(2) : '0';
+  const discountAmountInputNum = parseFloat(discountAmountInput) || 0;
+  const discountPercentageInputNum = parseFloat(discountPercentageInput) || 0;
+  const discountAmount =
+    discountAmountInputNum > 0
+      ? Math.min(discountAmountInputNum, originalTotal)
+      : discountPercentageInputNum > 0
+        ? (originalTotal * discountPercentageInputNum) / 100
+        : originalTotal - customPriceNum;
+  const discountPercentage = originalTotal > 0 ? ((discountAmount / originalTotal) * 100).toFixed(2) : '0';
+  const finalCustomPrice = Math.max(0, originalTotal - discountAmount);
 
   function handleAddEntry() {
     // Validasi
@@ -79,11 +88,11 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
       alert('Jumlah harus lebih dari 0');
       return;
     }
-    if (!customPriceNum || customPriceNum <= 0) {
-      alert('Harga custom harus lebih dari 0');
+    if (!finalCustomPrice || finalCustomPrice <= 0) {
+      alert('Harga custom atau diskon harus menghasilkan nilai lebih dari 0');
       return;
     }
-    if (customPriceNum > originalTotal) {
+    if (finalCustomPrice > originalTotal) {
       alert('Harga custom tidak boleh lebih besar dari harga normal');
       return;
     }
@@ -98,7 +107,7 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
       quantity: quantityNum,
       original_price: originalPrice,
       original_total: originalTotal,
-      custom_price: customPriceNum,
+      custom_price: finalCustomPrice,
       discount_amount: discountAmount,
       discount_percentage: discountPercentage,
       description: description.trim(),
@@ -110,6 +119,8 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
     setSelectedProductId('');
     setQuantity('1');
     setCustomPrice('');
+    setDiscountAmountInput('');
+    setDiscountPercentageInput('');
     setDescription('');
     setError(null);
   }
@@ -256,11 +267,43 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
                 className="mt-1"
                 placeholder="Masukkan harga custom"
               />
-              {customPrice && (
-                <div className="mt-1 text-xs text-gray-600">
-                  Diskon: Rp {discountAmount.toLocaleString('id-ID')} ({discountPercentage}%)
+
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <Label htmlFor="discount-amount-input" className="text-sm">Diskon (Rp)</Label>
+                  <Input
+                    id="discount-amount-input"
+                    type="number"
+                    value={discountAmountInput}
+                    onChange={(e) => setDiscountAmountInput(e.target.value)}
+                    min="0"
+                    step="100"
+                    className="mt-1"
+                    placeholder="Contoh: 5000"
+                  />
                 </div>
-              )}
+                <div>
+                  <Label htmlFor="discount-percent-input" className="text-sm">Diskon (%)</Label>
+                  <Input
+                    id="discount-percent-input"
+                    type="number"
+                    value={discountPercentageInput}
+                    onChange={(e) => setDiscountPercentageInput(e.target.value)}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="mt-1"
+                    placeholder="Contoh: 10"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2 text-xs text-gray-600">
+                Harga custom akan dihitung otomatis dari diskon jika kolom diskon diisi. Jika tidak, gunakan harga custom manual.
+              </div>
+              <div className="mt-1 text-xs text-blue-700 font-medium">
+                Preview harga final: Rp {finalCustomPrice.toLocaleString('id-ID')} • Diskon: Rp {discountAmount.toLocaleString('id-ID')} ({discountPercentage}%)
+              </div>
             </div>
 
             <div>

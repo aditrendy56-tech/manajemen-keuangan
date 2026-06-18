@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, Eye, Edit2, AlertCircle } from 'lucide-react';
+import { ChevronDown, Edit2, AlertCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import type { ProfitAllocation } from '@/types';
 
 interface AllocationBreakdown {
   investor_id: string;
@@ -14,24 +15,6 @@ interface AllocationBreakdown {
   share_amount: number;
 }
 
-interface ProfitAllocation {
-  id: string;
-  allocation_month: string;
-  allocation_date: string;
-  profit_pending_amount: number;
-  profit_after_hutang: number;
-  total_employee_allocation: number;
-  kas_utama_topup: number;
-  simpan_uang_amount: number;
-  simpan_reason?: string;
-  user_choice: string;
-  approval_status: string;
-  approved_by?: string;
-  approved_at?: string;
-  profit_share_breakdown?: AllocationBreakdown[];
-  notes?: string;
-  amended_from_allocation_id?: string;
-}
 
 interface ProfitAllocationHistoryProps {
   allocations: ProfitAllocation[];
@@ -92,23 +75,23 @@ export function ProfitAllocationHistory({
               {/* Periode */}
               <div>
                 <p className="text-sm text-gray-600">Periode</p>
-                <p className="font-semibold text-lg">{allocation.allocation_month}</p>
+                <p className="font-semibold text-lg">{allocation.allocation_month ?? '-'}</p>
                 <p className="text-xs text-gray-500">{formatDate(allocation.allocation_date)}</p>
               </div>
 
               {/* Profit */}
               <div>
                 <p className="text-sm text-gray-600">Profit Pending</p>
-                <p className="font-semibold text-green-600">{formatCurrency(allocation.profit_pending_amount)}</p>
-                <p className="text-xs text-gray-500">Setelah hutang: {formatCurrency(allocation.profit_after_hutang)}</p>
+                <p className="font-semibold text-green-600">{formatCurrency(allocation.profit_pending_amount ?? 0)}</p>
+                <p className="text-xs text-gray-500">Setelah hutang: {formatCurrency(allocation.profit_after_hutang ?? 0)}</p>
               </div>
 
               {/* Allocation Summary */}
               <div>
                 <p className="text-sm text-gray-600">Alokasi</p>
                 <div className="text-xs space-y-1 mt-1">
-                  <p>💰 Kas Topup: {formatCurrency(allocation.kas_utama_topup)}</p>
-                  <p>🏦 Simpan: {formatCurrency(allocation.simpan_uang_amount)}</p>
+                  <p>💰 Kas Topup: {formatCurrency(allocation.kas_utama_topup ?? 0)}</p>
+                  <p>🏦 Simpan: {formatCurrency(allocation.simpan_uang_amount ?? 0)}</p>
                 </div>
               </div>
 
@@ -116,7 +99,7 @@ export function ProfitAllocationHistory({
               <div>
                 <p className="text-sm text-gray-600">Karyawan</p>
                 {allocation.total_employee_allocation > 0 ? (
-                  <p className="font-semibold text-blue-600">{formatCurrency(allocation.total_employee_allocation)}</p>
+                  <p className="font-semibold text-blue-600">{formatCurrency(allocation.total_employee_allocation ?? 0)}</p>
                 ) : (
                   <p className="text-xs text-gray-500">-</p>
                 )}
@@ -125,12 +108,12 @@ export function ProfitAllocationHistory({
               {/* Status */}
               <div>
                 <p className="text-sm text-gray-600">Status</p>
-                <div className="mt-1">{getStatusBadge(allocation.approval_status)}</div>
+                <div className="mt-1">{getStatusBadge(allocation.approval_status ?? 'draft')}</div>
               </div>
 
               {/* Actions */}
               <div className="flex gap-2 justify-end">
-                {allocation.approval_status === 'draft' && onApprove && (
+                {(allocation.approval_status ?? 'draft') === 'draft' && onApprove && (
                   <Button
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
@@ -139,7 +122,7 @@ export function ProfitAllocationHistory({
                     Approve
                   </Button>
                 )}
-                {allocation.approval_status === 'approved' && onAmend && (
+                {(allocation.approval_status ?? 'draft') === 'approved' && onAmend && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -169,7 +152,7 @@ export function ProfitAllocationHistory({
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="p-2 bg-gray-50 rounded">
                       <p className="text-gray-600">User Choice</p>
-                      <p className="font-semibold">{allocation.user_choice}</p>
+                      <p className="font-semibold">{allocation.user_choice ?? '-'}</p>
                     </div>
                     {allocation.simpan_reason && (
                       <div className="p-2 bg-gray-50 rounded">
@@ -203,7 +186,7 @@ export function ProfitAllocationHistory({
                   <h4 className="font-semibold text-blue-900 mb-2">🔍 Info Approval</h4>
                   <div className="space-y-1 text-sm text-blue-900">
                     <p>
-                      <strong>Status:</strong> {allocation.approval_status}
+                      <strong>Status:</strong> {allocation.approval_status ?? 'draft'}
                     </p>
                     {allocation.approved_by && (
                       <>

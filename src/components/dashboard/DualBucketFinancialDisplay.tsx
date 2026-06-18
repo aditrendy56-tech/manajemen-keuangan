@@ -231,7 +231,20 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
   const [selectedDescription, setSelectedDescription] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!outletId) return;
+    if (!outletId) {
+      setBalance(null);
+      setError('Outlet belum tersedia');
+      setLoading(false);
+      return;
+    }
+
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outletId);
+    if (!isValidUuid) {
+      setBalance(null);
+      setError('Outlet ID tidak valid');
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -239,7 +252,10 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
       try {
         setLoading(true);
         const response = await fetch(`/api/cash/financial-summary?outlet_id=${outletId}`);
-        if (!response.ok) throw new Error('Failed to fetch balance');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch balance');
+        }
         const data = await response.json();
         if (!cancelled) {
           setBalance(data);
@@ -248,7 +264,7 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to fetch financial balance:', err);
-          setError('Gagal mengambil data saldo');
+          setError(err instanceof Error ? err.message : 'Gagal mengambil data saldo');
         }
       } finally {
         if (!cancelled) {
