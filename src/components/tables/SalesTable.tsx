@@ -14,6 +14,10 @@ interface SalesTableProps {
   withCard?: boolean;
 }
 
+type SaleLineItem = NonNullable<Sale['sale_items']>[number];
+type DiscountMenuEntry = NonNullable<Sale['diskon_menu_items']>[number];
+type DiscountDirectEntry = NonNullable<Sale['diskon_langsung']>[number];
+
 export function SalesTable({ sales, onDelete, onRefund, withCard = true }: SalesTableProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     offlineCash: true,
@@ -26,6 +30,11 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
   const [selectedRefunds, setSelectedRefunds] = useState<Set<string>>(new Set());
   const [infoSaleId, setInfoSaleId] = useState<string | null>(null);
+
+  function toNumber(value: number | string | null | undefined): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
@@ -58,11 +67,11 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   );
 
   const gofood = sales.filter(
-    (s) => s.platform === 'gofood' && s.type !== 'custom' && s.payment_status !== 'refunded'
+    (s) => String(s.platform || '').toLowerCase() === 'gofood' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
 
   const shopeefood = sales.filter(
-    (s) => s.platform === 'shopeefood' && s.type !== 'custom' && s.payment_status !== 'refunded'
+    (s) => String(s.platform || '').toLowerCase() === 'shopeefood' && s.type !== 'custom' && s.payment_status !== 'refunded'
   );
 
   const custom = sales.filter((s) => s.type === 'custom' && s.payment_status !== 'refunded');
@@ -72,6 +81,32 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const calcTotal = (items: Sale[]) => items.reduce((sum, s) => sum + (s.net_amount || 0), 0);
   const calcGross = (items: Sale[]) => items.reduce((sum, s) => sum + (s.gross_amount || 0), 0);
   const calcFee = (items: Sale[]) => items.reduce((sum, s) => sum + (s.platform_fee || 0), 0);
+  const calcHppTotal = (items: Sale[]) => items.reduce((sum, s) => {
+    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
+      return sum + s.sale_items.reduce((itemSum, item) => {
+        const qty = item.quantity || 1;
+        const costPrice = Number(item.cost_price ?? item.hpp_amount ?? 0);
+        return itemSum + (costPrice * qty);
+      }, 0);
+    }
+    return sum;
+  }, 0);
+  const calcDiscountTotal = (items: Sale[]) => items.reduce((sum, s) => {
+    const diskonMenuTotal = s.diskon_menu_total ?? (Array.isArray(s.diskon_menu_items)
+      ? s.diskon_menu_items.reduce((itemSum, item) => itemSum + (((item.price_normal || item.unit_price || 0) - (item.price_after_diskon || item.unit_price || 0)) * (item.qty || item.quantity || 1)), 0)
+      : 0);
+    const diskonLangsungTotal = s.diskon_langsung_total ?? (Array.isArray(s.diskon_langsung)
+      ? s.diskon_langsung.reduce((itemSum, item) => itemSum + (item.amount || 0), 0)
+      : 0);
+    return sum + (s.total_discounts ?? (diskonMenuTotal + diskonLangsungTotal));
+  }, 0);
+  const calcItemCount = (items: Sale[]) => items.reduce((sum, s) => {
+    if (typeof s.item_count === 'number' && s.item_count > 0) return sum + s.item_count;
+    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
+      return sum + s.sale_items.reduce((itemSum, item) => itemSum + (item.quantity || 1), 0);
+    }
+    return sum + (s.quantity || 1);
+  }, 0);
 
   const offlineCashTotal = calcTotal(offlineCash);
   const offlineQRISTotal = calcTotal(offlineQRIS);
@@ -87,28 +122,28 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const shopeefoodNet = shopeefoodGross - shopeefoodFee;
 
   const customTotal = calcTotal(custom);
+  const totalHpp = calcHppTotal(sales.filter((s) => s.payment_status !== 'refunded'));
   const grandTotal = offlineTotal + gofoodNet + shopeefoodNet + customTotal;
+  const netRevenueAfterHpp = grandTotal - totalHpp;
 
   function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0) {
     const isRefundable = sale.payment_status !== 'refunded';
     const isInfoOpen = infoSaleId === sale.id;
 
-    if (showNetFormat && sale.platform_fee > 0) {
+    if (showNetFormat) {
       const transactionItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
         ? sale.sale_items
         : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.gross_amount || sale.net_amount || 0, subtotal: sale.gross_amount || sale.net_amount || 0 }];
 
       return (
-        <div key={sale.id} className="py-4 px-4 mb-3 rounded-lg border border-amber-200 bg-white">
-          {/* Header dengan Nomor Transaksi dan Kontrol */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-amber-200">
-            <div>
-              <div className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span className="inline-block bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                  TXN #{transactionNumber}
-                </span>
-                <span className="text-xs text-slate-600 font-normal">{sale.id ? sale.id.slice(0, 8) : ''}</span>
-              </div>
+        <div key={sale.id} className="py-3 px-4 mb-2 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors">
+          {/* Header dengan Transaction Number & Kontrol */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-block bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                Transaksi {transactionNumber}
+              </span>
+              <span className="text-xs text-slate-500">{sale.id ? sale.id.slice(0, 8) : ''}</span>
             </div>
             {isRefundable && (
               <div className="flex items-center gap-2">
@@ -134,132 +169,158 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             )}
           </div>
 
-          {/* Daftar Item - Lebih Prominent */}
-          <div className="mb-5">
-            <div className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2.5 px-1">Item Breakdown</div>
-            <div className="space-y-2">
-              {transactionItems.map((item, index) => (
-                <div key={`${sale.id}-${item.product_id || 'item'}-${index}`} className="flex items-start justify-between gap-3 p-2.5 rounded-md bg-gradient-to-r from-amber-50 to-white border border-amber-100 hover:border-amber-300 transition-colors">
+          {/* Item List */}
+          <div className="space-y-2 mb-3 pb-3 border-b border-slate-200">
+            {transactionItems.map((item: SaleLineItem, index: number) => {
+              const itemDiskon = Array.isArray(sale.diskon_menu_items)
+                ? sale.diskon_menu_items.find((d: DiscountMenuEntry) => d.product_id === item.product_id || d.item_index === index)
+                : null;
+
+              const normalPrice = Number(item.unit_price || 0);
+              const discountedPrice = itemDiskon ? Number(itemDiskon.price_after_diskon ?? normalPrice) : normalPrice;
+              const qty = item.quantity || 1;
+              const originalTotal = normalPrice * qty;
+              const discountedTotal = discountedPrice * qty;
+              const hasMenuDiscount = itemDiskon && originalTotal > discountedTotal;
+
+              return (
+                <div key={`${sale.id}-${item.product_id || 'item'}-${index}`} className="text-sm flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">
-                      {item.product_name || 'Item'}
-                    </div>
-                    <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-2">
-                      <span className="inline-block bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs font-medium">×{item.quantity || 1}</span>
-                      <span className="text-slate-500">@ Rp {Number(item.unit_price || 0).toLocaleString('id-ID')}</span>
+                    <div className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+                      <span>{item.product_name || 'Item'}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">×{qty}</span>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-sm font-bold text-slate-900">
-                      Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
-                    </div>
+                  <div className="text-right shrink-0">
+                    {hasMenuDiscount ? (
+                      <div className="space-y-1">
+                        <div className="text-xs text-slate-500 line-through">Rp {originalTotal.toLocaleString('id-ID')}</div>
+                        <div className="font-semibold text-slate-900">Rp {discountedTotal.toLocaleString('id-ID')}</div>
+                      </div>
+                    ) : (
+                      <div className="font-semibold text-slate-900">Rp {discountedTotal.toLocaleString('id-ID')}</div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
 
-          {/* Subtotal per Transaksi */}
-          <div className="mb-4 p-3.5 rounded-lg bg-slate-50 border-2 border-slate-200 space-y-2.5">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-700 font-semibold">Item Total:</span>
-              <span className="font-bold text-slate-900 text-base">Rp {Number(sale.gross_amount || 0).toLocaleString('id-ID')}</span>
+          {/* Breakdown */}
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-700">Subtotal</span>
+              <span className="font-semibold text-slate-900">Rp {Number(transactionItems.reduce((sum: number, item: SaleLineItem, index: number) => {
+                const itemDiskon = Array.isArray(sale.diskon_menu_items)
+                  ? sale.diskon_menu_items.find((d: DiscountMenuEntry) => d.product_id === item.product_id || d.item_index === index)
+                  : null;
+                const discountedPrice = itemDiskon ? Number(itemDiskon.price_after_diskon ?? Number(item.unit_price || 0)) : Number(item.unit_price || 0);
+                return sum + discountedPrice * (item.quantity || 1);
+              }, 0)).toLocaleString('id-ID')}</span>
             </div>
-            {(sale.platform_fee || 0) > 0 && (
-              <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-300">
-                <span className="text-red-700 font-semibold">Platform Fee ({(sale.fee_percentage || 0).toFixed(1)}%):</span>
-                <span className="font-bold text-red-600">− Rp {Number(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
+            {Array.isArray(sale.diskon_langsung) && sale.diskon_langsung.length > 0 && (
+              <div className="flex justify-between text-yellow-700">
+                <span>Diskon Langsung</span>
+                <span className="font-semibold">−Rp {Number(sale.diskon_langsung.reduce((sum: number, d: DiscountDirectEntry) => sum + (d.amount || 0), 0)).toLocaleString('id-ID')}</span>
               </div>
             )}
-            <div className="flex justify-between items-center text-base pt-2 border-t-2 border-slate-300">
-              <span className="text-slate-900 font-bold">Net Amount:</span>
-              <span className="font-bold text-emerald-700 text-lg">Rp {Number(sale.net_amount || 0).toLocaleString('id-ID')}</span>
+            {(sale.platform_fee || 0) > 0 && (
+              <div className="flex justify-between text-red-700">
+                <span>Biaya Komisi</span>
+                <span className="font-semibold">−Rp {Number(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            <div className="border-t border-slate-300 pt-2 flex justify-between font-bold text-base">
+              <span className="text-slate-900">Jumlah Penyelesaian</span>
+              <span className="text-slate-900">Rp {Number(sale.net_amount || 0).toLocaleString('id-ID')}</span>
             </div>
           </div>
 
-          {/* Detail Fee Button & Info */}
-          {(sale.platform_fee || 0) > 0 && (
-            <div className="flex items-center justify-end mb-3">
-              <button
-                type="button"
-                onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
-                className="inline-flex h-8 px-3 items-center justify-center rounded-md border-2 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-semibold gap-1.5 transition-all"
-                aria-label="Lihat detail fee"
-                title="Lihat detail fee dan breakdown"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                {isInfoOpen ? 'Hide Fee Detail' : 'Show Fee Detail'}
-              </button>
-            </div>
-          )}
+          {/* Detail Button */}
+          {(() => {
+            const hasPlatformFee = (sale.platform_fee || 0) > 0;
+            const diskonMenuTotal = sale.diskon_menu_total ?? (Array.isArray(sale.diskon_menu_items) ? sale.diskon_menu_items.reduce((s: number, it: DiscountMenuEntry) => s + (((it.price_normal || it.unit_price || 0) - (it.price_after_diskon || it.unit_price || 0)) * (it.qty || it.quantity || 1)), 0) : 0);
+            const diskonLangsungTotal = sale.diskon_langsung_total ?? (Array.isArray(sale.diskon_langsung) ? sale.diskon_langsung.reduce((s: number, it: DiscountDirectEntry) => s + (it.amount || 0), 0) : 0);
+            const totalDiscounts = sale.total_discounts ?? (diskonMenuTotal + diskonLangsungTotal);
+            const hasDiscounts = totalDiscounts > 0 || (Array.isArray(sale.diskon_menu_items) && sale.diskon_menu_items.length > 0) || (Array.isArray(sale.diskon_langsung) && sale.diskon_langsung.length > 0);
+            const showButton = isRefundable && (hasPlatformFee || hasDiscounts);
+
+            if (!showButton) return null;
+
+            return (
+              <div className="flex items-center justify-end mt-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setInfoSaleId((prev) => (prev === sale.id ? null : sale.id))}
+                  className="inline-flex h-8 px-3 items-center justify-center rounded-md border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-medium gap-1.5 transition-all"
+                >
+                  {isInfoOpen ? '▲ Tutup Detail' : '▼ Lihat Detail'}
+                </button>
+              </div>
+            );
+          })()}
 
           {isInfoOpen && (
-            <div className="rounded-lg border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50 p-4 text-sm shadow-sm mb-3">
-              <div className="font-bold text-amber-900 mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                Fee Breakdown
-              </div>
-              <div className="space-y-2.5">
-                <div className="flex justify-between pb-2.5 border-b border-amber-200">
-                  <span className="text-amber-800">Item Price:</span>
-                  <span className="font-bold text-slate-900">Rp {sale.gross_amount.toLocaleString('id-ID')}</span>
-                </div>
-                <div className="flex justify-between pb-2.5 border-b border-amber-200">
-                  <span className="text-amber-800">Platform Fee:</span>
-                  <span className="font-bold text-red-600">− Rp {(sale.platform_fee || 0).toLocaleString('id-ID')}</span>
-                </div>
-                <div className="flex justify-between pb-2.5 border-b-2 border-amber-400">
-                  <span className="text-amber-900 font-bold">Fee Rate:</span>
-                  <span className="font-bold text-amber-700">{(sale.fee_percentage || 0).toFixed(2)}%</span>
-                </div>
-                <div className="flex justify-between pt-2.5">
-                  <span className="text-slate-900 font-bold">Amount Received:</span>
-                  <span className="font-bold text-emerald-700 text-base">Rp {sale.net_amount.toLocaleString('id-ID')}</span>
-                </div>
-              </div>
+            <div className="rounded-lg border border-slate-300 bg-gradient-to-br from-slate-50 to-white p-4 mt-3 text-xs space-y-3">
+              <div className="font-bold text-slate-900">Analisis Transaksi</div>
+              
+              {(() => {
+                const diskonMenuTotal = sale.diskon_menu_total ?? (Array.isArray(sale.diskon_menu_items) ? sale.diskon_menu_items.reduce((s: number, it: DiscountMenuEntry) => s + (((it.price_normal || it.unit_price || 0) - (it.price_after_diskon || it.unit_price || 0)) * (it.qty || it.quantity || 1)), 0) : 0);
+                const diskonLangsungTotal = sale.diskon_langsung_total ?? (Array.isArray(sale.diskon_langsung) ? sale.diskon_langsung.reduce((s: number, it: DiscountDirectEntry) => s + (it.amount || 0), 0) : 0);
+                const totalDiscounts = sale.total_discounts ?? (diskonMenuTotal + diskonLangsungTotal);
+                const platformFee = sale.platform_fee || 0;
+                const grossAmount = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
+                const netAmount = sale.net_amount || 0;
+
+                return (
+                  <div className="space-y-2 border-t border-slate-200 pt-2">
+                    <div className="flex justify-between">
+                      <span>Harga Asli:</span>
+                      <span className="font-semibold">Rp {grossAmount.toLocaleString('id-ID')}</span>
+                    </div>
+                    {totalDiscounts > 0 && (
+                      <div className="flex justify-between text-yellow-700">
+                        <span>Diskon Total:</span>
+                        <span className="font-semibold">−Rp {totalDiscounts.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {platformFee > 0 && (
+                      <div className="flex justify-between text-red-700">
+                        <span>Biaya Platform:</span>
+                        <span className="font-semibold">−Rp {platformFee.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-300 pt-2 font-bold flex justify-between text-slate-900">
+                      <span>Total Bersih:</span>
+                      <span>Rp {netAmount.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
-
-          {sale.notes && <div className="text-xs text-gray-600 italic mt-3">Catatan: {sale.notes}</div>}
         </div>
       );
-    }
-
-
-    // Offline format: Iterate sale_items if available, otherwise use product_name fallback
-    const offlineItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
+    } else {
+      // Offline format: Iterate sale_items if available, otherwise use product_name fallback
+      const offlineItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
       ? sale.sale_items
       : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.net_amount || 0, subtotal: sale.net_amount || 0 }];
 
     const offlineItemsTotal = offlineItems.reduce((sum, item) => sum + Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)), 0);
 
     return (
-      <div key={sale.id} className="py-3 px-0 border-b last:border-b-0">
-        <div className="flex justify-between items-start gap-3 mb-2">
-          <div className="flex-1 space-y-1">
-            {offlineItems.map((item, idx) => (
-              <div key={`${sale.id}-${item.product_id || 'item'}-${idx}`} className="flex justify-between items-center gap-3 text-sm">
-                <div className="flex-1">
-                  {item.product_name || 'Item'} <span className="text-gray-600">×{item.quantity || 1}</span>
-                </div>
-                <div className="text-right whitespace-nowrap font-medium">
-                  Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
-                </div>
-              </div>
-            ))}
-            {sale.type === 'custom' && sale.custom_description && (
-              <div className="text-xs text-blue-600 mt-1">{sale.custom_description}</div>
-            )}
-            {sale.notes && (
-              <div className="text-xs text-gray-500 mt-1">{sale.notes}</div>
-            )}
+      <div key={sale.id} className="py-3 px-4 mb-2 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors">
+        {/* Header dengan Transaction Number & Kontrol */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <span className="inline-block bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+              Transaksi {transactionNumber}
+            </span>
+            <span className="text-xs text-slate-500">{sale.id ? sale.id.slice(0, 8) : ''}</span>
           </div>
           {isRefundable && (
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2">
               {onRefund && (
                 <input
                   type="checkbox"
@@ -281,11 +342,92 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             </div>
           )}
         </div>
-        {offlineItems.length > 1 && (
-          <div className="text-right text-sm font-semibold pt-1 border-t text-slate-700">
-            Subtotal: Rp {offlineItemsTotal.toLocaleString('id-ID')}
+
+        {/* Item List */}
+        <div className="space-y-2 mb-3 pb-3 border-b border-slate-200">
+          {offlineItems.map((item, idx) => (
+            <div key={`${sale.id}-${item.product_id || 'item'}-${idx}`} className="text-sm flex justify-between items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>{item.product_name || 'Item'}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">×{item.quantity || 1}</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0 font-semibold text-slate-900">
+                Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Total */}
+        <div className="space-y-1 text-sm">
+          {sale.type === 'custom' && sale.custom_description && (
+            <div className="text-xs text-blue-600 mb-2 p-2 bg-blue-50 rounded">{sale.custom_description}</div>
+          )}
+          {sale.notes && (
+            <div className="text-xs text-slate-500 mb-2 p-2 bg-slate-50 rounded">{sale.notes}</div>
+          )}
+          <div className="border-t border-slate-300 pt-2 flex justify-between font-bold text-base">
+            <span className="text-slate-900">Jumlah Penyelesaian</span>
+            <span className="text-slate-900">Rp {offlineItemsTotal.toLocaleString('id-ID')}</span>
           </div>
-        )}
+        </div>
+      </div>
+    );
+    }
+  }
+
+  function renderOfflineItemsCombined(sales: Sale[]) {
+    // Gabung semua items dari semua transaksi
+    const allItems: Array<SaleLineItem & { transactionId: string; transactionIndex: number }> = [];
+    
+    sales.forEach((sale, transIndex) => {
+      const saleItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
+        ? sale.sale_items
+        : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.net_amount || 0, subtotal: sale.net_amount || 0 }];
+      
+      saleItems.forEach((item, itemIndex) => {
+        allItems.push({
+          ...item,
+          transactionId: sale.id,
+          transactionIndex: transIndex + 1,
+        });
+      });
+    });
+
+    const totalAmount = allItems.reduce((sum, item) => sum + Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)), 0);
+
+    return (
+      <div className="space-y-3">
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-200">
+                <th className="px-4 py-2.5 text-left font-semibold text-slate-900">Nama Item</th>
+                <th className="px-4 py-2.5 text-right font-semibold text-slate-900">Qty</th>
+                <th className="px-4 py-2.5 text-right font-semibold text-slate-900">Harga Satuan</th>
+                <th className="px-4 py-2.5 text-right font-semibold text-slate-900">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allItems.map((item, idx) => (
+                <tr key={`${item.transactionId}-${item.product_id || 'item'}-${idx}`} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-slate-900 font-medium">{item.product_name || 'Item'}</td>
+                  <td className="px-4 py-3 text-right text-slate-700">{item.quantity || 1}</td>
+                  <td className="px-4 py-3 text-right text-slate-700">Rp {Number(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-900">Rp {Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)).toLocaleString('id-ID')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-right">
+          <div className="inline-block border border-slate-300 rounded-lg p-3 bg-slate-50">
+            <div className="text-sm text-slate-600 mb-1">Total Penerimaan</div>
+            <div className="text-xl font-bold text-slate-900">Rp {totalAmount.toLocaleString('id-ID')}</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -294,63 +436,114 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     const isExpanded = expandedSections[sectionKey];
     const sectionTotal = calcTotal(items);
     const sectionGross = calcGross(items);
+    const sectionDiscount = calcDiscountTotal(items);
+    const sectionFee = calcFee(items);
+    const sectionHpp = calcHppTotal(items);
+    const sectionItemCount = calcItemCount(items);
+    const sectionEstimatedProfit = sectionGross - sectionDiscount - sectionFee - sectionHpp;
+    const sectionMargin = sectionGross > 0 ? (sectionEstimatedProfit / sectionGross) * 100 : 0;
     const isOnlineSection = showNetFormat;
+    const isOfflineSection = ['offlineCash', 'offlineQRIS', 'offlineSplit'].includes(sectionKey);
 
     return (
-      <div key={sectionKey} className="mb-4 pt-3">
+      <div key={sectionKey} className="mb-5 rounded-lg border border-slate-200 bg-white overflow-hidden">
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full flex items-center justify-between text-left font-semibold text-sm pb-2 border-b"
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors"
         >
-          <div className="flex items-center gap-2">
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-600" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-            )}
-            <span>{title}</span>
+          <div className="flex items-center gap-3">
+            <div className={`p-1.5 rounded transition-colors ${isExpanded ? 'bg-slate-100' : 'bg-slate-50'}`}>
+              {isExpanded ? (
+                <ChevronDown className="w-5 h-5 text-slate-600" />
+              ) : (
+                <ChevronRight className="w-5 h-5 text-slate-600" />
+              )}
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-slate-900">{title}</span>
+              <span className="text-xs text-slate-500 ml-2">({items.length} trans.)</span>
+            </div>
           </div>
-          <span className="text-gray-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
+          <span className="font-bold text-slate-900 text-base">Rp {sectionTotal.toLocaleString('id-ID')}</span>
         </button>
 
         {isExpanded && (
-          <div>
+          <div className="border-t border-slate-200 bg-slate-50/50">
             {items.length === 0 ? (
-              <div className="py-2 text-center text-gray-400 text-sm">—</div>
+              <div className="py-6 text-center text-slate-500 text-sm">—</div>
             ) : (
               <>
-                <div className="mt-1 space-y-1">
-                  {items.map((item, index) => renderItem(item, showNetFormat, index + 1))}
+                <div className="px-4 py-4">
+                  {isOfflineSection ? renderOfflineItemsCombined(items) : (
+                    <div className="space-y-3">
+                      {items.map((item, index) => renderItem(item, showNetFormat, index + 1))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Footer: Total Transaksi & Total Bersih untuk online sections */}
+                {/* Footer: Summary untuk online sections */}
                 {isOnlineSection && (
-                  <div className="mt-5 p-4 rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 shadow-sm">
-                    <div className="text-sm font-bold text-amber-950 mb-3 uppercase tracking-wide">
-                      {title} Summary
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-amber-800 font-semibold">Total Transactions:</span>
-                        <span className="font-bold text-slate-900">Rp {sectionGross.toLocaleString('id-ID')}</span>
+                  <div className="px-4 py-3 border-t border-slate-200 space-y-2">
+                    <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Ringkasan {title}</div>
+                    <div className="space-y-1 text-xs text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Item Terjual:</span>
+                        <span className="font-semibold">{sectionItemCount}</span>
                       </div>
-                      {sectionGross !== sectionTotal && (
-                        <div className="flex justify-between text-sm pt-2 border-t border-amber-200">
-                          <span className="text-amber-800 font-semibold">Platform Fees:</span>
-                          <span className="font-bold text-red-600">− Rp {(sectionGross - sectionTotal).toLocaleString('id-ID')}</span>
+                      <div className="flex justify-between">
+                        <span>Total Harga Asli:</span>
+                        <span className="font-semibold">Rp {sectionGross.toLocaleString('id-ID')}</span>
+                      </div>
+                      {sectionDiscount > 0 && (
+                        <div className="flex justify-between text-amber-700">
+                          <span>Total Diskon:</span>
+                          <span className="font-semibold">−Rp {sectionDiscount.toLocaleString('id-ID')}</span>
                         </div>
                       )}
-                      <div className="flex justify-between text-base pt-2 border-t-2 border-amber-300">
-                        <span className="text-slate-900 font-bold">Net Received:</span>
-                        <span className="font-bold text-emerald-700">Rp {sectionTotal.toLocaleString('id-ID')}</span>
+                      {sectionFee > 0 && (
+                        <div className="flex justify-between text-red-700">
+                          <span>Total Fee:</span>
+                          <span className="font-semibold">−Rp {sectionFee.toLocaleString('id-ID')}</span>
+                        </div>
+                      )}
+                      {sectionHpp > 0 && (
+                        <div className="flex justify-between text-purple-700">
+                          <span>Potongan HPP:</span>
+                          <span className="font-semibold">−Rp {sectionHpp.toLocaleString('id-ID')}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-slate-300 pt-1 mt-1 flex justify-between font-bold text-sm">
+                        <span className="text-emerald-700">Estimasi Bersih:</span>
+                        <span className="text-emerald-700">Rp {sectionEstimatedProfit.toLocaleString('id-ID')} ({sectionMargin.toFixed(1)}%)</span>
                       </div>
+                    </div>
+                    <div className="border-t border-slate-300 pt-2 flex justify-between font-bold text-base bg-slate-50 -mx-4 -mb-3 px-4 py-2.5">
+                      <span className="text-slate-900">Jumlah Penyelesaian</span>
+                      <span className="text-slate-900">Rp {sectionTotal.toLocaleString('id-ID')}</span>
                     </div>
                   </div>
                 )}
 
-                {!isOnlineSection && (
-                  <div className="py-2 text-sm font-semibold text-right mt-2">
-                    Subtotal: Rp {sectionTotal.toLocaleString('id-ID')}
+                {!isOnlineSection && !isOfflineSection && (
+                  <div className="px-4 py-4 border-t border-slate-200 space-y-3">
+                    <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Ringkasan {title}</div>
+                    <div className="grid gap-2 text-sm sm:grid-cols-2">
+                      <div className="rounded-md border border-slate-200 bg-white p-3">
+                        <div className="text-slate-500 text-xs">Total Item Terjual</div>
+                        <div className="text-base font-semibold text-slate-900">{sectionItemCount}</div>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-white p-3 sm:col-span-2">
+                        <div className="flex justify-between items-center gap-3">
+                          <div>
+                            <div className="text-slate-500 text-xs">Total Penerimaan</div>
+                            <div className="text-sm text-slate-600">Semua transaksi</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-base font-semibold text-slate-900">Rp {sectionTotal.toLocaleString('id-ID')}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
@@ -430,9 +623,19 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
                   </div>
                 )}
 
+                <div className="flex justify-between text-sm text-slate-600 pt-1">
+                  <span>Total HPP Makanan:</span>
+                  <span>−Rp {totalHpp.toLocaleString('id-ID')}</span>
+                </div>
+
                 <div className="flex justify-between font-bold border-t pt-1 text-base">
-                  <span>TOTAL PENJUALAN:</span>
+                  <span>Total Penjualan:</span>
                   <span className="text-orange-700">Rp {grandTotal.toLocaleString('id-ID')}</span>
+                </div>
+
+                <div className="flex justify-between text-sm text-slate-700 pt-1">
+                  <span>Pendapatan Bersih</span>
+                  <span className="font-semibold text-emerald-700">Rp {netRevenueAfterHpp.toLocaleString('id-ID')}</span>
                 </div>
               </div>
             </div>

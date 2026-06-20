@@ -155,7 +155,7 @@ export function RepaymentSummary({ outletId, month, refreshTrigger }: RepaymentS
             <h4 className="font-semibold text-sm mb-3">Pembayaran Terbaru</h4>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {recentPayments.slice(0, 5).map((payment, idx: number) => (
-                <div key={idx} className="flex items-center justify-between text-sm p-2 rounded border border-gray-100">
+                <div key={`payment-${payment.id || payment.date || idx}`} className="flex items-center justify-between text-sm p-2 rounded border border-gray-100">
                   <div className="flex-1">
                     <p className="font-semibold text-gray-700">
                       {payment.investor_name || 'Investor'}

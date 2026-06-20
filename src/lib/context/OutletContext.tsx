@@ -16,6 +16,13 @@ const OutletContext = createContext<OutletContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'selectedOutletId';
 
+interface SessionListResponse {
+  sessions?: Array<{
+    id?: string;
+    status?: string;
+  }>;
+}
+
 export function OutletProvider({ children }: { children: React.ReactNode }) {
   const [outletId, setOutletIdState] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -50,11 +57,11 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
             console.log('[OutletContext] Loading sessions for outlet:', preferredOutletId);
             const sessionRes = await fetch(`/api/sessions?outlet_id=${preferredOutletId}`);
             console.log('[OutletContext] /api/sessions response:', sessionRes.status);
-            const sessionsData = sessionRes.ok ? await sessionRes.json() : {};
+            const sessionsData: SessionListResponse = sessionRes.ok ? await sessionRes.json() : {};
             console.log('[OutletContext] Loaded sessions:', sessionsData.sessions?.length || 0, JSON.stringify(sessionsData, null, 2));
             if (sessionsData.sessions && Array.isArray(sessionsData.sessions) && sessionsData.sessions.length > 0) {
               // Get the first open session, or just the first one
-              const openSession = sessionsData.sessions.find((s: any) => s.status === 'open') || sessionsData.sessions[0];
+              const openSession = sessionsData.sessions.find((session) => session.status === 'open') || sessionsData.sessions[0];
               console.log('[OutletContext] Selected session:', openSession?.id);
               if (openSession?.id) {
                 setSessionId(openSession.id);

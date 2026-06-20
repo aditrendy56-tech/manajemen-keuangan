@@ -9,10 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { SalesTable } from '@/components/tables/SalesTable';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
-import { Sale, Expense, DailySession, MaterialPurchase, CashTransaction } from '@/types';
+import { OnlineSalesReport } from '@/components/dashboard/OnlineSalesReport';
+import { Sale, Expense, DailySession, MaterialPurchase } from '@/types';
 import { useParams } from 'next/navigation';
 import { useOutlet } from '@/lib/context/OutletContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import BatchSaleForm from '@/components/forms/BatchSaleForm';
 import { AlertCircle } from 'lucide-react';
 
@@ -31,7 +32,6 @@ export default function SessionDetailPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
-  const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>([]);
   const [closingCash, setClosingCash] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,15 +91,6 @@ export default function SessionDetailPage() {
     } catch (e) {
       console.warn('Failed to fetch material purchases:', e);
       setPurchases([]);
-    }
-
-    try {
-      const cashRes = await fetch(`/api/cash-transactions?outlet_id=${outletId}&limit=500`);
-      const cashData = cashRes.ok ? await cashRes.json() : [];
-      setCashTransactions(Array.isArray(cashData) ? cashData : []);
-    } catch (e) {
-      console.warn('Failed to fetch cash transactions:', e);
-      setCashTransactions([]);
     }
 
     setLoading(false);
@@ -450,51 +441,9 @@ export default function SessionDetailPage() {
         <ExpensesTable expenses={expenses} />
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pembelian Bahan pada Sesi Ini</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {purchases.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Tidak ada pembelian bahan pada sesi ini</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Tanggal</th>
-                    <th className="text-left p-2">Bahan</th>
-                    <th className="text-left p-2">Supplier</th>
-                    <th className="text-right p-2">Qty</th>
-                    <th className="text-right p-2">Total</th>
-                    <th className="text-left p-2">Status Bayar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {purchases.map((purchase) => (
-                    <tr key={purchase.id} className="border-b hover:bg-gray-50">
-                      <td className="p-2">{purchase.date}</td>
-                      <td className="p-2">{purchase.raw_material_id || '-'}</td>
-                      <td className="p-2">{purchase.supplier_id || '-'}</td>
-                      <td className="p-2 text-right">{Number(purchase.quantity).toLocaleString('id-ID')}</td>
-                      <td className="p-2 text-right font-semibold">
-                        Rp {(purchase.total_amount || Number(purchase.quantity) * Number(purchase.unit_price)).toLocaleString('id-ID')}
-                      </td>
-                      <td className="p-2">
-                        <Badge variant="outline">{purchase.payment_status || 'Unknown'}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       <section className="space-y-4">
-        <h3 className="text-xl font-semibold">Daftar Penjualan</h3>
-        
+        <h3 className="text-xl font-semibold">Input Penjualan</h3>
+
         {session?.status === 'open' && (
           <BatchSaleForm
             onSubmit={handleBatchSaleSubmit}
@@ -502,7 +451,15 @@ export default function SessionDetailPage() {
             outletId={outletId}
           />
         )}
-        <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
+
+        <div className="pt-8 mt-4">
+          <div className="flex items-center gap-3 py-4">
+            <div className="h-px flex-1 bg-slate-300" />
+            <h3 className="text-lg font-bold uppercase tracking-widest text-slate-800">Laporan Penjualan Hari Ini</h3>
+            <div className="h-px flex-1 bg-slate-300" />
+          </div>
+          <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
+        </div>
       </section>
 
       <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>

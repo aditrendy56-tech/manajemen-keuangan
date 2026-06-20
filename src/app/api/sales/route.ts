@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        sale_items (id, product_id, quantity, unit_price, subtotal)
+        sale_items (id, product_id, quantity, unit_price, subtotal, cost_price)
       `
       )
       .eq('outlet_id', outletId);
@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
             quantity: Number(item.quantity || 0),
             unit_price: Number(item.unit_price || 0),
             subtotal: Number(item.subtotal || (Number(item.quantity || 0) * Number(item.unit_price || 0)) || 0),
+            cost_price: Number(item.cost_price || 0),
           }))
         : [];
 

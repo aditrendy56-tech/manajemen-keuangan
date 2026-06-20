@@ -407,6 +407,11 @@ export interface ProfitLossReport {
     payment_status?: string | null;
     item_count?: number;
     item_names?: string;
+    // discount breakdown
+    diskon_menu_total?: number;
+    diskon_langsung_total?: number;
+    total_discounts?: number;
+    discount_percentage?: number;
     notes?: string | null;
   }>;
   expense_details?: Array<{
@@ -426,6 +431,8 @@ export interface ProfitLossReport {
     total_fee_amount: number;
     total_fee_percentage: number;
     total_net_revenue: number;
+    total_diskon_menu?: number;
+    total_diskon_langsung?: number;
     online_sales_count: number;
     by_channel: Record<string, {
       calculated_total: number;
@@ -433,6 +440,8 @@ export interface ProfitLossReport {
       fee_percentage: number;
       net_revenue: number;
       sales_count: number;
+      diskon_menu_total?: number;
+      diskon_langsung_total?: number;
     }>;
   };
   total_expenses: number;
@@ -571,7 +580,7 @@ export interface DashboardMetrics {
     today_operational_expenses?: number;
     today_profit?: number;
     today_revenue_by_channel?: Record<string, number>;
-    daily_expenses_detailed?: Array<{ description: string; amount: number; category: string }>;
+    daily_expenses_detailed?: Array<{ id?: string; description: string; amount: number; category?: string }>;
 
     // Cumulative breakdown
     cumulative_gross_revenue?: number;

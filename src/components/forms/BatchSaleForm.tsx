@@ -92,7 +92,6 @@ export function BatchSaleForm({
   const platform = activeTab === 'shopeefood' ? 'shopeefood' : activeTab === 'gofood' ? 'gofood' : null;
   const [paymentMode, setPaymentMode] = useState<'single' | 'split'>(activeTab === 'split' ? 'split' : 'single');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>(activeTab === 'offline_qris' ? 'qris' : 'cash');
-  const [paymentStatus, setPaymentStatus] = useState<'settled' | 'pending'>('settled');
   const [netRevenue, setNetRevenue] = useState('');
 
   const defaultPaymentEntry = {
@@ -303,7 +302,7 @@ export function BatchSaleForm({
         calculated_total: analysis.calculated_total,
         fee_amount: feeForCalculation,
         fee_percentage: normalizedGrossAmount > 0 ? (feeForCalculation / normalizedGrossAmount) * 100 : 0,
-        payment_status: paymentMode === 'split' ? (paymentEntries.every((entry) => entry.payment_status === 'settled') ? 'settled' : 'pending') : paymentStatus,
+        payment_status: 'settled',
         settlement_date: null,
         items: items.map((it) => ({ 
           product_id: it.product_id, 
@@ -315,7 +314,7 @@ export function BatchSaleForm({
             ? paymentEntries.map((entry) => ({
                 payment_method: entry.payment_method,
                 amount: Number(entry.amount || 0),
-                payment_status: entry.payment_status,
+                payment_status: 'settled',
                 settlement_date: entry.settlement_date || null,
                 payment_reference: entry.payment_reference || null,
                 notes: entry.notes || null,
@@ -324,7 +323,7 @@ export function BatchSaleForm({
                 {
                   payment_method: paymentMethod,
                   amount: normalizedGrossAmount,
-                  payment_status: paymentStatus,
+                  payment_status: 'settled',
                   settlement_date: null,
                   payment_reference: null,
                   notes: null,
@@ -411,55 +410,7 @@ export function BatchSaleForm({
             </div>
           ) : (
             <div className="space-y-4 bg-white p-4">
-              {/* PAYMENT SETTINGS (top section) */}
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase text-slate-600">Pengaturan Pembayaran</p>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <Label className="text-xs">Mode Pembayaran</Label>
-                    <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'single' | 'split')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single">Satu Metode</SelectItem>
-                        <SelectItem value="split">Split Payment</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {paymentMode === 'single' && (
-                    <>
-                      <div>
-                        <Label className="text-xs">Metode</Label>
-                        <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qris')}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="cash">Cash</SelectItem>
-                            <SelectItem value="qris">QRIS</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Status</Label>
-                        <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'settled' | 'pending')}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="settled">Settled</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {paymentMode === 'split' && (
+              {activeTab === 'split' && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                   <p className="text-xs font-medium text-blue-900 mb-2">Split Payment</p>
                   <div className="space-y-2 max-h-48 overflow-auto">
@@ -715,56 +666,7 @@ export function BatchSaleForm({
             </Button>
           </div>
 
-          {/* 2. FEE ANALYSIS SECTION (SECOND) */}
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-950 mb-3">📊 Analisis Komisi/Fee {platform === 'shopeefood' ? 'ShopeeFood (20%)' : 'GoFood (25%)'}</p>
-            <div className="space-y-2 mb-3">
-              <div className="rounded-lg bg-white p-3 border border-amber-200">
-                <p className="text-xs text-amber-700 mb-1">Total Harga Item</p>
-                <p className="text-lg font-bold text-amber-900">Rp {grossAmount.toLocaleString('id-ID')}</p>
-                {items.some(it => it.has_diskon_menu) && (
-                  <p className="text-xs text-slate-600 mt-1">(sudah termasuk diskon menu per item)</p>
-                )}
-              </div>
-              
-              <div className="flex items-center justify-center gap-2">
-                <div className="flex-1 h-px bg-amber-200"></div>
-                <span className="text-xs text-amber-600 font-medium">Dikurangi</span>
-                <div className="flex-1 h-px bg-amber-200"></div>
-              </div>
-              
-              <div className="rounded-lg bg-white p-3 border border-red-200">
-                <p className="text-xs text-red-700 mb-1">Diskon Langsung</p>
-                <p className="text-lg font-bold text-red-600">-Rp {totalDiskonLangsung.toLocaleString('id-ID')}</p>
-                <p className="text-xs text-slate-600 mt-1">{diskonLangsungRows.length} {diskonLangsungRows.length === 1 ? 'diskon' : 'diskon'}</p>
-              </div>
-              
-              <div className="flex items-center justify-center gap-2">
-                <div className="flex-1 h-px bg-amber-200"></div>
-                <span className="text-xs text-amber-600 font-medium">=</span>
-                <div className="flex-1 h-px bg-amber-200"></div>
-              </div>
-              
-              <div className="rounded-lg bg-amber-100 p-3 border border-amber-300">
-                <p className="text-xs text-amber-700 mb-1">Subtotal (setelah diskon)</p>
-                <p className="text-lg font-bold text-amber-900">Rp {subtotalAfterDiskonLangsung.toLocaleString('id-ID')}</p>
-              </div>
-              
-              <div className="flex items-center justify-center gap-2">
-                <div className="flex-1 h-px bg-amber-200"></div>
-                <span className="text-xs text-amber-600 font-medium">Dikurangi</span>
-                <div className="flex-1 h-px bg-amber-200"></div>
-              </div>
-              
-              <div className="rounded-lg bg-white p-3 border border-orange-200">
-                <p className="text-xs text-orange-700 mb-1">Komisi/Fee Marketplace</p>
-                <p className="text-lg font-bold text-orange-600">-Rp {(subtotalAfterDiskonLangsung - explicitNetRevenue).toLocaleString('id-ID')}</p>
-                <p className="text-xs text-slate-600 mt-1">≈ {explicitNetRevenue > 0 ? (((subtotalAfterDiskonLangsung - explicitNetRevenue) / subtotalAfterDiskonLangsung) * 100).toFixed(1) : 0}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. NET REVENUE INPUT (LAST) */}
+          {/* 1. NET REVENUE INPUT (FIRST) */}
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <Label className="text-sm font-semibold text-slate-900">💰 Pendapatan Bersih dari {platform === 'shopeefood' ? 'ShopeeFood' : 'GoFood'} (Rp)</Label>
             <CurrencyInput
@@ -775,34 +677,59 @@ export function BatchSaleForm({
               className="mt-2"
             />
             <p className="text-xs text-slate-500 mt-2">Nilai ini dipakai sebagai uang real untuk dashboard dan cash flow.</p>
+          </div>
 
-            {/* Warning jika ada gap */}
-            {explicitNetRevenue > 0 && (
-              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                <p className="text-xs font-semibold text-blue-900 mb-2">Perbandingan:</p>
-                <div className="grid gap-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-blue-700">Total Item:</span>
-                    <span className="font-medium text-blue-900">Rp {grossAmount.toLocaleString('id-ID')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-blue-700">Diskon Langsung:</span>
-                    <span className="font-medium text-red-600">-Rp {diskonLangsungRows.reduce((sum, r) => sum + r.amount, 0).toLocaleString('id-ID')}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-blue-200 pt-2">
-                    <span className="text-blue-700">Pendapatan Bersih (input):</span>
-                    <span className="font-bold text-blue-900">Rp {explicitNetRevenue.toLocaleString('id-ID')}</span>
-                  </div>
+          {/* 2. FEE ANALYSIS SECTION (SECOND - MINIMALIST) */}
+          {explicitNetRevenue > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+              <p className="text-sm font-semibold text-slate-900 mb-4">📊 Ringkasan Transaksi</p>
+              
+              <div className="space-y-3">
+                {/* Gross Amount */}
+                <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                  <span className="text-sm text-slate-700">Total Harga Item</span>
+                  <span className="font-semibold text-slate-900">Rp {grossAmount.toLocaleString('id-ID')}</span>
                 </div>
-                
-                {Math.abs((grossAmount - diskonLangsungRows.reduce((sum, r) => sum + r.amount, 0)) - explicitNetRevenue) > 1000 && (
-                  <div className="mt-3 rounded-lg border border-amber-400 bg-white p-3 text-amber-900 text-xs">
-                    ⚠️ <strong>Ada perbedaan</strong> antara kalkulasi dengan uang yang masuk. Cek apakah ada komisi/potongan marketplace lain atau diskon yang belum tercatat.
+
+                {/* Diskon Langsung */}
+                {totalDiskonLangsung > 0 && (
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                    <span className="text-sm text-slate-700">Diskon Langsung</span>
+                    <span className="font-semibold text-red-600">−Rp {totalDiskonLangsung.toLocaleString('id-ID')}</span>
                   </div>
                 )}
+
+                {/* Subtotal after diskon */}
+                <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                  <span className="text-sm text-slate-700">Subtotal (setelah diskon)</span>
+                  <span className="font-semibold text-slate-900">Rp {subtotalAfterDiskonLangsung.toLocaleString('id-ID')}</span>
+                </div>
+
+                {/* Fee */}
+                <div className="flex justify-between items-center pb-3 border-b border-orange-200 bg-orange-50/50 px-2 py-2 rounded">
+                  <span className="text-sm text-slate-700">Komisi/Fee Marketplace</span>
+                  <div className="text-right">
+                    <span className="font-semibold text-orange-600 block">−Rp {(subtotalAfterDiskonLangsung - explicitNetRevenue).toLocaleString('id-ID')}</span>
+                    <span className="text-xs text-orange-700">({(((subtotalAfterDiskonLangsung - explicitNetRevenue) / subtotalAfterDiskonLangsung) * 100).toFixed(1)}%)</span>
+                  </div>
+                </div>
+
+                {/* Net Revenue */}
+                <div className="flex justify-between items-center pt-3 bg-green-50/50 px-2 py-2 rounded border border-green-200">
+                  <span className="text-sm font-semibold text-slate-900">Pendapatan Bersih</span>
+                  <span className="font-bold text-green-700 text-lg">Rp {explicitNetRevenue.toLocaleString('id-ID')}</span>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Warning jika ada gap */}
+              {Math.abs((grossAmount - diskonLangsungRows.reduce((sum, r) => sum + r.amount, 0)) - explicitNetRevenue) > 1000 && (
+                <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 text-xs">
+                  <p className="font-semibold mb-1">⚠️ Ada perbedaan</p>
+                  <p>Antara kalkulasi dengan uang yang masuk. Cek apakah ada komisi/potongan lain atau diskon yang belum tercatat.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

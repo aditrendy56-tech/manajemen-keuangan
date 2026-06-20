@@ -335,7 +335,7 @@ export function CustomPricingTab({ sessionId, outletId, onSubmit, isLoading = fa
             <h4 className="font-semibold text-sm">Daftar Custom Pricing (Sesi Ini)</h4>
             <div className="space-y-2">
               {entries.map((entry, idx) => (
-                <div key={idx} className="p-3 border border-blue-200 bg-blue-50 rounded space-y-2">
+                <div key={`entry-${entry.id || entry.product_id || idx}`} className="p-3 border border-blue-200 bg-blue-50 rounded space-y-2">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="font-semibold text-sm">{entry.product_name} × {entry.quantity}</p>

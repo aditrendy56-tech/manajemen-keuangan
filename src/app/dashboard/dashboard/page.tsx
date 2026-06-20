@@ -121,7 +121,8 @@ export default function DashboardPage() {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const response = await fetch(`/api/dashboard?outlet_id=${outletId}`);
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/dashboard?outlet_id=${outletId}&date=${today}`);
       if (!response.ok) throw new Error('Failed to fetch metrics');
       const data = await response.json();
       setMetrics(data);

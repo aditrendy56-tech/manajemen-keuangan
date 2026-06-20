@@ -199,6 +199,11 @@ export function ReportsTable({ report }: ReportsTableProps) {
                                     <span className="text-slate-500">Fee ({transaction.fee_percentage.toFixed(1)}%)</span>
                                     <p className="font-semibold text-red-600">-Rp {(transaction.fee_amount || 0).toLocaleString('id-ID')}</p>
                                   </div>
+                                  <div>
+                                    <span className="text-slate-500">Diskon</span>
+                                    <p className="font-semibold text-emerald-700">-Rp {(transaction.total_discounts || 0).toLocaleString('id-ID')}</p>
+                                    <p className="text-xs text-slate-500">{(transaction.discount_percentage || 0).toFixed(2)}%</p>
+                                  </div>
                                   <div className="md:col-span-4">
                                     <span className="text-slate-500">Net Amount</span>
                                     <p className="font-semibold text-blue-700">Rp {(transaction.net_amount || 0).toLocaleString('id-ID')}</p>
@@ -443,6 +448,8 @@ export function ReportsTable({ report }: ReportsTableProps) {
                     <th className="px-4 py-3 text-right font-semibold text-slate-700">Fee</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-700">Net</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-700">% Fee</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-700">Diskon</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-700">% Diskon</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -454,6 +461,8 @@ export function ReportsTable({ report }: ReportsTableProps) {
                       <td className="px-4 py-3 text-right text-red-600 font-medium">-Rp {item.fee_amount.toLocaleString('id-ID')}</td>
                       <td className="px-4 py-3 text-right font-bold text-blue-700">Rp {item.net_amount.toLocaleString('id-ID')}</td>
                       <td className="px-4 py-3 text-right text-amber-700 font-semibold">{item.fee_percentage.toFixed(2)}%</td>
+                      <td className="px-4 py-3 text-right text-emerald-700 font-medium">-Rp {(item.total_discounts || 0).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 text-right text-slate-600 font-medium">{(item.discount_percentage || 0).toFixed(2)}%</td>
                     </tr>
                   ))}
                 </tbody>

@@ -73,7 +73,9 @@ interface AllocatedCicilanRecord {
   cicilan_schedule_items?: Array<{
     cicilan_number: number;
     cicilan_amount: number;
-    status: 'paid' | 'pending';
+    status: 'paid' | 'pending' | string;
+    due_date?: string;
+    paid_date?: string;
   }>;
 }
 
@@ -2119,7 +2121,7 @@ export default function FundingPage() {
                         {alloc.cicilan_schedule_items && alloc.cicilan_schedule_items.length > 0 && (
                           <div className="ml-6 text-xs text-gray-600">
                             {alloc.cicilan_schedule_items.map((cs, idx: number) => (
-                              <div key={idx} className="flex gap-2">
+                              <div key={`cicilan-${cs.cicilan_number ?? idx}`} className="flex gap-2">
                                 <span>Cicilan {cs.cicilan_number}:</span>
                                 <span className={cs.status === 'paid' ? 'line-through text-green-600' : 'text-orange-600'}>
                                   {formatCurrency(cs.cicilan_amount)}

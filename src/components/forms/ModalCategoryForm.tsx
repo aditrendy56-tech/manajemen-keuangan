@@ -147,7 +147,7 @@ export default function ModalCategoryForm({ investorId, investorName, onSuccess 
             </div>
 
             {items.map((item, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3 bg-white dark:bg-slate-700">
+              <div key={`category-${item.id || item.name || index}`} className="border rounded-lg p-4 space-y-3 bg-white dark:bg-slate-700">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-sm">Nama Barang</Label>

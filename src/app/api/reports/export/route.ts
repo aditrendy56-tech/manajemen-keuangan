@@ -93,9 +93,10 @@ export async function GET(request: NextRequest) {
       .in('sale_id', saleIds);
 
     const gross_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount), 0) || 0;
+    const discounted_revenue = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.calculated_total || sale.gross_amount || sale.net_amount), 0) || 0;
     const platform_fees = (sales || []).reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.platform_fee || sale.fee_amount), 0) || 0;
     const total_hpp = (saleItems || []).reduce((sum: number, item: SaleItemRecord) => sum + ((toNumber(item.cost_price) || 0) * (toNumber(item.quantity) || 1)), 0) || 0;
-    const net_revenue = gross_revenue - total_hpp;
+    const net_revenue = discounted_revenue - total_hpp;
     const total_expenses = (expenses || []).reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
     const operational_expenses = (expenses || []).filter((expense: ExpenseRecord) => String(expense.category || '').toLowerCase() === 'operasional').reduce((sum: number, expense: ExpenseRecord) => sum + getRecognizedExpenseAmount(expense), 0) || 0;
     // ✅ FIXED: Profit should ONLY deduct operational expenses, not materials/equipment
@@ -190,6 +191,7 @@ export async function GET(request: NextRequest) {
       [`Periode: ${startDate} s/d ${endDate}`],
       [],
       ['Pendapatan Kotor', gross_revenue],
+      ['Pendapatan Setelah Diskon', discounted_revenue],
       ['Biaya Platform', platform_fees],
       ['Pendapatan Bersih', net_revenue],
       ['Total HPP', total_hpp],
@@ -204,11 +206,19 @@ export async function GET(request: NextRequest) {
 
     if (sales && sales.length > 0) {
       const salesDetail = (sales || []).map((sale: SaleRecord) => {
-        const grossAmount = toNumber(sale.gross_amount || sale.calculated_total || sale.net_amount);
-        const feeAmount = toNumber(sale.fee_amount ?? (grossAmount - toNumber(sale.net_amount)));
-        const netAmount = toNumber(sale.net_amount ?? (grossAmount - feeAmount));
+        const grossAmount = toNumber(sale.gross_amount || sale.net_amount || sale.calculated_total);
+        const diskonMenuItems = Array.isArray((sale as any).diskon_menu_items) ? (sale as any).diskon_menu_items : [];
+        const diskonMenuTotal = diskonMenuItems.reduce((s: number, it: any) => s + ((toNumber(it.price_normal) - toNumber(it.price_after_diskon)) * (toNumber(it.qty) || 1)), 0);
+        const diskonLangsungItems = Array.isArray((sale as any).diskon_langsung) ? (sale as any).diskon_langsung : [];
+        const diskonLangsungTotal = diskonLangsungItems.reduce((s: number, d: any) => s + toNumber(d.amount), 0);
+        const totalDiscounts = diskonMenuTotal + diskonLangsungTotal;
+        const discountedTotal = toNumber(sale.calculated_total) || Math.max(grossAmount - totalDiscounts, 0);
+        const feeAmount = toNumber(sale.platform_fee ?? sale.fee_amount ?? 0);
+        const netAmount = toNumber(sale.net_amount ?? 0);
+        const discountPercentage = grossAmount > 0 ? (totalDiscounts / grossAmount) * 100 : 0;
         const items = (saleItems || []).filter((item: SaleItemRecord) => item.sale_id === sale.id);
         const itemNames = items.map((item: SaleItemRecord) => item.products?.name || 'Item').join(', ');
+
         return {
           id: sale.id,
           tanggal: sale.created_at,
@@ -219,8 +229,17 @@ export async function GET(request: NextRequest) {
           item_names: itemNames || '-',
           item_count: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
           gross_amount: grossAmount,
+          calculated_total: discountedTotal,
+          discounted_total: discountedTotal,
           fee_amount: feeAmount,
           net_amount: netAmount,
+          // discounts
+          diskon_menu_total: diskonMenuTotal,
+          diskon_langsung_total: diskonLangsungTotal,
+          total_discounts: totalDiscounts,
+          discount_percentage: Number(discountPercentage.toFixed(2)),
+          diskon_menu_items: diskonMenuItems.length > 0 ? diskonMenuItems.map((it: any) => `${it.name || 'item'}: ${toNumber(it.price_normal)}->${toNumber(it.price_after_diskon)} x${toNumber(it.qty)||1}`).join('; ') : '-',
+          diskon_langsung_items: diskonLangsungItems.length > 0 ? diskonLangsungItems.map((it: any) => `${it.urutan || '-'}: ${toNumber(it.amount)} ${it.notes ? `(${it.notes})` : ''}`).join('; ') : '-',
           notes: sale.notes || '-',
         };
       });

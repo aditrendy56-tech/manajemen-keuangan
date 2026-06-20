@@ -14,7 +14,7 @@ interface ProfitDetail {
   gross_revenue?: number;
   operational_expenses?: number;
   daily_revenue_by_channel?: ProfitChannelBreakdown;
-  daily_expenses_detailed?: Array<{ description: string; amount: number; category: string }>;
+  daily_expenses_detailed?: Array<{ id?: string; description: string; amount: number; category?: string }>;
   total_gross_revenue?: number;
   total_operational_expenses?: number;
   cumulative_revenue_by_channel?: ProfitChannelBreakdown;
@@ -163,7 +163,7 @@ export function ProfitToggleCard({
                   <div className="space-y-1 text-xs">
                     {profitDetail.daily_expenses_detailed && profitDetail.daily_expenses_detailed.length > 0 ? (
                       profitDetail.daily_expenses_detailed.map((exp, idx) => (
-                        <div key={idx} className="flex justify-between">
+                        <div key={`expense-${exp.id || exp.description}-${idx}`} className="flex justify-between">
                           <span className="text-gray-600 truncate">{exp.description}</span>
                           <span className="font-medium flex-shrink-0 ml-2">
                             {formatCurrency(exp.amount)}

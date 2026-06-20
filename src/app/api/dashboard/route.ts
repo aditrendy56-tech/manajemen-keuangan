@@ -23,6 +23,31 @@ function getRecognizedExpenseAmount(expense: any) {
   return Math.max(amount - refundAmount, 0);
 }
 
+function getSaleDateValue(sale: any, sessionDateMap: Map<string, string>) {
+  if (sale.session_id && sessionDateMap.has(sale.session_id)) {
+    return String(sessionDateMap.get(sale.session_id));
+  }
+
+  if (sale.created_at) {
+    const createdAtDate = String(sale.created_at).slice(0, 10);
+    if (createdAtDate) return createdAtDate;
+  }
+
+  return '';
+}
+
+async function getSessionIdsForDateRange(supabase: any, outletId: string, startDate: string, endDate: string) {
+  const { data: sessions, error } = await supabase
+    .from('daily_sessions')
+    .select('id')
+    .eq('outlet_id', outletId)
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (error) throw error;
+  return (sessions || []).map((session: any) => session.id);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -35,27 +60,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Resolve effective date for dashboard. Default to system date.
+    // Resolve effective date for dashboard. Use the explicit request date when provided,
+    // otherwise fall back to the current system date. This prevents past-session entries
+    // from being incorrectly attributed to the current day.
     const systemDate = new Date().toISOString().split('T')[0];
-    let effectiveDate = requestedDate || systemDate;
-
-    // If no explicit date requested, prefer the active session date ONLY
-    // when the active session is for today's date. This avoids showing
-    // stale 'today' metrics when an old session remains open.
-    if (!requestedDate) {
-      const { data: activeSession } = await supabase
-        .from('daily_sessions')
-        .select('date')
-        .eq('outlet_id', outletId)
-        .eq('status', 'open')
-        .order('date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (activeSession?.date && activeSession.date === systemDate) {
-        effectiveDate = activeSession.date;
-      }
-    }
+    const effectiveDate = requestedDate || systemDate;
 
     const date = effectiveDate;
     const weekStart = new Date(`${date}T00:00:00`);
@@ -71,12 +80,21 @@ export async function GET(request: NextRequest) {
     const fee_rate_shopeefood = Number(outletSettings?.fee_rate_shopeefood ?? outletSettings?.fee_shopeefood ?? 0.08);
     const fee_rate_gofood = Number(outletSettings?.fee_rate_gofood ?? outletSettings?.fee_gofood ?? 0.10);
 
-    // Get today's sales (recognized by transaction date)
-    const { data: sales } = await supabase.from('sales')
+    const { data: allSessionsForOutlet } = await supabase
+      .from('daily_sessions')
+      .select('id, date')
+      .eq('outlet_id', outletId);
+
+    const sessionDateMap = new Map<string, string>(
+      (allSessionsForOutlet || []).map((session: any) => [session.id, String(session.date)])
+    );
+
+    const { data: allSalesForOutlet } = await supabase
+      .from('sales')
       .select('*')
-      .eq('outlet_id', outletId)
-      .gte('created_at', `${date}T00:00:00`)
-      .lte('created_at', `${date}T23:59:59`);
+      .eq('outlet_id', outletId);
+
+    const sales = (allSalesForOutlet || []).filter((sale: any) => getSaleDateValue(sale, sessionDateMap) === date);
 
     // Get today's expenses (recognized by transaction date)
     const { data: expenses } = await supabase.from('expenses')
@@ -90,12 +108,10 @@ export async function GET(request: NextRequest) {
       .eq('outlet_id', outletId)
       .eq('transaction_date', date);
 
-    // Get weekly sales and expenses for profit chart
-    const { data: weeklySales } = await supabase.from('sales')
-      .select('id, created_at, gross_amount, net_amount, platform_fee')
-      .eq('outlet_id', outletId)
-      .gte('created_at', `${weekStartDate}T00:00:00`)
-      .lte('created_at', `${date}T23:59:59`);
+    const weeklySales = (allSalesForOutlet || []).filter((sale: any) => {
+      const saleDate = getSaleDateValue(sale, sessionDateMap);
+      return saleDate >= weekStartDate && saleDate <= date;
+    });
 
     const { data: weeklyExpenses } = await supabase.from('expenses')
       .select('date, amount, category')
@@ -235,11 +251,10 @@ export async function GET(request: NextRequest) {
 
     // ===== CUMULATIVE (TOTAL) CALCULATION =====
 
-    // Get ALL sales up to today
-    const { data: allSales } = await supabase.from('sales')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .lte('created_at', `${date}T23:59:59`);
+    const filteredAllSales = (allSalesForOutlet || []).filter((sale: any) => {
+      const saleDate = getSaleDateValue(sale, sessionDateMap);
+      return !saleDate || saleDate <= date;
+    });
 
     // Get ALL expenses up to today
     const { data: allExpenses } = await supabase.from('expenses')
@@ -254,7 +269,7 @@ export async function GET(request: NextRequest) {
       gofood: 0,
     };
 
-    (allSales || []).forEach((sale: any) => {
+    filteredAllSales.forEach((sale: any) => {
       const channel = normalizeChannel(sale);
       const saleAmount = getRecognizedSaleAmount(sale);
       if (cumulative_revenue_by_channel.hasOwnProperty(channel)) {
@@ -265,7 +280,7 @@ export async function GET(request: NextRequest) {
     const cumulative_gross_revenue = cumulative_revenue_by_channel.offline + cumulative_revenue_by_channel.shopeefood + cumulative_revenue_by_channel.gofood;
 
     // STEP 2: Calculate Cumulative HPP
-    const allSaleIds = (allSales || []).map((sale: any) => sale.id) || [];
+    const allSaleIds = filteredAllSales.map((sale: any) => sale.id) || [];
     let cumulative_total_hpp = 0;
     let cumulative_total_items_sold = 0;
     if (allSaleIds.length > 0) {
@@ -356,7 +371,7 @@ export async function GET(request: NextRequest) {
     }
 
     (weeklySales || []).forEach((sale: any) => {
-      const dayKey = new Date(sale.created_at).toISOString().split('T')[0];
+      const dayKey = getSaleDateValue(sale, sessionDateMap);
       const current = dailyTotals.get(dayKey);
       if (current) {
         current.revenue += getRecognizedSaleAmount(sale);

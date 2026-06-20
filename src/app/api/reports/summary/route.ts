@@ -20,6 +20,9 @@ type SaleRecord = {
   payment_status?: string | null;
   refund_amount?: number | string | null;
   notes?: string | null;
+  // new discount fields (JSONB in DB)
+  diskon_menu_items?: any | null;
+  diskon_langsung?: any | null;
 };
 
 type ExpenseRecord = {
@@ -149,6 +152,17 @@ export async function GET(request: NextRequest) {
       const feeAmount = toNumber(sale.fee_amount ?? (calculatedTotal - toNumber(sale.net_amount)));
       return sum + feeAmount;
     }, 0) || 0;
+    // Aggregate discounts for online sales
+    const totalDiskonMenu = onlineSales.reduce((sum: number, sale: SaleRecord) => {
+      const items = Array.isArray(sale.diskon_menu_items) ? sale.diskon_menu_items : [];
+      const disc = items.reduce((s: number, it: any) => s + ((toNumber(it.price_normal) - toNumber(it.price_after_diskon)) * (toNumber(it.qty) || 1)), 0);
+      return sum + disc;
+    }, 0) || 0;
+    const totalDiskonLangsung = onlineSales.reduce((sum: number, sale: SaleRecord) => {
+      const ds = Array.isArray(sale.diskon_langsung) ? sale.diskon_langsung : [];
+      const disc = ds.reduce((s: number, d: any) => s + toNumber(d.amount), 0);
+      return sum + disc;
+    }, 0) || 0;
     const totalFeePercentage = totalCalculatedTotal > 0 ? (totalFeeAmount / totalCalculatedTotal) * 100 : 0;
     const totalNetRevenue = onlineSales.reduce((sum: number, sale: SaleRecord) => sum + toNumber(sale.net_amount), 0) || 0;
 
@@ -162,6 +176,14 @@ export async function GET(request: NextRequest) {
       const itemCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
       const itemNames = items.map((item) => item.product_name).join(', ');
 
+      // discounts
+      const diskonMenuItems = Array.isArray((sale as any).diskon_menu_items) ? (sale as any).diskon_menu_items : [];
+      const diskonMenuTotal = diskonMenuItems.reduce((s: number, it: any) => s + ((toNumber(it.price_normal) - toNumber(it.price_after_diskon)) * (toNumber(it.qty) || 1)), 0);
+      const diskonLangsungItems = Array.isArray((sale as any).diskon_langsung) ? (sale as any).diskon_langsung : [];
+      const diskonLangsungTotal = diskonLangsungItems.reduce((s: number, d: any) => s + toNumber(d.amount), 0);
+      const totalDiscounts = diskonMenuTotal + diskonLangsungTotal;
+      const discountPercentage = calculatedTotal > 0 ? (totalDiscounts / calculatedTotal) * 100 : 0;
+
       return {
         id: sale.id,
         created_at: sale.created_at,
@@ -172,6 +194,11 @@ export async function GET(request: NextRequest) {
         fee_percentage: feePercentage,
         platform_fee: toNumber(sale.platform_fee),
         net_amount: netAmount,
+        // discount breakdown
+        diskon_menu_total: diskonMenuTotal,
+        diskon_langsung_total: diskonLangsungTotal,
+        total_discounts: totalDiscounts,
+        discount_percentage: discountPercentage,
         payment_method: sale.payment_method || null,
         payment_status: sale.payment_status || null,
         item_count: itemCount,
@@ -181,8 +208,8 @@ export async function GET(request: NextRequest) {
     });
 
     const byChannel = {
-      shopeefood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
-      gofood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0 },
+      shopeefood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0, diskon_menu_total: 0, diskon_langsung_total: 0 },
+      gofood: { calculated_total: 0, fee_amount: 0, fee_percentage: 0, net_revenue: 0, sales_count: 0, diskon_menu_total: 0, diskon_langsung_total: 0 },
     };
 
     onlineSales.forEach((sale: SaleRecord) => {
@@ -198,12 +225,18 @@ export async function GET(request: NextRequest) {
       byChannel[channel].fee_percentage += feePercentage;
       byChannel[channel].net_revenue += toNumber(sale.net_amount);
       byChannel[channel].sales_count += 1;
+      // channel discounts
+      const dm = Array.isArray((sale as any).diskon_menu_items) ? (sale as any).diskon_menu_items : [];
+      const dl = Array.isArray((sale as any).diskon_langsung) ? (sale as any).diskon_langsung : [];
+      byChannel[channel].diskon_menu_total += dm.reduce((s: number, it: any) => s + ((toNumber(it.price_normal) - toNumber(it.price_after_diskon)) * (toNumber(it.qty) || 1)), 0);
+      byChannel[channel].diskon_langsung_total += dl.reduce((s: number, d: any) => s + toNumber(d.amount), 0);
     });
 
     Object.values(byChannel).forEach((channelData) => {
       channelData.fee_percentage = channelData.calculated_total > 0
         ? (channelData.fee_amount / channelData.calculated_total) * 100
         : 0;
+      // keep discount totals as-is (already aggregated)
     });
 
     const settled_cash_inflow = cashTransactions?.reduce(
@@ -362,6 +395,8 @@ export async function GET(request: NextRequest) {
         total_fee_amount: totalFeeAmount,
         total_fee_percentage: totalFeePercentage,
         total_net_revenue: totalNetRevenue,
+        total_diskon_menu: totalDiskonMenu,
+        total_diskon_langsung: totalDiskonLangsung,
         online_sales_count: onlineSales.length,
         by_channel: byChannel,
       },
