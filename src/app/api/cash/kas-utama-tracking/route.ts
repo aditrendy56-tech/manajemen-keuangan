@@ -280,7 +280,7 @@ export async function GET(request: Request) {
         opening_balance: 0, // TODO: calculate from previous month
         plus_sources: totalInflows.toNumber(),
         minus_outflows: totalOutflows.toNumber(),
-        closing_balance: currentBalance.toNumber(),
+        closing_balance: netFlow.toNumber(), // ✅ Use calculated value, not database balance
       },
     });
   } catch (error: unknown) {

@@ -55,8 +55,13 @@ export function calculateSalesSplit(grossAmount: number, platformFee: number = 0
 }
 
 /**
- * Get real-time financial balances from financial_accounts table
- * This is the single source of truth for all three buckets
+ * Get REAL-TIME financial balances calculated from transactions
+ * ✅ This is now the single source of truth - calculates live from transactions
+ * 
+ * Formula:
+ * - Kas Utama = capital_entries + (sales net * 0.6) - expenses
+ * - Profit Pending = sales net * 0.4
+ * - Simpan Uang = from financial_accounts (rarely changes)
  */
 export async function getFinancialBalance(outletId: string): Promise<FinancialBalance> {
   try {
@@ -72,52 +77,78 @@ export async function getFinancialBalance(outletId: string): Promise<FinancialBa
 
     const supabase = getSupabaseServer();
     
-    const { data, error } = await supabase
+    // 1. Calculate Kas Utama from transactions
+    // = Capital entries + (Sales * 0.6) - Expenses
+    let kasUtamaBalance = new Decimal(0);
+    let profitPendingBalance = new Decimal(0);
+    
+    // Get capital entries
+    const { data: capitalEntries } = await supabase
+      .from('capital_entries')
+      .select('amount')
+      .eq('outlet_id', outletId);
+    
+    if (capitalEntries) {
+      for (const entry of capitalEntries) {
+        kasUtamaBalance = kasUtamaBalance.plus(entry.amount || 0);
+      }
+    }
+    
+    // Get cash transactions (sales & expenses)
+    const { data: cashTx } = await supabase
+      .from('cash_transactions')
+      .select('source_type, transaction_type, amount')
+      .eq('outlet_id', outletId);
+    
+    if (cashTx) {
+      for (const tx of cashTx) {
+        const amount = new Decimal(tx.amount || 0);
+        
+        if (tx.source_type === 'sale' && tx.transaction_type === 'inflow') {
+          // Sales: 60% to kas_utama, 40% to profit_pending
+          kasUtamaBalance = kasUtamaBalance.plus(amount.times(0.6));
+          profitPendingBalance = profitPendingBalance.plus(amount.times(0.4));
+        } else if (tx.source_type === 'expense' && tx.transaction_type === 'outflow') {
+          // Expenses deduct from kas_utama
+          kasUtamaBalance = kasUtamaBalance.minus(amount);
+        } else if (tx.source_type === 'allocation' && tx.transaction_type === 'inflow') {
+          // Allocations add to kas_utama
+          kasUtamaBalance = kasUtamaBalance.plus(amount);
+        }
+      }
+    }
+    
+    // 2. Get Simpan Uang from database (rarely changes)
+    const { data: faData } = await supabase
       .from('financial_accounts')
-      .select('kas_utama_balance, profit_pending_balance, simpan_uang_balance, updated_at')
+      .select('simpan_uang_balance, updated_at')
       .eq('outlet_id', outletId)
       .single();
     
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Record doesn't exist, initialize with zeros
-        return {
-          kas_utama: 0,
-          profit_pending: 0,
-          simpan_uang: 0,
-          total_available: 0,
-          last_updated: new Date().toISOString(),
-        };
-      }
-      throw error;
-    }
+    const simpanUang = new Decimal(faData?.simpan_uang_balance || 0);
     
-    if (!data) {
-      return {
-        kas_utama: 0,
-        profit_pending: 0,
-        simpan_uang: 0,
-        total_available: 0,
-        last_updated: new Date().toISOString(),
-      };
-    }
-    
-    const kasUtama = data.kas_utama_balance || 0;
-    const profitPending = data.profit_pending_balance || 0;
-    const simpanUang = data.simpan_uang_balance || 0;
+    // 3. Calculate total available
+    const totalAvailable = kasUtamaBalance
+      .plus(profitPendingBalance)
+      .plus(simpanUang);
     
     return {
-      kas_utama: parseFloat(kasUtama.toFixed(2)),
-      profit_pending: parseFloat(profitPending.toFixed(2)),
+      kas_utama: parseFloat(kasUtamaBalance.toFixed(2)),
+      profit_pending: parseFloat(profitPendingBalance.toFixed(2)),
       simpan_uang: parseFloat(simpanUang.toFixed(2)),
-      total_available: parseFloat(
-        new Decimal(kasUtama).plus(profitPending).plus(simpanUang).toFixed(2)
-      ),
-      last_updated: data.updated_at || new Date().toISOString(),
+      total_available: parseFloat(totalAvailable.toFixed(2)),
+      last_updated: new Date().toISOString(),
     };
   } catch (error) {
     console.error('[getFinancialBalance] Error:', error);
-    throw error;
+    // Fallback to zeros on error (better than returning stale data)
+    return {
+      kas_utama: 0,
+      profit_pending: 0,
+      simpan_uang: 0,
+      total_available: 0,
+      last_updated: new Date().toISOString(),
+    };
   }
 }
 

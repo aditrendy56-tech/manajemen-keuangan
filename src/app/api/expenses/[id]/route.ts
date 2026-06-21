@@ -4,6 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteCashTransactionsBySource } from '@/lib/cash/ledger';
 import { recordCashTransaction } from '@/lib/cash/ledger';
+import { Decimal } from 'decimal.js';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,14 +14,54 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    const { error } = await getSupabaseServer()
+    const supabase = getSupabaseServer();
+    
+    // 1. Get expense details first (to know outlet_id and amount)
+    const { data: expense, error: fetchError } = await supabase
+      .from('expenses')
+      .select('id, outlet_id, amount')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !expense) {
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
+
+    const { outlet_id, amount } = expense;
+
+    // 2. Delete expense record
+    const { error: deleteError } = await supabase
       .from('expenses')
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (deleteError) throw deleteError;
 
+    // 3. Delete from cash_transactions
     await deleteCashTransactionsBySource('expense', id);
+
+    // 4. UPDATE financial_accounts - add back the expense amount to kas_utama
+    if (outlet_id && amount) {
+      const expenseAmount = new Decimal(amount || 0);
+      
+      const { data: currentFA } = await supabase
+        .from('financial_accounts')
+        .select('kas_utama_balance')
+        .eq('outlet_id', outlet_id)
+        .single();
+      
+      if (currentFA) {
+        const newBalance = new Decimal(currentFA.kas_utama_balance || 0).plus(expenseAmount);
+        
+        await supabase
+          .from('financial_accounts')
+          .update({
+            kas_utama_balance: newBalance.toNumber(),
+            kas_utama_last_updated: new Date().toISOString(),
+          })
+          .eq('outlet_id', outlet_id);
+      }
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {

@@ -10,7 +10,24 @@ Sistem manajemen keuangan dan pelaporan yang komprehensif untuk usaha roti bakar
 - **State Aplikasi**: Outlet aktif dipilih lewat `OutletContext` dan selector di header.
 - **Prinsip Data**: Halaman sesi, dashboard, settings, investor, dan admin memakai data real dari API/DB.
 
-## 📋 CHANGELOG - Perubahan Terbaru (2026-06-09)
+## � Implementasi Terkini (2026-06-21)
+
+### Perubahan yang sudah aktif di aplikasi
+- Dashboard kini memakai widget yang dimuat lebih ringan saat dibuka berulang, dengan cache browser untuk metrik harian dan prefetch yang lebih ringan.
+- Halaman sesi detail memuat data penjualan, pengeluaran, dan pembelian material secara paralel untuk mengurangi waktu tunggu saat membuka detail sesi.
+- Route API dashboard dan sales sudah disederhanakan agar payload yang dibawa ke client lebih kecil dan fokus pada data yang benar-benar ditampilkan.
+- Alur kas tetap memakai sistem dual-bucket: penjualan otomatis dipisahkan ke kas utama dan profit pending, sementara pengeluaran divalidasi dari bucket yang dipilih.
+- UI dashboard juga sudah dibersihkan dari elemen repayment yang tidak lagi dipakai pada tampilan utama.
+
+### Jalur data yang paling penting
+- `POST /api/sales` → validasi sesi, hitung fee platform, simpan penjualan, dan bagi aliran kas ke bucket yang sesuai.
+- `POST /api/expenses` → validasi saldo bucket, simpan pengeluaran, dan catat dampaknya ke ledger kas.
+- `GET /api/cash/financial-summary` → membaca saldo real-time dari tabel financial accounts.
+- `GET /api/dashboard` → membangun ringkasan dashboard dengan data yang lebih terfokus untuk UI.
+
+---
+
+## �📋 CHANGELOG - Perubahan Terbaru (2026-06-09)
 
 ### 🎯 EQUIPMENT TRACKER & MATERIALS DASHBOARD RESTRUCTURE (2026-06-09 - Session 2)
 

@@ -159,6 +159,18 @@ MONTHLY (Alokasi Laba - NEW FLOW):
 
 ---
 
+## ✅ CURRENT IMPLEMENTATION STATUS (2026-06-21)
+
+Refactor dual-bucket dan alokasi keuangan sudah digunakan secara aktif di aplikasi saat ini. Implementasinya mencakup:
+- route cash summary dan balance untuk membaca saldo real-time;
+- route sales dan expenses yang memvalidasi transaksi sebelum menyimpan data;
+- dashboard yang memakai cache browser dan loading ringan untuk pengalaman pembukaan ulang yang lebih cepat;
+- tracking kas utama dan alur pengeluaran yang memanfaatkan bucket kas utama vs simpan uang.
+
+Dokumentasi ini tetap dipakai sebagai acuan desain, tetapi perubahan UI/performansi terbaru lebih fokus pada pengalaman harian dan bukan lagi pada perubahan arsitektur besar.
+
+---
+
 ## 📋 DETAILED IMPLEMENTATION - ADD / MODIFY / DELETE
 
 ### 1️⃣ DATABASE SCHEMA CHANGES

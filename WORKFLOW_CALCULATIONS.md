@@ -49,6 +49,25 @@ Business
 
 ---
 
+## Current Implementation Snapshot (2026-06-21)
+
+### Frontend experience
+- Dashboard membuka lebih cepat pada kunjungan berulang karena metrik disimpan ke localStorage dan widget berat dimuat secara lazy.
+- Halaman detail sesi tidak lagi menunggu satu query selesai sebelum yang lain, sehingga data utama muncul lebih cepat.
+- Tampilan tabel penjualan dan form penjualan memakai perhitungan memoized agar interaksi terasa lebih responsif saat daftar item panjang.
+
+### Backend flow
+- `POST /api/sales` menjadi titik utama untuk normalisasi channel, menghitung platform fee, dan mengatur pembagian kas ke bucket sesuai alokasi bisnis.
+- `POST /api/expenses` memvalidasi apakah pengeluaran boleh keluar dari bucket yang dipilih sebelum data disimpan.
+- `GET /api/cash/financial-summary` dan `GET /api/dashboard` menyediakan data ringkas untuk UI agar dashboard tidak mengeksekusi query yang terlalu berat.
+
+### Current business rule summary
+- Penjualan bersih tetap dipakai sebagai dasar cash inflow.
+- Operasional tetap mempengaruhi profit; bahan dan peralatan tetap tracked sebagai aset/biaya non-operasional.
+- Kas utama dan profit pending dipakai untuk memisahkan cash operasional dari alokasi laba yang belum disetujui.
+
+---
+
 ## Core Workflows
 
 ### 1. **Daily Sales Workflow**

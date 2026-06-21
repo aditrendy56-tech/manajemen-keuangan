@@ -288,17 +288,30 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
 
   if (loading && !balance) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader className="pb-3">
-              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-4">
+        {/* Total Card Skeleton */}
+        <Card className="animate-pulse">
+          <CardHeader className="pb-3">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+          </CardContent>
+        </Card>
+        
+        {/* 3 Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-3">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -344,7 +357,44 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* CARD 0: Total Tersedia (Full Width - Top) */}
+      <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-purple-25 hover:shadow-md transition-shadow w-full">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-purple-700">💎 Total Tersedia</CardTitle>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              <span className="text-xs font-medium text-purple-600">All Buckets</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <span className="text-3xl font-bold text-purple-700">
+                Rp {balance.total_available.toLocaleString('id-ID')}
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedDescription('total_tersedia')}
+              className="text-purple-600 hover:text-purple-700 p-1"
+              title="Penjelasan detail"
+            >
+              <Info className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="text-xs text-gray-700 bg-white bg-opacity-60 p-2 rounded border border-purple-200">
+            <p className="font-semibold mb-1">⚖️ Bayar Hutang Dulu</p>
+            <p>Alokasi profit prioritaskan pembayaran hutang investor</p>
+            <div className="mt-2 text-purple-600 font-medium text-xs">
+              ✓ Sistem Otomatis Prioritas
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Three Cards Row (Bottom) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-50 to-green-25 hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -477,42 +527,6 @@ export function DualBucketFinancialDisplay({ outletId }: DualBucketProps) {
                     <span className="text-gray-600 font-medium">Kosong</span>
                   </>
                 )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* CARD 4: Total Available & Hutang Priority */}
-        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-purple-25 hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold text-purple-700">💎 Total Tersedia</CardTitle>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                <span className="text-xs font-medium text-purple-600">All Buckets</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-3xl font-bold text-purple-700">
-                  Rp {balance.total_available.toLocaleString('id-ID')}
-                </span>
-              </div>
-              <button
-                onClick={() => setSelectedDescription('total_tersedia')}
-                className="text-purple-600 hover:text-purple-700 p-1"
-                title="Penjelasan detail"
-              >
-                <Info className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="text-xs text-gray-700 bg-white bg-opacity-60 p-2 rounded border border-purple-200">
-              <p className="font-semibold mb-1">⚖️ Bayar Hutang Dulu</p>
-              <p>Alokasi profit prioritaskan pembayaran hutang investor</p>
-              <div className="mt-2 text-purple-600 font-medium text-xs">
-                ✓ Sistem Otomatis Prioritas
               </div>
             </div>
           </CardContent>

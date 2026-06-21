@@ -103,23 +103,22 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
         className="cursor-pointer border-purple-300 hover:bg-purple-50 transition-colors"
         onClick={() => setIsTrackingExpanded(!isTrackingExpanded)}
       >
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <span>📊 TRACKING KAS UTAMA</span>
-            </CardTitle>
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-purple-700">Ringkasan Kas Utama</p>
+              <p className="text-xs text-gray-500">Klik untuk melihat detail bulan ini</p>
+            </div>
             {isTrackingExpanded ? (
               <ChevronUp className="w-5 h-5 text-purple-600" />
             ) : (
               <ChevronDown className="w-5 h-5 text-purple-600" />
             )}
           </div>
-        </CardHeader>
 
-        {/* Collapsed Summary View */}
-        {!isTrackingExpanded && (
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+          {/* Collapsed Summary View */}
+          {!isTrackingExpanded && (
+            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
               <div className="bg-blue-50 p-3 rounded border border-blue-200">
                 <p className="text-gray-600 text-xs mb-1">💰 Saldo Saat Ini</p>
                 <p className="text-lg font-bold text-blue-600">{formatCurrency(data.current_balance)}</p>
@@ -137,8 +136,8 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
                 <p className="text-xs text-gray-500">Klik untuk detail →</p>
               </div>
             </div>
-          </CardContent>
-        )}
+          )}
+        </CardContent>
       </Card>
 
       {/* Expanded Detailed View */}
@@ -255,22 +254,6 @@ export function KasUtamaTracking({ outletId, month }: { outletId: string; month?
                 )}
               </div>
 
-              {/* Cicilan Repayment */}
-              <div
-                className="p-4 bg-white rounded border-2 border-red-200 cursor-pointer hover:bg-red-50"
-                onClick={() => setExpandedSection(expandedSection === 'cicilan' ? null : 'cicilan')}
-              >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-red-700">{data.outflows.allocation_cicilan.label}</p>
-                    <p className="text-xs text-gray-500">Pembayaran hutang cicilan</p>
-                  </div>
-                  <p className="text-xl font-bold text-red-600">{formatCurrency(data.outflows.allocation_cicilan.total_amount)}</p>
-                </div>
-                {expandedSection === 'cicilan' && data.outflows.allocation_cicilan.transactions.length === 0 && (
-                  <p className="mt-2 text-xs text-gray-500 italic">Belum ada pembayaran cicilan</p>
-                )}
-              </div>
             </CardContent>
           </Card>
 

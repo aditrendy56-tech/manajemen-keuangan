@@ -187,6 +187,17 @@ Click on: 📦 OFFLINE (Cash + QRIS)                     [▼ Click to collapse]
 
 ---
 
+## **4. CURRENT IMPLEMENTATION STATUS (2026-06-21)**
+
+Implementasi visual untuk tampilan penjualan sudah dipercepat dan diperbaiki untuk pengalaman harian. Saat ini:
+- UI penjualan memakai perhitungan memoized agar daftar item tidak recalculated berulang saat user berinteraksi.
+- Halaman sesi detail mengambil data penjualan, pengeluaran, dan pembelian material secara paralel untuk mengurangi waktu tunggu.
+- Tampilan tetap berfokus pada ringkasan group per channel, dengan fee online dipertahankan sebagai bagian penting dari review.
+
+Dokumen ini tetap relevan sebagai panduan desain, tetapi sebagian detail visual yang direncanakan telah diadaptasi ke implementasi yang lebih ringan dan cepat.
+
+---
+
 ## **4. REFUND SECTION SPECIFICATIONS**
 
 ### **4.1 Current Issue**
