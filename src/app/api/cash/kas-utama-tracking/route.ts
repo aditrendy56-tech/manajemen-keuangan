@@ -66,18 +66,9 @@ export async function GET(request: Request) {
     const supabase = await getSupabaseServer();
     const monthBounds = getMonthBounds(month);
 
-    // Get current kas_utama balance
-    const { data: financial, error: finError } = await supabase
-      .from('financial_accounts')
-      .select('kas_utama_balance')
-      .eq('outlet_id', outlet_id)
-      .single();
-
-    if (finError) {
-      return Response.json({ error: 'Financial account not found' }, { status: 404 });
-    }
-
-    const currentBalance = new Decimal(financial.kas_utama_balance || 0);
+    // ✅ Calculate current kas_utama balance REAL-TIME from transactions
+    // (NOT from database which may be outdated)
+    // Formula: capital_entries + (sales * 0.6) - expenses
 
     // Get capital inputs (modal masuk)
     const { data: capitalInputs } = await supabase
@@ -241,7 +232,7 @@ export async function GET(request: Request) {
     return Response.json({
       outlet_id,
       month,
-      current_balance: currentBalance.toNumber(),
+      current_balance: netFlow.toNumber(), // ✅ Use calculated value REAL-TIME, not database
       
       sources: {
         capital_input: {
