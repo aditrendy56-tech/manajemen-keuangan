@@ -111,7 +111,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
   );
 
   if (!isReady) {
-    return <div className="p-8 text-center text-sm text-gray-500">Memuat outlet...</div>;
+    return <div className="p-8 text-center text-sm text-gray-500">Memuat aplikasi...</div>;
   }
 
   if (!outletId) {

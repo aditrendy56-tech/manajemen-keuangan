@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 15;
 
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
@@ -89,35 +89,67 @@ export async function GET(request: NextRequest) {
       (allSessionsForOutlet || []).map((session: any) => [session.id, String(session.date)])
     );
 
-    const { data: allSalesForOutlet } = await supabase
-      .from('sales')
-      .select('*')
-      .eq('outlet_id', outletId);
+    const [todaySessionIds, weekSessionIds, cumulativeSessionIds] = await Promise.all([
+      getSessionIdsForDateRange(supabase, outletId, date, date),
+      getSessionIdsForDateRange(supabase, outletId, weekStartDate, date),
+      getSessionIdsForDateRange(supabase, outletId, '1970-01-01', date),
+    ]);
 
-    const sales = (allSalesForOutlet || []).filter((sale: any) => getSaleDateValue(sale, sessionDateMap) === date);
+    const [salesTodayResult, weeklySalesResult, cumulativeSalesResult, expensesTodayResult, weeklyExpensesResult, allExpensesResult, cashTransactionsResult, allCashTransactionsResult] = await Promise.all([
+      todaySessionIds.length > 0
+        ? supabase
+            .from('sales')
+            .select('id, net_amount, gross_amount, platform_fee, payment_method, channel_type, platform, channel, payment_status, session_id, outlet_id, refund_amount, created_at, type, quantity')
+            .in('session_id', todaySessionIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
+      weekSessionIds.length > 0
+        ? supabase
+            .from('sales')
+            .select('id, net_amount, gross_amount, platform_fee, payment_method, channel_type, platform, channel, payment_status, session_id, outlet_id, refund_amount, created_at, type, quantity')
+            .in('session_id', weekSessionIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
+      cumulativeSessionIds.length > 0
+        ? supabase
+            .from('sales')
+            .select('id, net_amount, gross_amount, platform_fee, payment_method, channel_type, platform, channel, payment_status, session_id, outlet_id, refund_amount, created_at, type, quantity')
+            .in('session_id', cumulativeSessionIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
+      supabase
+        .from('expenses')
+        .select('id, amount, category, date, payment_status, funding_source, refund_amount, description')
+        .eq('outlet_id', outletId)
+        .eq('date', date),
+      supabase
+        .from('expenses')
+        .select('date, amount, category')
+        .eq('outlet_id', outletId)
+        .gte('date', weekStartDate)
+        .lte('date', date),
+      supabase
+        .from('expenses')
+        .select('id, amount, category, date, payment_status, funding_source, refund_amount, description')
+        .eq('outlet_id', outletId)
+        .lte('date', date),
+      supabase
+        .from('cash_transactions')
+        .select('amount, transaction_type')
+        .eq('outlet_id', outletId)
+        .eq('transaction_date', date),
+      supabase
+        .from('cash_transactions')
+        .select('amount, transaction_type')
+        .eq('outlet_id', outletId)
+        .lte('transaction_date', date),
+    ]);
 
-    // Get today's expenses (recognized by transaction date)
-    const { data: expenses } = await supabase.from('expenses')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .eq('date', date);
-
-    // Today's cash transactions for settlement basis
-    const { data: cashTransactions } = await supabase.from('cash_transactions')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .eq('transaction_date', date);
-
-    const weeklySales = (allSalesForOutlet || []).filter((sale: any) => {
-      const saleDate = getSaleDateValue(sale, sessionDateMap);
-      return saleDate >= weekStartDate && saleDate <= date;
-    });
-
-    const { data: weeklyExpenses } = await supabase.from('expenses')
-      .select('date, amount, category')
-      .eq('outlet_id', outletId)
-      .gte('date', weekStartDate)
-      .lte('date', date);
+    const sales = (salesTodayResult.data || []) as any[];
+    const weeklySales = (weeklySalesResult.data || []) as any[];
+    const filteredAllSales = (cumulativeSalesResult.data || []) as any[];
+    const expenses = (expensesTodayResult.data || []) as any[];
+    const weeklyExpenses = (weeklyExpensesResult.data || []) as any[];
+    const allExpenses = (allExpensesResult.data || []) as any[];
+    const cashTransactions = (cashTransactionsResult.data || []) as any[];
+    const allCashTransactions = (allCashTransactionsResult.data || []) as any[];
 
     // ===== TODAY (HARIAN) CALCULATION =====
     
@@ -194,12 +226,6 @@ export async function GET(request: NextRequest) {
       0
     ) || 0;
 
-    // Get ALL cash transactions for cumulative
-    const { data: allCashTransactions } = await supabase.from('cash_transactions')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .lte('transaction_date', date);
-
     const cumulative_cash_inflow = allCashTransactions?.reduce(
       (sum: number, tx: any) => sum + (tx.transaction_type === 'inflow' ? (tx.amount || 0) : 0),
       0
@@ -251,16 +277,10 @@ export async function GET(request: NextRequest) {
 
     // ===== CUMULATIVE (TOTAL) CALCULATION =====
 
-    const filteredAllSales = (allSalesForOutlet || []).filter((sale: any) => {
+    const cumulativeSales = (filteredAllSales || []).filter((sale: any) => {
       const saleDate = getSaleDateValue(sale, sessionDateMap);
       return !saleDate || saleDate <= date;
     });
-
-    // Get ALL expenses up to today
-    const { data: allExpenses } = await supabase.from('expenses')
-      .select('*')
-      .eq('outlet_id', outletId)
-      .lte('date', date);
 
     // STEP 1: Calculate Cumulative Gross Revenue by Channel
     const cumulative_revenue_by_channel = {

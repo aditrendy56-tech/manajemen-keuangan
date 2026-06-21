@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -130,7 +130,7 @@ export function BatchSaleForm({
   const [diskonLangsungRows, setDiskonLangsungRows] = useState<DiskonLangsungRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [products, setProducts] = useState<Array<{ id: string; name: string; price?: number; price_offline?: number; price_shopeefood?: number; price_gofood?: number }>>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string; category?: string | null; price?: number; price_offline?: number; price_shopeefood?: number; price_gofood?: number }>>([]);
 
   useEffect(() => {
     async function loadProducts() {
@@ -171,7 +171,34 @@ export function BatchSaleForm({
     setSearchTerm('');
   }
 
-  const filteredProducts = products.filter((product) => product.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return products;
+    return products.filter((product) => product.name.toLowerCase().includes(normalizedSearch));
+  }, [products, searchTerm]);
+
+  const groupedProducts = useMemo(() => {
+    return filteredProducts.reduce((acc, product) => {
+      const category = product.category || 'Tanpa Kategori';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(product);
+      return acc;
+    }, {} as Record<string, typeof filteredProducts>);
+  }, [filteredProducts]);
+
+  const sortedCategories = useMemo(() => {
+    const categoryOrder = ['satu varian', 'dua varian', 'premium'];
+    return Object.keys(groupedProducts).sort((a, b) => {
+      const aIndex = categoryOrder.indexOf(a.toLowerCase());
+      const bIndex = categoryOrder.indexOf(b.toLowerCase());
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [groupedProducts]);
 
   function addRow() {
     const fallbackProduct = filteredProducts[0] || products[0];
@@ -488,47 +515,24 @@ export function BatchSaleForm({
             <div className="py-6 text-center text-sm text-slate-500">Tidak ada menu cocok</div>
           ) : (
             <div className="space-y-6">
-              {(() => {
-                // Group products by category
-                const grouped = filteredProducts.reduce((acc, product) => {
-                  const category = product.category || 'Tanpa Kategori';
-                  if (!acc[category]) {
-                    acc[category] = [];
-                  }
-                  acc[category].push(product);
-                  return acc;
-                }, {} as Record<string, typeof filteredProducts>);
-
-                // Sort categories: 'satu varian', 'dua varian', 'premium' first, then others
-                const categoryOrder = ['satu varian', 'dua varian', 'premium'];
-                const sortedCategories = Object.keys(grouped).sort((a, b) => {
-                  const aIndex = categoryOrder.indexOf(a.toLowerCase());
-                  const bIndex = categoryOrder.indexOf(b.toLowerCase());
-                  if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                  if (aIndex !== -1) return -1;
-                  if (bIndex !== -1) return 1;
-                  return a.localeCompare(b);
-                });
-
-                return sortedCategories.map((category) => (
-                  <div key={category} className="space-y-2">
-                    <p className="text-xs font-medium text-slate-500">{category}</p>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {grouped[category].map((product) => (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => addProductAsItem(product)}
-                          className="rounded-2xl border border-slate-200 bg-white p-3 text-left text-sm transition-shadow duration-150 hover:border-orange-300 hover:bg-orange-50 shadow-sm"
-                        >
-                          <p className="truncate font-semibold text-slate-900">{product.name}</p>
-                          <p className="mt-1 text-sm text-orange-700 font-semibold">Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}</p>
-                        </button>
-                      ))}
-                    </div>
+              {sortedCategories.map((category) => (
+                <div key={category} className="space-y-2">
+                  <p className="text-xs font-medium text-slate-500">{category}</p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {groupedProducts[category].map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => addProductAsItem(product)}
+                        className="rounded-2xl border border-slate-200 bg-white p-3 text-left text-sm transition-shadow duration-150 hover:border-orange-300 hover:bg-orange-50 shadow-sm"
+                      >
+                        <p className="truncate font-semibold text-slate-900">{product.name}</p>
+                        <p className="mt-1 text-sm text-orange-700 font-semibold">Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}</p>
+                      </button>
+                    ))}
                   </div>
-                ));
-              })()}
+                </div>
+              ))}
             </div>
           )}
         </div>

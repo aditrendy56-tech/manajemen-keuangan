@@ -1,21 +1,41 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, TrendingUp, ShoppingCart, Zap, ChevronRight, ChevronDown } from 'lucide-react';
-import { RevenueByChannelChart } from '@/components/charts/RevenueByChannelChart';
-import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
-import { DailyProfitChart } from '@/components/charts/DailyProfitChart';
-import { ExpenseDetailsModal } from '@/components/modals/ExpenseDetailsModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DashboardMetrics } from '@/types';
 import { useOutlet } from '@/lib/context/OutletContext';
-import { DualBucketFinancialDisplay } from '@/components/dashboard/DualBucketFinancialDisplay';
-import { KasUtamaTracking } from '@/components/dashboard/KasUtamaTracking';
-import { RepaymentSummary } from '@/components/dashboard/RepaymentSummary';
+
+const RevenueByChannelChart = dynamic(
+  () => import('@/components/charts/RevenueByChannelChart').then((mod) => mod.RevenueByChannelChart),
+  { ssr: false, loading: () => <Card className="h-64 animate-pulse" /> }
+);
+const PaymentMethodChart = dynamic(
+  () => import('@/components/charts/PaymentMethodChart').then((mod) => mod.PaymentMethodChart),
+  { ssr: false, loading: () => <Card className="h-64 animate-pulse" /> }
+);
+const DailyProfitChart = dynamic(
+  () => import('@/components/charts/DailyProfitChart').then((mod) => mod.DailyProfitChart),
+  { ssr: false, loading: () => <Card className="h-64 animate-pulse" /> }
+);
+const ExpenseDetailsModal = dynamic(
+  () => import('@/components/modals/ExpenseDetailsModal').then((mod) => mod.ExpenseDetailsModal),
+  { ssr: false }
+);
+const DualBucketFinancialDisplay = dynamic(
+  () => import('@/components/dashboard/DualBucketFinancialDisplay').then((mod) => mod.DualBucketFinancialDisplay),
+  { ssr: false, loading: () => <Card className="h-32 animate-pulse" /> }
+);
+const KasUtamaTracking = dynamic(
+  () => import('@/components/dashboard/KasUtamaTracking').then((mod) => mod.KasUtamaTracking),
+  { ssr: false, loading: () => <div className="h-24 animate-pulse rounded-lg border border-gray-200 bg-gray-50" /> }
+);
+
 
 // Channel Detail Card Component
-function ChannelDetailCard({
+const ChannelDetailCard = memo(function ChannelDetailCard({
   channel,
   amount,
   timeFilter,
@@ -104,6 +124,44 @@ function ChannelDetailCard({
       </CardContent>
     </Card>
   );
+});
+
+function DashboardLoadingState() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="h-8 w-48 animate-pulse rounded bg-gray-200" />
+        <div className="h-4 w-80 animate-pulse rounded bg-gray-200" />
+        <div className="h-10 w-36 animate-pulse rounded-full bg-gray-200" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Card key={index} className="animate-pulse">
+            <CardHeader className="pb-3">
+              <div className="h-4 w-3/4 rounded bg-gray-200" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 w-1/2 rounded bg-gray-200" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Card key={index} className="animate-pulse">
+            <CardHeader className="pb-3">
+              <div className="h-4 w-1/2 rounded bg-gray-200" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-20 rounded bg-gray-200" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -119,58 +177,120 @@ export default function DashboardPage() {
   >(null);
   const { outletId } = useOutlet();
 
-  const fetchMetrics = useCallback(async () => {
+  const persistMetrics = useCallback((value: DashboardMetrics) => {
+    if (typeof window === 'undefined' || !outletId) return;
+
     try {
       const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(`/api/dashboard?outlet_id=${outletId}&date=${today}`);
-      if (!response.ok) throw new Error('Failed to fetch metrics');
-      const data = await response.json();
-      setMetrics(data);
+      const cacheKey = `dashboard-metrics:${outletId}:${today}`;
+      window.localStorage.setItem(cacheKey, JSON.stringify({ metrics: value, cachedAt: Date.now() }));
     } catch (error) {
-      console.error('Failed to fetch metrics:', error);
-      // Set empty data on error
-      setMetrics({
-        today_gross_revenue: 0,
-        today_pendapatan_bersih: 0,
-        today_profit: 0,
-        today_inventory_purchases: 0,
-        today_operational_expenses: 0,
-        cash_from_modal: 0,
-        cash_from_sales: 0,
-        expense_from_kas: 0,
-        expense_from_modal: 0,
-        available_for_distribution: 0,
-        today_revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
-        today_payment_methods: { cash: 0, qris: 0 },
-        today_cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
-        today_expense_by_category: { bahan: 0, operasional: 0, peralatan: 0 },
-        top_products: [],
-        weekly_profit: [],
-        today_cash_inflow: 0,
-        today_cash_outflow: 0,
-        today_pending_sales: 0,
-        today_pending_expenses: 0,
-        cumulative_profit: 0,
-        profit_detail: {},
-        capital_entries: [],
-      } as DashboardMetrics);
-    } finally {
-      setLoading(false);
+      console.warn('Failed to cache dashboard metrics:', error);
     }
   }, [outletId]);
 
-  useEffect(() => {
-    if (!outletId) return;
+  const readCachedMetrics = useCallback(() => {
+    if (typeof window === 'undefined' || !outletId) return null;
 
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const cacheKey = `dashboard-metrics:${outletId}:${today}`;
+      const cached = window.localStorage.getItem(cacheKey);
+      if (!cached) return null;
+
+      const parsed = JSON.parse(cached) as { metrics?: DashboardMetrics; cachedAt?: number };
+      if (!parsed.metrics || typeof parsed.cachedAt !== 'number') return null;
+
+      const isFresh = Date.now() - parsed.cachedAt < 5 * 60 * 1000;
+      return isFresh ? parsed.metrics : null;
+    } catch (error) {
+      console.warn('Failed to read cached dashboard metrics:', error);
+      return null;
+    }
+  }, [outletId]);
+
+  const fetchMetrics = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/dashboard?outlet_id=${outletId}&date=${today}`, { signal });
+      if (!response.ok) throw new Error('Failed to fetch metrics');
+      const data = await response.json();
+      if (!signal?.aborted) {
+        setMetrics(data);
+        persistMetrics(data);
+      }
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        return;
+      }
+
+      console.error('Failed to fetch metrics:', error);
+      if (!signal?.aborted) {
+        const cachedMetrics = readCachedMetrics();
+        if (cachedMetrics) {
+          setMetrics(cachedMetrics);
+        } else {
+          setMetrics({
+            today_gross_revenue: 0,
+            today_pendapatan_bersih: 0,
+            today_profit: 0,
+            today_inventory_purchases: 0,
+            today_operational_expenses: 0,
+            cash_from_modal: 0,
+            cash_from_sales: 0,
+            expense_from_kas: 0,
+            expense_from_modal: 0,
+            available_for_distribution: 0,
+            today_revenue_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+            today_payment_methods: { cash: 0, qris: 0 },
+            today_cash_inflow_by_channel: { offline: 0, shopeefood: 0, gofood: 0 },
+            today_expense_by_category: { bahan: 0, operasional: 0, peralatan: 0 },
+            top_products: [],
+            weekly_profit: [],
+            today_cash_inflow: 0,
+            today_cash_outflow: 0,
+            today_pending_sales: 0,
+            today_pending_expenses: 0,
+            cumulative_profit: 0,
+            profit_detail: {},
+            capital_entries: [],
+          } as DashboardMetrics);
+        }
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
+  }, [outletId, persistMetrics, readCachedMetrics]);
+
+  useEffect(() => {
+    if (!outletId) {
+      setLoading(false);
+      return;
+    }
+
+    const cachedMetrics = readCachedMetrics();
+    if (cachedMetrics) {
+      setMetrics(cachedMetrics);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
-      void fetchMetrics();
+      void fetchMetrics(controller.signal);
     }, 0);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [fetchMetrics, outletId]);
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [fetchMetrics, outletId, readCachedMetrics]);
 
   if (loading) {
-    return <div className="text-center py-8">Memuat data...</div>;
+    return <DashboardLoadingState />;
   }
 
   if (!metrics) {
@@ -362,15 +482,7 @@ export default function DashboardPage() {
 
       {/* 💰 SECTION 2.5: KAS UTAMA TRACKING BREAKDOWN (PHASE 2) */}
       {outletId && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-lg font-semibold mb-4">📊 Tracking Kas Utama</h2>
-          <KasUtamaTracking outletId={outletId} />
-        </div>
-      )}
-
-      {/* 📤 PHASE 4: REPAYMENT SUMMARY */}
-      {outletId && (
-        <RepaymentSummary outletId={outletId} />
+        <KasUtamaTracking outletId={outletId} />
       )}
 
       {/* PHASE 2: Cash Inflow Breakdown by Channel */}

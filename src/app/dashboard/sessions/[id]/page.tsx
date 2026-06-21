@@ -1,6 +1,6 @@
  'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,52 +53,66 @@ export default function SessionDetailPage() {
       setSales([]);
       setExpenses([]);
       setPurchases([]);
+      setLoading(false);
       return;
     }
 
     try {
-      const salesRes = await fetch(`/api/sales?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
-      const salesData = salesRes.ok ? await salesRes.json() : [];
-      setSales(Array.isArray(salesData) ? salesData : []);
-    } catch (e) {
-      console.warn('Failed to fetch sales:', e);
-      setSales([]);
-    }
-
-    try {
       const dateQuery = sessionDate ? `&date=${encodeURIComponent(sessionDate)}` : '';
-      const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}${dateQuery}&limit=500`);
-      const expensesData = expensesRes.ok ? await expensesRes.json() : [];
-
-      const sourceExpenses = Array.isArray(expensesData) ? expensesData : [];
-      const filteredExpenses = sessionDate
-        ? sourceExpenses.filter((exp: ExpenseSessionRecord) => {
-            return exp.date === sessionDate || exp.sessions?.date === sessionDate;
+      const [salesResult, expensesResult, purchasesResult] = await Promise.all([
+        fetch(`/api/sales?outlet_id=${outletId}&session_id=${sessionId}&limit=500`)
+          .then(async (res) => {
+            if (!res.ok) return [];
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
           })
-        : sourceExpenses;
+          .catch((e) => {
+            console.warn('Failed to fetch sales:', e);
+            return [];
+          }),
+        fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}${dateQuery}&limit=500`)
+          .then(async (res) => {
+            if (!res.ok) return [];
+            const data = await res.json();
+            const sourceExpenses = Array.isArray(data) ? data : [];
+            return sessionDate
+              ? sourceExpenses.filter((exp: ExpenseSessionRecord) => {
+                  return exp.date === sessionDate || exp.sessions?.date === sessionDate;
+                })
+              : sourceExpenses;
+          })
+          .catch((e) => {
+            console.warn('Failed to fetch expenses:', e);
+            return [];
+          }),
+        fetch(`/api/material-purchases?outlet_id=${outletId}&session_id=${sessionId}`)
+          .then(async (res) => {
+            if (!res.ok) return [];
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
+          })
+          .catch((e) => {
+            console.warn('Failed to fetch material purchases:', e);
+            return [];
+          }),
+      ]);
 
-      setExpenses(filteredExpenses);
+      setSales(salesResult);
+      setExpenses(expensesResult);
+      setPurchases(purchasesResult);
     } catch (e) {
-      console.warn('Failed to fetch expenses:', e);
+      console.warn('Failed to load session detail data:', e);
+      setSales([]);
       setExpenses([]);
-    }
-
-    try {
-      const purchasesRes = await fetch(`/api/material-purchases?outlet_id=${outletId}&session_id=${sessionId}`);
-      const purchasesData = purchasesRes.ok ? await purchasesRes.json() : [];
-      setPurchases(Array.isArray(purchasesData) ? purchasesData : []);
-    } catch (e) {
-      console.warn('Failed to fetch material purchases:', e);
       setPurchases([]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   useEffect(() => {
     async function load() {
       if (!sessionId) return;
-      setLoading(true);
       setError(null);
       try {
         const sessionRes = await fetch(`/api/sessions/${sessionId}`);
@@ -106,13 +120,13 @@ export default function SessionDetailPage() {
         const sessionData = await sessionRes.json();
         setSession(sessionData || null);
 
-        // fetch sales, expenses, purchases, and cash transactions
         await loadData(sessionData?.date);
       } catch (err: any) {
         console.error('Error loading session detail:', err);
         setError(err.message || 'Failed to load data');
-      } finally {
-        setLoading(false);
+        setSales([]);
+        setExpenses([]);
+        setPurchases([]);
       }
     }
     load();

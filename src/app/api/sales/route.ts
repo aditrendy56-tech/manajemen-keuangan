@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
     const outletId = searchParams.get('outlet_id');
     const sessionId = searchParams.get('session_id');
     const limit = searchParams.get('limit') || '20';
+    const summary = searchParams.get('summary') === 'true';
+    const includeItems = searchParams.get('include_items') !== 'false';
 
     if (!outletId) {
       return NextResponse.json({ error: 'outlet_id required' }, { status: 400 });
@@ -26,14 +28,43 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Get sales with joined sale_items for full transaction details.
     let query = supabase
       .from('sales')
       .select(
-        `
-        *,
-        sale_items (id, product_id, quantity, unit_price, subtotal, cost_price)
-      `
+        summary || !includeItems
+          ? `
+            id,
+            outlet_id,
+            session_id,
+            channel,
+            channel_type,
+            platform,
+            payment_method,
+            gross_amount,
+            calculated_total,
+            fee_amount,
+            fee_percentage,
+            platform_fee,
+            net_amount,
+            payment_status,
+            refund_amount,
+            type,
+            created_at,
+            updated_at,
+            product_id,
+            product_name,
+            quantity,
+            notes,
+            custom_description,
+            total_discounts,
+            diskon_menu_total,
+            diskon_langsung_total,
+            item_count
+          `
+          : `
+            *,
+            sale_items (id, product_id, quantity, unit_price, subtotal, cost_price)
+          `
       )
       .eq('outlet_id', outletId);
 
@@ -51,20 +82,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
-    // Collect all product IDs (from sale_items or custom pricing product_id)
+    if (summary || !includeItems) {
+      return NextResponse.json(salesWithItems || []);
+    }
+
     const productIds = new Set<string>();
     salesWithItems.forEach((sale: any) => {
-      // From sale_items
       if (Array.isArray(sale.sale_items)) {
         sale.sale_items.forEach((item: any) => {
           if (item.product_id) productIds.add(item.product_id);
         });
       }
-      // From custom pricing
       if (sale.product_id) productIds.add(sale.product_id);
     });
 
-    // Fetch product names
     const productMap = new Map<string, string>();
     if (productIds.size > 0) {
       const { data: products } = await supabase
@@ -77,7 +108,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Enrich sales data with product names and full item details.
     const enrichedData = salesWithItems.map((sale: any) => {
       const saleItems = Array.isArray(sale.sale_items)
         ? sale.sale_items.map((item: any) => ({

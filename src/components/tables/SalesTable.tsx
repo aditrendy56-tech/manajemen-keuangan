@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,59 @@ type SaleLineItem = NonNullable<Sale['sale_items']>[number];
 type DiscountMenuEntry = NonNullable<Sale['diskon_menu_items']>[number];
 type DiscountDirectEntry = NonNullable<Sale['diskon_langsung']>[number];
 
-export function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard = true }: SalesTableProps) {
+function toNumber(value: number | string | null | undefined): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function calcTotal(items: Sale[]) {
+  return items.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+}
+
+function calcGross(items: Sale[]) {
+  return items.reduce((sum, s) => sum + (s.gross_amount || 0), 0);
+}
+
+function calcFee(items: Sale[]) {
+  return items.reduce((sum, s) => sum + (s.platform_fee || 0), 0);
+}
+
+function calcHppTotal(items: Sale[]) {
+  return items.reduce((sum, s) => {
+    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
+      return sum + s.sale_items.reduce((itemSum, item) => {
+        const qty = item.quantity || 1;
+        const costPrice = Number(item.cost_price ?? item.hpp_amount ?? 0);
+        return itemSum + (costPrice * qty);
+      }, 0);
+    }
+    return sum;
+  }, 0);
+}
+
+function calcDiscountTotal(items: Sale[]) {
+  return items.reduce((sum, s) => {
+    const diskonMenuTotal = s.diskon_menu_total ?? (Array.isArray(s.diskon_menu_items)
+      ? s.diskon_menu_items.reduce((itemSum, item) => itemSum + (((item.price_normal || item.unit_price || 0) - (item.price_after_diskon || item.unit_price || 0)) * (item.qty || item.quantity || 1)), 0)
+      : 0);
+    const diskonLangsungTotal = s.diskon_langsung_total ?? (Array.isArray(s.diskon_langsung)
+      ? s.diskon_langsung.reduce((itemSum, item) => itemSum + (item.amount || 0), 0)
+      : 0);
+    return sum + (s.total_discounts ?? (diskonMenuTotal + diskonLangsungTotal));
+  }, 0);
+}
+
+function calcItemCount(items: Sale[]) {
+  return items.reduce((sum, s) => {
+    if (typeof s.item_count === 'number' && s.item_count > 0) return sum + s.item_count;
+    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
+      return sum + s.sale_items.reduce((itemSum, item) => itemSum + (item.quantity || 1), 0);
+    }
+    return sum + (s.quantity || 1);
+  }, 0);
+}
+
+export const SalesTable = memo(function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard = true }: SalesTableProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     offlineCash: true,
     offlineQRIS: true,
@@ -46,11 +98,6 @@ export function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard 
     })
   );
 
-  function toNumber(value: number | string | null | undefined): number {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  }
-
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
       ...prev,
@@ -68,78 +115,51 @@ export function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard 
     setSelectedRefunds(newSelected);
   };
 
-  // Group sales by channel/method (non-refunded)
-  const offlineCash = sales.filter(
-    (s) => s.channel_type === 'offline' && s.payment_method === 'cash' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  const offlineCash = useMemo(
+    () => sales.filter((s) => s.channel_type === 'offline' && s.payment_method === 'cash' && s.type !== 'custom' && s.payment_status !== 'refunded'),
+    [sales]
   );
 
-  const offlineQRIS = sales.filter(
-    (s) => s.channel_type === 'offline' && s.payment_method === 'qris' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  const offlineQRIS = useMemo(
+    () => sales.filter((s) => s.channel_type === 'offline' && s.payment_method === 'qris' && s.type !== 'custom' && s.payment_status !== 'refunded'),
+    [sales]
   );
 
-  const offlineSplit = sales.filter(
-    (s) => s.channel_type === 'offline' && s.payment_method === 'split' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  const offlineSplit = useMemo(
+    () => sales.filter((s) => s.channel_type === 'offline' && s.payment_method === 'split' && s.type !== 'custom' && s.payment_status !== 'refunded'),
+    [sales]
   );
 
-  const gofood = sales.filter(
-    (s) => String(s.platform || '').toLowerCase() === 'gofood' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  const gofood = useMemo(
+    () => sales.filter((s) => String(s.platform || '').toLowerCase() === 'gofood' && s.type !== 'custom' && s.payment_status !== 'refunded'),
+    [sales]
   );
 
-  const shopeefood = sales.filter(
-    (s) => String(s.platform || '').toLowerCase() === 'shopeefood' && s.type !== 'custom' && s.payment_status !== 'refunded'
+  const shopeefood = useMemo(
+    () => sales.filter((s) => String(s.platform || '').toLowerCase() === 'shopeefood' && s.type !== 'custom' && s.payment_status !== 'refunded'),
+    [sales]
   );
 
-  const custom = sales.filter((s) => s.type === 'custom' && s.payment_status !== 'refunded');
-  const refunded = sales.filter((s) => s.payment_status === 'refunded');
+  const custom = useMemo(() => sales.filter((s) => s.type === 'custom' && s.payment_status !== 'refunded'), [sales]);
+  const refunded = useMemo(() => sales.filter((s) => s.payment_status === 'refunded'), [sales]);
 
-  // Calculate totals
-  const calcTotal = (items: Sale[]) => items.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-  const calcGross = (items: Sale[]) => items.reduce((sum, s) => sum + (s.gross_amount || 0), 0);
-  const calcFee = (items: Sale[]) => items.reduce((sum, s) => sum + (s.platform_fee || 0), 0);
-  const calcHppTotal = (items: Sale[]) => items.reduce((sum, s) => {
-    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
-      return sum + s.sale_items.reduce((itemSum, item) => {
-        const qty = item.quantity || 1;
-        const costPrice = Number(item.cost_price ?? item.hpp_amount ?? 0);
-        return itemSum + (costPrice * qty);
-      }, 0);
-    }
-    return sum;
-  }, 0);
-  const calcDiscountTotal = (items: Sale[]) => items.reduce((sum, s) => {
-    const diskonMenuTotal = s.diskon_menu_total ?? (Array.isArray(s.diskon_menu_items)
-      ? s.diskon_menu_items.reduce((itemSum, item) => itemSum + (((item.price_normal || item.unit_price || 0) - (item.price_after_diskon || item.unit_price || 0)) * (item.qty || item.quantity || 1)), 0)
-      : 0);
-    const diskonLangsungTotal = s.diskon_langsung_total ?? (Array.isArray(s.diskon_langsung)
-      ? s.diskon_langsung.reduce((itemSum, item) => itemSum + (item.amount || 0), 0)
-      : 0);
-    return sum + (s.total_discounts ?? (diskonMenuTotal + diskonLangsungTotal));
-  }, 0);
-  const calcItemCount = (items: Sale[]) => items.reduce((sum, s) => {
-    if (typeof s.item_count === 'number' && s.item_count > 0) return sum + s.item_count;
-    if (Array.isArray(s.sale_items) && s.sale_items.length > 0) {
-      return sum + s.sale_items.reduce((itemSum, item) => itemSum + (item.quantity || 1), 0);
-    }
-    return sum + (s.quantity || 1);
-  }, 0);
+  const offlineCashTotal = useMemo(() => calcTotal(offlineCash), [offlineCash]);
+  const offlineQRISTotal = useMemo(() => calcTotal(offlineQRIS), [offlineQRIS]);
+  const offlineSplitTotal = useMemo(() => calcTotal(offlineSplit), [offlineSplit]);
+  const offlineTotal = useMemo(() => offlineCashTotal + offlineQRISTotal + offlineSplitTotal, [offlineCashTotal, offlineQRISTotal, offlineSplitTotal]);
 
-  const offlineCashTotal = calcTotal(offlineCash);
-  const offlineQRISTotal = calcTotal(offlineQRIS);
-  const offlineSplitTotal = calcTotal(offlineSplit);
-  const offlineTotal = offlineCashTotal + offlineQRISTotal + offlineSplitTotal;
+  const gofoodGross = useMemo(() => calcGross(gofood), [gofood]);
+  const gofoodFee = useMemo(() => calcFee(gofood), [gofood]);
+  const gofoodNet = useMemo(() => gofoodGross - gofoodFee, [gofoodGross, gofoodFee]);
 
-  const gofoodGross = calcGross(gofood);
-  const gofoodFee = calcFee(gofood);
-  const gofoodNet = gofoodGross - gofoodFee;
+  const shopeefoodGross = useMemo(() => calcGross(shopeefood), [shopeefood]);
+  const shopeefoodFee = useMemo(() => calcFee(shopeefood), [shopeefood]);
+  const shopeefoodNet = useMemo(() => shopeefoodGross - shopeefoodFee, [shopeefoodGross, shopeefoodFee]);
 
-  const shopeefoodGross = calcGross(shopeefood);
-  const shopeefoodFee = calcFee(shopeefood);
-  const shopeefoodNet = shopeefoodGross - shopeefoodFee;
-
-  const customTotal = calcTotal(custom);
-  const totalHpp = calcHppTotal(sales.filter((s) => s.payment_status !== 'refunded'));
-  const grandTotal = offlineTotal + gofoodNet + shopeefoodNet + customTotal;
-  const netRevenueAfterHpp = grandTotal - totalHpp;
+  const customTotal = useMemo(() => calcTotal(custom), [custom]);
+  const totalHpp = useMemo(() => calcHppTotal(sales.filter((s) => s.payment_status !== 'refunded')), [sales]);
+  const grandTotal = useMemo(() => offlineTotal + gofoodNet + shopeefoodNet + customTotal, [offlineTotal, gofoodNet, shopeefoodNet, customTotal]);
+  const netRevenueAfterHpp = useMemo(() => grandTotal - totalHpp, [grandTotal, totalHpp]);
 
   function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0, sectionKey: string = '') {
     const isRefundable = sale.payment_status !== 'refunded';
@@ -902,4 +922,4 @@ export function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard 
       <CardContent>{content}</CardContent>
     </Card>
   );
-}
+});
