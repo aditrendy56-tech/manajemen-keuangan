@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const { outletId } = useOutlet();
   const [products, setProducts] = useState<Product[]>([]);
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [priceOffline, setPriceOffline] = useState('');
   const [priceShopeefood, setPriceShopeefood] = useState('');
@@ -26,6 +27,7 @@ export default function ProductsPage() {
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editPriceOffline, setEditPriceOffline] = useState('');
   const [editPriceShopeefood, setEditPriceShopeefood] = useState('');
@@ -76,6 +78,10 @@ export default function ProductsPage() {
 
   async function handleAddProduct() {
     const anyPrice = price || priceOffline || priceShopeefood || priceGofood;
+    if (!category) {
+      alert('Pilih kategori produk terlebih dahulu');
+      return;
+    }
     if (!name || !anyPrice) {
       alert('Nama produk dan minimal satu harga harus diisi');
       return;
@@ -91,6 +97,7 @@ export default function ProductsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outlet_id: outletId,
+          category,
           name,
           price_offline: priceOffline ? parseFloat(priceOffline) : price ? parseFloat(price) : null,
           price_shopeefood: priceShopeefood ? parseFloat(priceShopeefood) : price ? parseFloat(price) : null,
@@ -111,6 +118,7 @@ export default function ProductsPage() {
         setPriceGofood('');
         setCostPrice('');
         setDescription('');
+        setCategory('');
       } else {
         const data = await response.json().catch(() => ({}));
         alert(data.error || 'Gagal menambah produk');
@@ -123,8 +131,29 @@ export default function ProductsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Hapus produk ini?')) return;
-    alert('Fitur delete belum tersedia');
+    if (!confirm('Hapus produk ini? Semua penjualan yang memakai produk ini akan dihapus dari database.')) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProducts((currentProducts) => currentProducts.filter((p) => p.id !== id));
+        alert(`Produk berhasil dihapus. ${data.cleaned_sales || 0} penjualan dibersihkan.`);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Gagal menghapus produk');
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Error menghapus produk');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleToggle(id: string, is_active: boolean) {
@@ -145,6 +174,7 @@ export default function ProductsPage() {
     }
     setEditingId(product.id);
     setEditName(product.name);
+    setEditCategory(product.category || '');
     setEditPrice(product.price?.toString() || '');
     setEditPriceOffline(product.price_offline?.toString() || '');
     setEditPriceShopeefood(product.price_shopeefood?.toString() || '');
@@ -176,6 +206,11 @@ export default function ProductsPage() {
       return;
     }
 
+    if (!editCategory) {
+      alert('Pilih kategori produk');
+      return;
+    }
+
     const anyPrice = editPrice || editPriceOffline || editPriceShopeefood || editPriceGofood;
     if (!anyPrice) {
       alert('Minimal satu harga harus diisi');
@@ -188,6 +223,7 @@ export default function ProductsPage() {
       const finalCostPrice = editCostPrice ? parseFloat(editCostPrice) : finalPrice * 0.4;
 
       const requestBody = {
+        category: editCategory,
         name: editName,
         price_offline: editPriceOffline ? parseFloat(editPriceOffline) : editPrice ? parseFloat(editPrice) : null,
         price_shopeefood: editPriceShopeefood ? parseFloat(editPriceShopeefood) : editPrice ? parseFloat(editPrice) : null,
@@ -325,18 +361,34 @@ export default function ProductsPage() {
                 </p>
 
                 <div>
+                  <Label htmlFor="product_category">Kategori</Label>
+                  <select
+                    id="product_category"
+                    className="block w-full rounded border p-2"
+                    value={editingId ? editCategory : category}
+                    onChange={(e) => {
+                      if (editingId) setEditCategory(e.target.value);
+                      else setCategory(e.target.value);
+                    }}
+                  >
+                    <option value="">Pilih kategori</option>
+                    <option value="satu varian">satu varian</option>
+                    <option value="dua varian">dua varian</option>
+                    <option value="premium">premium</option>
+                  </select>
+                </div>
+
+                <div>
                   <Label htmlFor="product_name">Nama Produk</Label>
                   <Input
                     id="product_name"
+                    type="text"
                     value={editingId ? editName : name}
                     onChange={(e) => {
-                      if (editingId) {
-                        setEditName(e.target.value);
-                      } else {
-                        setName(e.target.value);
-                      }
+                      if (editingId) setEditName(e.target.value);
+                      else setName(e.target.value);
                     }}
-                    placeholder="Contoh: Roti Bakar Standar"
+                    placeholder="Nama produk"
                   />
                 </div>
 

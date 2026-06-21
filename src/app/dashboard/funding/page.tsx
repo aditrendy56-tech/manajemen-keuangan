@@ -13,7 +13,6 @@ import { Trash2, Plus, Save, Edit2, X, AlertCircle, CheckCircle2, Clock } from '
 import { CapitalEntry, Investor, CapitalRepayment, ProfitAllocation, CashTransaction, DashboardMetrics } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useOutlet } from '@/lib/context/OutletContext';
-import { CashBalanceDashboard } from '@/components/dashboard/CashBalanceDashboard';
 import { ProfitAllocationHistory } from '@/components/tables/ProfitAllocationHistory';
 import { ProfitAllocationApprovalModal } from '@/components/modals/ProfitAllocationApprovalModal';
 
@@ -2297,8 +2296,7 @@ export default function FundingPage() {
         <p className="text-gray-600">Kelola modal, alokasi laba, dan pembayaran</p>
       </div>
 
-      {/* Cash Balance Dashboard - Real-time status kas */}
-      <CashBalanceDashboard outletId={outletId} refreshTrigger={refreshBalance} />
+      {/* Cash Balance Dashboard removed */}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">

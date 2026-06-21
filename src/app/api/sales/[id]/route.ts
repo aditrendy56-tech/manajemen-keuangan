@@ -15,15 +15,26 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const supabase = getSupabaseServer();
 
+    // Debug: Log the ID being searched
+    console.log('[DELETE /api/sales] Attempting to delete sale with ID:', id);
+
     const { data: saleToDelete, error: fetchSaleError } = await supabase
       .from('sales')
-      .select('id, outlet_id, gross_amount, platform_fee')
+      .select('id, outlet_id, gross_amount, platform_fee, session_id, payment_status')
       .eq('id', id)
       .single();
 
-    if (fetchSaleError || !saleToDelete) {
-      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+    if (fetchSaleError) {
+      console.error('[DELETE /api/sales] Fetch error:', fetchSaleError);
+      return NextResponse.json({ error: `Sale not found: ${fetchSaleError.message}` }, { status: 404 });
     }
+
+    if (!saleToDelete) {
+      console.warn('[DELETE /api/sales] Sale returned as null/undefined for ID:', id);
+      return NextResponse.json({ error: 'Sale not found in database' }, { status: 404 });
+    }
+
+    console.log('[DELETE /api/sales] Found sale:', { id, sessionId: saleToDelete.session_id, paymentStatus: saleToDelete.payment_status });
 
     try {
       await revertSalesSplit(

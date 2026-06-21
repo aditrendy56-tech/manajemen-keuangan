@@ -36,6 +36,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('session_id', sessionId);
     }
 
+    const date = searchParams.get('date');
+
+    if (date) {
+      query = query.eq('date', date);
+    }
+
     // Filter by period_id if provided (for tutup buku variance calculation)
     if (periodId) {
       query = query.eq('sessions.period_id', periodId);

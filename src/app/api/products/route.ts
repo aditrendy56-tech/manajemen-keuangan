@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { outlet_id, name, description, price, price_offline, price_shopeefood, price_gofood, is_active } = body;
+    const { outlet_id, name, description, price, price_offline, price_shopeefood, price_gofood, is_active, category } = body;
 
     if (!outlet_id || !name) {
       return NextResponse.json(
@@ -57,6 +57,12 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    const allowedCategories = ['satu varian', 'dua varian', 'premium'];
+
+    if (!category || !allowedCategories.includes(category)) {
+      return NextResponse.json({ error: 'Invalid or missing category. Allowed: ' + allowedCategories.join(', ') }, { status: 400 });
+    }
+
     const insertData: any = {
       outlet_id,
       name,
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
       price_offline: price_offline ?? price ?? fallbackPrice,
       price_shopeefood: price_shopeefood ?? price ?? fallbackPrice,
       price_gofood: price_gofood ?? price ?? fallbackPrice,
+      category,
       cost_price: body.cost_price || 0,
     };
     const { data, error } = await (getSupabaseServer().from('products') as any)

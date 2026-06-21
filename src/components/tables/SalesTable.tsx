@@ -10,6 +10,7 @@ import { Sale } from '@/types';
 interface SalesTableProps {
   sales: Sale[];
   onDelete?: (id: string) => void;
+  onDeleteItems?: (itemIds: string[]) => Promise<void> | void;
   onRefund?: (sale: Sale | Sale[]) => void;
   withCard?: boolean;
 }
@@ -18,7 +19,7 @@ type SaleLineItem = NonNullable<Sale['sale_items']>[number];
 type DiscountMenuEntry = NonNullable<Sale['diskon_menu_items']>[number];
 type DiscountDirectEntry = NonNullable<Sale['diskon_langsung']>[number];
 
-export function SalesTable({ sales, onDelete, onRefund, withCard = true }: SalesTableProps) {
+export function SalesTable({ sales, onDelete, onDeleteItems, onRefund, withCard = true }: SalesTableProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     offlineCash: true,
     offlineQRIS: true,
@@ -30,6 +31,20 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
 
   const [selectedRefunds, setSelectedRefunds] = useState<Set<string>>(new Set());
   const [infoSaleId, setInfoSaleId] = useState<string | null>(null);
+  const [deleteMode, setDeleteMode] = useState<Record<string, boolean>>({
+    offlineCash: false,
+    offlineQRIS: false,
+    offlineSplit: false,
+    custom: false,
+  });
+  const [selectedItemsForDelete, setSelectedItemsForDelete] = useState<Record<string, Set<string>>>(
+    () => ({
+      offlineCash: new Set(),
+      offlineQRIS: new Set(),
+      offlineSplit: new Set(),
+      custom: new Set(),
+    })
+  );
 
   function toNumber(value: number | string | null | undefined): number {
     const n = Number(value);
@@ -126,21 +141,54 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
   const grandTotal = offlineTotal + gofoodNet + shopeefoodNet + customTotal;
   const netRevenueAfterHpp = grandTotal - totalHpp;
 
-  function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0) {
+  function renderItem(sale: Sale, showNetFormat: boolean = false, transactionNumber: number = 0, sectionKey: string = '') {
     const isRefundable = sale.payment_status !== 'refunded';
     const isInfoOpen = infoSaleId === sale.id;
+
+    // Determine color scheme based on section (platform)
+    const getColorScheme = (key: string) => {
+      if (key === 'gofood') {
+        return {
+          border: 'border-2 border-green-600',
+          bg: 'bg-white',
+          hover: 'hover:border-green-700',
+          headerBorder: 'border-b-2 border-green-200',
+          badgeBg: 'bg-green-600 text-white',
+          shadow: 'shadow-sm hover:shadow-md',
+        };
+      } else if (key === 'shopeefood') {
+        return {
+          border: 'border-2 border-orange-600',
+          bg: 'bg-white',
+          hover: 'hover:border-orange-700',
+          headerBorder: 'border-b-2 border-orange-200',
+          badgeBg: 'bg-orange-600 text-white',
+          shadow: 'shadow-sm hover:shadow-md',
+        };
+      }
+      return {
+        border: 'border-2 border-slate-300',
+        bg: 'bg-white',
+        hover: 'hover:border-slate-400',
+        headerBorder: 'border-b-2 border-slate-200',
+        badgeBg: 'bg-slate-300 text-slate-900',
+        shadow: 'shadow-sm hover:shadow-md',
+      };
+    };
 
     if (showNetFormat) {
       const transactionItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
         ? sale.sale_items
         : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.gross_amount || sale.net_amount || 0, subtotal: sale.gross_amount || sale.net_amount || 0 }];
 
+      const colors = getColorScheme(sectionKey);
+
       return (
-        <div key={sale.id} className="py-3 px-4 mb-2 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors">
+        <div key={sale.id} className={`py-4 px-4 mb-4 rounded-lg ${colors.border} ${colors.bg} ${colors.shadow} ${colors.hover} transition-all`}>
           {/* Header dengan Transaction Number & Kontrol */}
-          <div className="flex items-center justify-between mb-3">
+          <div className={`flex items-center justify-between mb-3 pb-3 ${colors.headerBorder}`}>
             <div className="flex items-center gap-3">
-              <span className="inline-block bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+              <span className={`inline-block ${colors.badgeBg} px-3 py-1.5 rounded-full text-sm font-bold`}>
                 Transaksi {transactionNumber}
               </span>
               <span className="text-xs text-slate-500">{sale.id ? sale.id.slice(0, 8) : ''}</span>
@@ -378,9 +426,9 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
     }
   }
 
-  function renderOfflineItemsCombined(sales: Sale[]) {
+  function renderOfflineItemsCombined(sales: Sale[], sectionKey: string = '') {
     // Gabung semua items dari semua transaksi
-    const allItems: Array<SaleLineItem & { transactionId: string; transactionIndex: number }> = [];
+    const allItems: Array<SaleLineItem & { saleId: string; transactionId: string; transactionIndex: number; itemKey: string; itemId?: string }> = [];
     
     sales.forEach((sale, transIndex) => {
       const saleItems = Array.isArray(sale.sale_items) && sale.sale_items.length > 0
@@ -388,15 +436,92 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
         : [{ product_name: sale.product_name || 'Item', quantity: sale.quantity || 1, unit_price: sale.net_amount || 0, subtotal: sale.net_amount || 0 }];
       
       saleItems.forEach((item, itemIndex) => {
+        const itemKey = `${sale.id}-${item.product_id || 'item'}-${itemIndex}`;
         allItems.push({
           ...item,
+          saleId: sale.id,
           transactionId: sale.id,
           transactionIndex: transIndex + 1,
+          itemKey,
+          itemId: item.id,
         });
       });
     });
 
     const totalAmount = allItems.reduce((sum, item) => sum + Number(item.subtotal || (item.quantity || 1) * (item.unit_price || 0)), 0);
+    const isDeleteMode = deleteMode[sectionKey] || false;
+    const selectedItems = selectedItemsForDelete[sectionKey] || new Set();
+
+    const toggleItemSelection = (itemKey: string) => {
+      const newSelected = new Set(selectedItems);
+      if (newSelected.has(itemKey)) {
+        newSelected.delete(itemKey);
+      } else {
+        newSelected.add(itemKey);
+      }
+      setSelectedItemsForDelete((prev) => ({
+        ...prev,
+        [sectionKey]: newSelected,
+      }));
+    };
+
+    const toggleDeleteMode = () => {
+      setDeleteMode((prev) => ({
+        ...prev,
+        [sectionKey]: !prev[sectionKey],
+      }));
+      if (deleteMode[sectionKey]) {
+        // Clear selection saat keluar dari delete mode
+        setSelectedItemsForDelete((prev) => ({
+          ...prev,
+          [sectionKey]: new Set(),
+        }));
+      }
+    };
+
+    const itemKeyToSaleId = new Map<string, string>(
+      allItems.map((item) => [item.itemKey, item.saleId])
+    );
+    const itemKeyToItemId = new Map<string, string | undefined>(
+      allItems.map((item) => [item.itemKey, item.itemId])
+    );
+
+    const handleDeleteSelected = async () => {
+      if (selectedItems.size === 0) return;
+
+      const selectedSaleIds = new Set<string>();
+      const selectedItemIds: string[] = [];
+
+      selectedItems.forEach((itemKey) => {
+        const itemId = itemKeyToItemId.get(itemKey);
+        if (itemId) {
+          selectedItemIds.push(itemId);
+          return;
+        }
+
+        const saleId = itemKeyToSaleId.get(itemKey);
+        if (saleId) {
+          selectedSaleIds.add(saleId);
+        }
+      });
+
+      if (selectedItemIds.length > 0 && onDeleteItems) {
+        await onDeleteItems(selectedItemIds);
+      } else if (selectedSaleIds.size > 0 && onDelete) {
+        selectedSaleIds.forEach((saleId) => {
+          onDelete(saleId);
+        });
+      }
+
+      setSelectedItemsForDelete((prev) => ({
+        ...prev,
+        [sectionKey]: new Set(),
+      }));
+      setDeleteMode((prev) => ({
+        ...prev,
+        [sectionKey]: false,
+      }));
+    };
 
     return (
       <div className="space-y-3">
@@ -404,6 +529,9 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200">
+                {isDeleteMode && (
+                  <th className="px-4 py-2.5 text-center font-semibold text-slate-900 w-12"></th>
+                )}
                 <th className="px-4 py-2.5 text-left font-semibold text-slate-900">Nama Item</th>
                 <th className="px-4 py-2.5 text-right font-semibold text-slate-900">Qty</th>
                 <th className="px-4 py-2.5 text-right font-semibold text-slate-900">Harga Satuan</th>
@@ -412,7 +540,17 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             </thead>
             <tbody>
               {allItems.map((item, idx) => (
-                <tr key={`${item.transactionId}-${item.product_id || 'item'}-${idx}`} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                <tr key={`${item.transactionId}-${item.product_id || 'item'}-${idx}`} className={`border-b border-slate-200 transition-colors ${isDeleteMode && selectedItems.has(item.itemKey) ? 'bg-red-50' : 'hover:bg-slate-50'}`}>
+                  {isDeleteMode && (
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.has(item.itemKey)}
+                        onChange={() => toggleItemSelection(item.itemKey)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-slate-900 font-medium">{item.product_name || 'Item'}</td>
                   <td className="px-4 py-3 text-right text-slate-700">{item.quantity || 1}</td>
                   <td className="px-4 py-3 text-right text-slate-700">Rp {Number(item.unit_price || 0).toLocaleString('id-ID')}</td>
@@ -422,12 +560,36 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             </tbody>
           </table>
         </div>
-        <div className="text-right">
+
+        <div className="text-right mb-3">
           <div className="inline-block border border-slate-300 rounded-lg p-3 bg-slate-50">
             <div className="text-sm text-slate-600 mb-1">Total Penerimaan</div>
             <div className="text-xl font-bold text-slate-900">Rp {totalAmount.toLocaleString('id-ID')}</div>
           </div>
         </div>
+
+        <div className="flex items-center gap-2 justify-start">
+          <button
+            onClick={toggleDeleteMode}
+            className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-red-100 text-red-600 hover:text-red-700 transition-colors"
+            title={isDeleteMode ? 'Batal' : 'Hapus Item'}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {isDeleteMode && selectedItems.size > 0 && (
+          <div className="flex items-center gap-2 justify-end pt-2">
+            <span className="text-sm text-slate-600">{selectedItems.size} item terpilih</span>
+            <button
+              onClick={handleDeleteSelected}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Hapus Terpilih
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -474,9 +636,9 @@ export function SalesTable({ sales, onDelete, onRefund, withCard = true }: Sales
             ) : (
               <>
                 <div className="px-4 py-4">
-                  {isOfflineSection ? renderOfflineItemsCombined(items) : (
+                  {isOfflineSection ? renderOfflineItemsCombined(items, sectionKey) : (
                     <div className="space-y-3">
-                      {items.map((item, index) => renderItem(item, showNetFormat, index + 1))}
+                      {items.map((item, index) => renderItem(item, showNetFormat, index + 1, sectionKey))}
                     </div>
                   )}
                 </div>

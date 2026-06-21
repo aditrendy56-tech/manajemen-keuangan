@@ -1,5 +1,4 @@
-'use client';
-
+"use client";
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +15,6 @@ interface ItemRow {
   product_id?: string | null;
   quantity: number;
   unit_price: number;
-  // Diskon menu fields
   has_diskon_menu?: boolean;
   price_diskon_menu?: number;
 }
@@ -40,7 +38,7 @@ interface SalePayload {
   calculated_total: number;
   fee_amount: number;
   fee_percentage: number;
-  payment_status: string;
+  payment_status: 'settled' | 'pending';
   settlement_date: string | null;
   items: Array<{ product_id?: string | null; quantity: number; unit_price: number }>;
   payment_entries: Array<{
@@ -358,7 +356,7 @@ export function BatchSaleForm({
   } as const;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {!inline && (
         <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
           <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-orange-600 to-orange-500 px-4 py-4 text-white">
@@ -409,7 +407,7 @@ export function BatchSaleForm({
               />
             </div>
           ) : (
-            <div className="space-y-4 bg-white p-4">
+            <div className="space-y-3 bg-white p-4">
               {activeTab === 'split' && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                   <p className="text-xs font-medium text-blue-900 mb-2">Split Payment</p>
@@ -474,10 +472,10 @@ export function BatchSaleForm({
       {!isCustomTab && (
         <>
       {/* SEARCH & SELECT PRODUCTS */}
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm -mt-2">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Cari Menu</p>
-          <p className="text-xs text-slate-500">Klik item untuk menambahkan ke transaksi</p>
+          <p className="text-base font-semibold text-slate-900">Cari Menu</p>
+          <p className="text-sm text-slate-500">Klik item untuk menambahkan ke transaksi</p>
         </div>
         <Input
           value={searchTerm}
@@ -485,28 +483,62 @@ export function BatchSaleForm({
           placeholder="Cari menu..."
           className="text-sm"
         />
-        <div className="max-h-56 overflow-auto rounded-lg border border-dashed border-slate-200 p-2">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3">
           {filteredProducts.length === 0 ? (
-            <div className="py-6 text-center text-xs text-slate-500">Tidak ada menu cocok</div>
+            <div className="py-6 text-center text-sm text-slate-500">Tidak ada menu cocok</div>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  onClick={() => addProductAsItem(product)}
-                  className="rounded-lg border border-slate-200 bg-white p-2 text-left text-xs transition hover:border-orange-300 hover:bg-orange-50"
-                >
-                  <p className="truncate font-semibold text-slate-900">{product.name}</p>
-                  <p className="text-orange-600 font-medium">Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}</p>
-                </button>
-              ))}
+            <div className="space-y-6">
+              {(() => {
+                // Group products by category
+                const grouped = filteredProducts.reduce((acc, product) => {
+                  const category = product.category || 'Tanpa Kategori';
+                  if (!acc[category]) {
+                    acc[category] = [];
+                  }
+                  acc[category].push(product);
+                  return acc;
+                }, {} as Record<string, typeof filteredProducts>);
+
+                // Sort categories: 'satu varian', 'dua varian', 'premium' first, then others
+                const categoryOrder = ['satu varian', 'dua varian', 'premium'];
+                const sortedCategories = Object.keys(grouped).sort((a, b) => {
+                  const aIndex = categoryOrder.indexOf(a.toLowerCase());
+                  const bIndex = categoryOrder.indexOf(b.toLowerCase());
+                  if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                  if (aIndex !== -1) return -1;
+                  if (bIndex !== -1) return 1;
+                  return a.localeCompare(b);
+                });
+
+                return sortedCategories.map((category) => (
+                  <div key={category} className="space-y-2">
+                    <p className="text-xs font-medium text-slate-500">{category}</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {grouped[category].map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => addProductAsItem(product)}
+                          className="rounded-2xl border border-slate-200 bg-white p-3 text-left text-sm transition-shadow duration-150 hover:border-orange-300 hover:bg-orange-50 shadow-sm"
+                        >
+                          <p className="truncate font-semibold text-slate-900">{product.name}</p>
+                          <p className="mt-1 text-sm text-orange-700 font-semibold">Rp {Number(getProductPrice(product) || 0).toLocaleString('id-ID')}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
           )}
         </div>
       </div>
 
       {/* ITEMS LIST - WITH DISKON MENU */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2">
+        <span>🛒</span>
+        <span>Keranjang</span>
+      </div>
       {items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
           <p className="text-sm text-slate-500">Belum ada item. Cari dan klik menu di atas untuk menambahkan.</p>
@@ -597,19 +629,19 @@ export function BatchSaleForm({
       {isOnline && (
         <div className="space-y-3">
           {/* 1. DISKON LANGSUNG SECTION (FIRST) */}
-          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex justify-between items-center mb-3">
-              <p className="text-sm font-semibold text-purple-950">💜 Diskon Langsung</p>
-              <p className="text-xs text-purple-700">{diskonLangsungRows.length} diskon</p>
+              <p className="text-sm font-semibold text-slate-900">🏷️ Diskon Langsung</p>
+              <p className="text-xs text-slate-500">{diskonLangsungRows.length} diskon</p>
             </div>
             
             {diskonLangsungRows.length === 0 ? (
-              <p className="text-xs text-purple-700 mb-3">Klo gada diskon, bisa dikosongkan</p>
+              <p className="text-xs text-slate-500 mb-3">Jika tidak ada diskon, biarkan kosong</p>
             ) : (
-              <div className="space-y-2 mb-3 max-h-48 overflow-auto rounded-lg bg-white p-2 border border-purple-200">
+              <div className="space-y-2 mb-3 max-h-48 overflow-auto rounded-lg bg-white p-2 border border-slate-200">
                 {diskonLangsungRows.map((row) => (
-                  <div key={row.id} className="flex gap-2 items-center text-xs p-2 bg-purple-50 rounded border border-purple-100">
-                    <span className="font-medium text-purple-700 w-12">Diskon {row.urutan}</span>
+                  <div key={row.id} className="flex gap-2 items-center text-xs p-2 bg-white rounded border border-slate-100">
+                    <span className="font-medium text-slate-700 w-12">Diskon {row.urutan}</span>
                     <Input
                       type="number"
                       min="0"
@@ -660,7 +692,7 @@ export function BatchSaleForm({
                   notes: '',
                 }];
               })}
-              className="w-full text-xs h-8 text-purple-700 border-purple-300 hover:bg-purple-100"
+              className="w-full text-xs h-8 text-slate-700 border-slate-300 hover:bg-slate-100"
             >
               + Tambah Diskon
             </Button>

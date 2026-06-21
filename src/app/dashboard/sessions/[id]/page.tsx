@@ -66,15 +66,14 @@ export default function SessionDetailPage() {
     }
 
     try {
-      const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}&limit=500`);
+      const dateQuery = sessionDate ? `&date=${encodeURIComponent(sessionDate)}` : '';
+      const expensesRes = await fetch(`/api/expenses?outlet_id=${outletId}&session_id=${sessionId}${dateQuery}&limit=500`);
       const expensesData = expensesRes.ok ? await expensesRes.json() : [];
 
       const sourceExpenses = Array.isArray(expensesData) ? expensesData : [];
       const filteredExpenses = sessionDate
         ? sourceExpenses.filter((exp: ExpenseSessionRecord) => {
-            const matchesSession = exp.session_id === sessionId;
-            const matchesDate = exp.date === sessionDate || exp.sessions?.date === sessionDate;
-            return matchesSession || matchesDate;
+            return exp.date === sessionDate || exp.sessions?.date === sessionDate;
           })
         : sourceExpenses;
 
@@ -292,6 +291,7 @@ export default function SessionDetailPage() {
     if (!confirm('Hapus penjualan ini? Data akan hilang selamanya.')) return;
 
     try {
+      console.log('[SESSION] Deleting sale:', saleId);
       const response = await fetch(`/api/sales/${saleId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -299,13 +299,49 @@ export default function SessionDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('[SESSION] Delete failed:', errorData);
         throw new Error(errorData.error || 'Gagal menghapus');
       }
 
       await loadData(session?.date);
-      alert('Penjualan dihapus');
+      alert('✅ Penjualan berhasil dihapus');
     } catch (err: any) {
-      alert('Gagal hapus: ' + (err.message || err));
+      console.error('[SESSION] Delete error:', err);
+      alert(`Gagal hapus: ${err.message || err}\n\nHubungi admin jika masalah berlanjut.`);
+    }
+  }
+
+  async function handleDeleteSaleItems(itemIds: string[]) {
+    if (!itemIds || itemIds.length === 0) return;
+    if (!confirm('Hapus item penjualan terpilih? Data akan hilang selamanya.')) return;
+
+    try {
+      console.log('[SESSION] Deleting sale items:', itemIds);
+      const response = await fetch(`/api/sale-items`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: itemIds }),
+      });
+
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          const text = await response.text();
+          console.error('[SESSION] Delete items non-JSON response:', response.status, text);
+          throw new Error(`Gagal menghapus item (status ${response.status})`);
+        }
+
+        console.error('[SESSION] Delete items failed:', response.status, errorData);
+        throw new Error(errorData?.error || `Gagal menghapus item (status ${response.status})`);
+      }
+
+      await loadData(session?.date);
+      alert('✅ Item penjualan berhasil dihapus');
+    } catch (err: any) {
+      console.error('[SESSION] Delete item error:', err);
+      alert(`Gagal hapus item: ${err.message || err}\n\nHubungi admin jika masalah berlanjut.`);
     }
   }
 
@@ -432,8 +468,8 @@ export default function SessionDetailPage() {
         {/* Info banner directing users to Pengeluaran page */}
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-800">
-            💡 <strong>Catatan:</strong> Untuk input pengeluaran baru, gunakan halaman <strong>Pengeluaran</strong> di menu utama. 
+          <p className="text-xs text-blue-800">
+            💡 <strong>Catatan:</strong> Untuk input pengeluaran baru, gunakan halaman <strong>Pengeluaran</strong> di menu utama.
             Pengeluaran akan otomatis muncul di sini jika tanggalnya sesuai dengan hari sesi.
           </p>
         </div>
@@ -458,7 +494,13 @@ export default function SessionDetailPage() {
             <h3 className="text-lg font-bold uppercase tracking-widest text-slate-800">Laporan Penjualan Hari Ini</h3>
             <div className="h-px flex-1 bg-slate-300" />
           </div>
-          <SalesTable sales={sales} onRefund={(sale) => openRefundDialog(sale, 'sale')} onDelete={handleDeleteSale} withCard={false} />
+          <SalesTable
+            sales={sales}
+            onRefund={(sale) => openRefundDialog(sale, 'sale')}
+            onDelete={handleDeleteSale}
+            onDeleteItems={handleDeleteSaleItems}
+            withCard={false}
+          />
         </div>
       </section>
 
